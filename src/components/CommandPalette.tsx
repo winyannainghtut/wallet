@@ -1,0 +1,110 @@
+'use client'
+
+import * as React from 'react'
+import { useRouter } from 'next/navigation'
+import {
+  Calculator,
+  Calendar,
+  CreditCard,
+  Settings,
+  Smile,
+  User,
+  PieChart,
+  Home,
+  PlusCircle,
+  Languages,
+  Plane,
+  Repeat,
+  CalendarDays
+} from 'lucide-react'
+
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from '@/components/ui/command'
+import { getLanguage, t, setLanguage } from '@/i18n/config'
+import { useApp } from '@/contexts/AppContext'
+
+export function CommandPalette() {
+  const [open, setOpen] = React.useState(false)
+  const router = useRouter()
+  const { updateSettings } = useApp()
+  const language = getLanguage()
+
+  React.useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        setOpen((open) => !open)
+      }
+    }
+
+    document.addEventListener('keydown', down)
+    return () => document.removeEventListener('keydown', down)
+  }, [])
+
+  const runCommand = React.useCallback((command: () => unknown) => {
+    setOpen(false)
+    command()
+  }, [])
+
+  return (
+    <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandInput placeholder={t('common.commandPalette')} />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandGroup heading={t('common.navigation')}>
+          <CommandItem onSelect={() => runCommand(() => router.push('/'))}>
+            <Home className="mr-2 h-4 w-4" />
+            <span>{t('nav.dashboard')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/add'))}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            <span>{t('nav.addExpense')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/history'))}>
+            <Calendar className="mr-2 h-4 w-4" />
+            <span>{t('nav.history')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/reports'))}>
+            <PieChart className="mr-2 h-4 w-4" />
+            <span>{t('nav.reports')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/calendar'))}>
+            <CalendarDays className="mr-2 h-4 w-4" />
+            <span>{t('nav.calendar')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/trips'))}>
+            <Plane className="mr-2 h-4 w-4" />
+            <span>{t('nav.trips')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/subscriptions'))}>
+            <Repeat className="mr-2 h-4 w-4" />
+            <span>{t('nav.subscriptions')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/settings'))}>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>{t('nav.settings')}</span>
+          </CommandItem>
+        </CommandGroup>
+        <CommandSeparator />
+        <CommandGroup heading={t('common.quickActions')}>
+          <CommandItem onSelect={() => runCommand(() => {
+            const nextLang = language === 'en' ? 'my' : 'en'
+            setLanguage(nextLang)
+            updateSettings({ language: nextLang })
+          })}>
+            <Languages className="mr-2 h-4 w-4" />
+            <span>Switch to {language === 'en' ? 'Myanmar' : 'English'}</span>
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </CommandDialog>
+  )
+}
