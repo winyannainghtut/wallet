@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pocketbase-pvc
+  namespace: wallet-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: microk8s-hostpath
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pocketbase
+  namespace: wallet-app
+  labels:
+    app: pocketbase
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pocketbase
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: pocketbase
+        tier: backend
+    spec:
+      containers:
+        - name: pocketbase
+          image: ghcr.io/muchobien/pocketbase:latest
+          ports:
+            - containerPort: 8090
+              name: http
+          env:
+            - name: TZ
+              value: "Asia/Yangon"
+          volumeMounts:
+            - name: pocketbase-data
+              mountPath: /pb_data
+            - name: pocketbase-public
+              mountPath: /pb_public
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: pocketbase-data
+          persistentVolumeClaim:
+            claimName: pocketbase-pvc
+        - name: pocketbase-public
+          emptyDir: {}
+      restartPolicy: Always
