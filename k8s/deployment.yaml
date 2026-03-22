@@ -19,8 +19,8 @@ spec:
     spec:
       containers:
         - name: wallet-app
-          image: wallet-app:latest
-          imagePullPolicy: IfNotPresent
+          image: winyannainghtut/wallet-app:dev-latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
               name: http

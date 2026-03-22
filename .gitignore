@@ -58,9 +58,7 @@ Desktop.ini
 
 # Docker (keep configs, ignore runtime)
 docker-compose.override.yml
-pb_data/backups/
-pb_data/*.db-shm
-pb_data/*.db-wal
+pb_data/
 
 # Claude Code local settings
 .claude/settings.local.json

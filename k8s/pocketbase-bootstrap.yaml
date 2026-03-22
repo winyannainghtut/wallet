@@ -5,7 +5,6 @@ metadata:
   namespace: wallet-app
 data:
   1774166000_wallet_schema.js: |
-    /// <reference path="../pb_data/types.d.ts" />
     migrate((app) => {
       const snapshot = [
       {
