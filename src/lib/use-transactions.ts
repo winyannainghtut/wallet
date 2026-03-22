@@ -58,7 +58,7 @@ export function useTransactions(options: UseTransactionsOptions = {}): UseTransa
       })
 
       setTransactions(result.items)
-      setTotal(result.total)
+      setTotal(result.totalItems)
       setPage(result.page)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch transactions'))
@@ -117,21 +117,21 @@ export function useTransactions(options: UseTransactionsOptions = {}): UseTransa
 
   const refresh = useCallback(() => fetchTransactions(page), [fetchTransactions, page])
 
-  const nextPage = useCallback(() => {
+  const nextPage = useCallback(async () => {
     const maxPage = Math.ceil(total / perPage)
     if (page < maxPage) {
-      fetchTransactions(page + 1)
+      await fetchTransactions(page + 1)
     }
   }, [fetchTransactions, page, total, perPage])
 
-  const prevPage = useCallback(() => {
+  const prevPage = useCallback(async () => {
     if (page > 1) {
-      fetchTransactions(page - 1)
+      await fetchTransactions(page - 1)
     }
   }, [fetchTransactions, page])
 
-  const goToPage = useCallback((pageNum: number) => {
-    fetchTransactions(pageNum)
+  const goToPage = useCallback(async (pageNum: number) => {
+    await fetchTransactions(pageNum)
   }, [fetchTransactions])
 
   return {

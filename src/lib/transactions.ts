@@ -44,7 +44,7 @@ export async function getTransactions(options?: {
   perPage?: number
   sort?: string
   filter?: string
-}): Promise<{ items: TransactionRecord[]; total: number; page: number; perPage: number }> {
+}): Promise<{ items: TransactionRecord[]; totalItems: number; page: number; perPage: number }> {
   const pb = getPocketBaseClient()
 
   if (!pb.authStore.isValid) {
@@ -113,7 +113,7 @@ export async function getTransactionsServer(
     sort?: string
     filter?: string
   }
-): Promise<{ items: TransactionRecord[]; total: number; page: number; perPage: number }> {
+): Promise<{ items: TransactionRecord[]; totalItems: number; page: number; perPage: number }> {
   const pb = getPocketBaseServer(authToken)
 
   const result = await pb.collection(COLLECTION).getList<TransactionRecord>(

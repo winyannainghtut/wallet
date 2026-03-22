@@ -3,6 +3,7 @@
 import { AppProvider, useApp } from '@/contexts/AppContext'
 import { AppLayout } from '@/components/AppLayout'
 import { PasswordModal } from '@/components/PasswordModal'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 function AppContent({ children }: { children: React.ReactNode }) {
   const { isLocked, isLoading, unlock } = useApp()
@@ -24,8 +25,10 @@ function AppContent({ children }: { children: React.ReactNode }) {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <AppProvider>
-      <AppContent>{children}</AppContent>
-    </AppProvider>
+    <AuthProvider>
+      <AppProvider>
+        <AppContent>{children}</AppContent>
+      </AppProvider>
+    </AuthProvider>
   )
 }

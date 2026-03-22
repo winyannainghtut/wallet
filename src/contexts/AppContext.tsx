@@ -1,9 +1,9 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { Expense, Trip, Subscription, UserProfile, AppSettings, DailySummary, WeeklySummary, MonthlySummary } from '@/types'
+import { Expense, Trip, Subscription, UserProfile, AppSettings, DailySummary, WeeklySummary, MonthlySummary, Category } from '@/types'
 import {
-  getExpenses,
+  getExpenses as storageGetExpenses,
   addExpense as storageAddExpense,
   updateExpense as storageUpdateExpense,
   deleteExpense as storageDeleteExpense,
@@ -33,14 +33,15 @@ import {
 } from '@/lib/storage'
 import { format } from 'date-fns'
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface AppContextType {
   // Expenses
   expenses: Expense[]
-  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Expense
-  updateExpense: (id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>) => Expense | null
-  deleteExpense: (id: string) => boolean
-  refreshExpenses: () => void
+  addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<Expense>
+  updateExpense: (id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>) => Promise<Expense | null>
+  deleteExpense: (id: string) => Promise<boolean>
+  refreshExpenses: () => Promise<void>
 
   // Trips
   trips: Trip[]
@@ -81,11 +82,15 @@ interface AppContextType {
 
   // Loading
   isLoading: boolean
+  isUsingBackend: boolean
 }
 
 const AppContext = createContext<AppContextType | null>(null)
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated: isPbAuthenticated, user } = useAuth()
+  const isUsingBackend = isPbAuthenticated && !!user
+
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
@@ -93,11 +98,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD' })
   const [hasPassword, setHasPassword] = useState(false)
-  const [isLocked, setIsLocked] = useState(true)
+  const [isLocked, setIsLocked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Load expenses from PocketBase or localStorage
+  const refreshExpenses = useCallback(async () => {
+    if (isUsingBackend) {
+      try {
+        const res = await fetch('/api/transactions')
+        if (res.ok) {
+          const data = await res.json()
+          // Map PocketBase records to Expense type
+          const mappedExpenses: Expense[] = (data.items || []).map((item: any) => ({
+            id: item.id,
+            amount: item.amount,
+            category: item.category as Category,
+            description: item.description || '',
+            date: item.date,
+            createdAt: item.created,
+            updatedAt: item.updated,
+            tripId: item.tripId,
+          }))
+          setExpenses(mappedExpenses)
+        } else {
+          // Fallback to localStorage if API fails
+          setExpenses(storageGetExpenses())
+        }
+      } catch (error) {
+        console.error('Failed to fetch expenses from backend:', error)
+        setExpenses(storageGetExpenses())
+      }
+    } else {
+      setExpenses(storageGetExpenses())
+    }
+  }, [isUsingBackend])
+
   // Load all user-scoped data
-  const loadUserData = useCallback(() => {
+  const loadUserData = useCallback(async () => {
     const loadedSettings = getSettings()
     setI18nLanguage(loadedSettings.language)
     setSettings(loadedSettings)
@@ -106,21 +143,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setHasPassword(passwordProtected)
     setIsLocked(passwordProtected ? !isAuthenticated() : false)
 
-    setExpenses(getExpenses())
+    // Load expenses (from backend or localStorage)
+    await refreshExpenses()
+
     setTrips(getTrips())
     setSubscriptions(getSubscriptions())
     setActiveProfile(getActiveProfile())
-  }, [])
+  }, [refreshExpenses])
 
   useEffect(() => {
-    queueMicrotask(() => {
+    const loadData = async () => {
       // Initialize profiles (migrates legacy data on first run)
       initializeProfiles()
       setProfiles(getProfiles())
-      loadUserData()
+      await loadUserData()
       setIsLoading(false)
-    })
+    }
+
+    queueMicrotask(loadData)
   }, [loadUserData])
+
+  // Reload expenses when authentication changes
+  useEffect(() => {
+    if (!isLoading) {
+      refreshExpenses()
+    }
+  }, [isPbAuthenticated, user, isLoading, refreshExpenses])
 
   // Switch active user
   const switchUser = useCallback((userId: string) => {
@@ -147,10 +195,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [loadUserData])
 
   // Refresh functions
-  const refreshExpenses = useCallback(() => {
-    setExpenses(getExpenses())
-  }, [])
-
   const refreshTrips = useCallback(() => {
     setTrips(getTrips())
   }, [])
@@ -159,26 +203,129 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setSubscriptions(getSubscriptions())
   }, [])
 
-  // Expense operations
-  const addExpense = useCallback((expense: Omit<Expense, 'id' | 'createdAt'>) => {
-    const newExpense = storageAddExpense(expense)
-    refreshExpenses()
-    return newExpense
-  }, [refreshExpenses])
+  // Expense operations - use PocketBase when authenticated
+  const addExpense = useCallback(async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
+    if (isUsingBackend) {
+      try {
+        const res = await fetch('/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'expense',
+            category: expense.category,
+            amount: expense.amount,
+            description: expense.description,
+            date: expense.date,
+            tripId: expense.tripId,
+          }),
+        })
 
-  const updateExpense = useCallback((id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>) => {
-    const result = storageUpdateExpense(id, updates)
-    if (result) refreshExpenses()
-    return result
-  }, [refreshExpenses])
+        if (!res.ok) {
+          throw new Error('Failed to save to backend')
+        }
 
-  const deleteExpense = useCallback((id: string) => {
-    const result = storageDeleteExpense(id)
-    if (result) refreshExpenses()
-    return result
-  }, [refreshExpenses])
+        const data = await res.json()
+        const newExpense: Expense = {
+          id: data.id,
+          amount: data.amount,
+          category: data.category as Category,
+          description: data.description || '',
+          date: data.date,
+          createdAt: data.created,
+          updatedAt: data.updated,
+          tripId: data.tripId,
+        }
 
-  // Trip operations
+        setExpenses(prev => [newExpense, ...prev])
+        return newExpense
+      } catch (error) {
+        console.error('Failed to save expense to backend:', error)
+        // Fallback to localStorage
+        const newExpense = storageAddExpense(expense)
+        refreshExpenses()
+        return newExpense
+      }
+    } else {
+      // Use localStorage
+      const newExpense = storageAddExpense(expense)
+      setExpenses(prev => [newExpense, ...prev])
+      return newExpense
+    }
+  }, [isUsingBackend, refreshExpenses])
+
+  const updateExpense = useCallback(async (id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>) => {
+    if (isUsingBackend) {
+      try {
+        const res = await fetch(`/api/transactions/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        })
+
+        if (!res.ok) {
+          throw new Error('Failed to update in backend')
+        }
+
+        const data = await res.json()
+        const updatedExpense: Expense = {
+          id: data.id,
+          amount: data.amount,
+          category: data.category as Category,
+          description: data.description || '',
+          date: data.date,
+          createdAt: data.created,
+          updatedAt: data.updated,
+          tripId: data.tripId,
+        }
+
+        setExpenses(prev => prev.map(e => e.id === id ? updatedExpense : e))
+        return updatedExpense
+      } catch (error) {
+        console.error('Failed to update expense in backend:', error)
+        // Fallback to localStorage
+        const result = storageUpdateExpense(id, updates)
+        if (result) refreshExpenses()
+        return result
+      }
+    } else {
+      const result = storageUpdateExpense(id, updates)
+      if (result) {
+        setExpenses(prev => prev.map(e => e.id === id ? result : e))
+      }
+      return result
+    }
+  }, [isUsingBackend, refreshExpenses])
+
+  const deleteExpense = useCallback(async (id: string) => {
+    if (isUsingBackend) {
+      try {
+        const res = await fetch(`/api/transactions/${id}`, {
+          method: 'DELETE',
+        })
+
+        if (!res.ok) {
+          throw new Error('Failed to delete from backend')
+        }
+
+        setExpenses(prev => prev.filter(e => e.id !== id))
+        return true
+      } catch (error) {
+        console.error('Failed to delete expense from backend:', error)
+        // Fallback to localStorage
+        const result = storageDeleteExpense(id)
+        if (result) refreshExpenses()
+        return result
+      }
+    } else {
+      const result = storageDeleteExpense(id)
+      if (result) {
+        setExpenses(prev => prev.filter(e => e.id !== id))
+      }
+      return result
+    }
+  }, [isUsingBackend, refreshExpenses])
+
+  // Trip operations (still using localStorage for now)
   const addTrip = useCallback((trip: Omit<Trip, 'id' | 'createdAt'>) => {
     const newTrip = storageAddTrip(trip)
     refreshTrips()
@@ -200,7 +347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return result
   }, [refreshTrips, refreshExpenses])
 
-  // Subscription operations
+  // Subscription operations (still using localStorage for now)
   const addSubscription = useCallback((sub: Omit<Subscription, 'id' | 'createdAt'>) => {
     const newSub = storageAddSubscription(sub)
     refreshSubscriptions()
@@ -288,7 +435,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         unlock,
         lock,
         hasPassword,
-        isLoading
+        isLoading,
+        isUsingBackend,
       }}
     >
       {children}

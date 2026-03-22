@@ -35,8 +35,9 @@ export default function LoginPage() {
     try {
       await login(loginEmail, loginPassword)
       router.push('/')
-    } catch (err: any) {
-      setError(err?.message || 'Login failed. Please check your credentials.')
+    } catch (err) {
+      const error = err as Error
+      setError(error.message || 'Login failed. Please check your credentials.')
     } finally {
       setIsSubmitting(false)
     }
@@ -61,8 +62,9 @@ export default function LoginPage() {
     try {
       await register(registerEmail, registerPassword, registerPasswordConfirm, registerName)
       router.push('/')
-    } catch (err: any) => {
-      setError(err?.message || 'Registration failed. Please try again.')
+    } catch (err) {
+      const error = err as Error
+      setError(error.message || 'Registration failed. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
