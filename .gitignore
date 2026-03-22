@@ -63,7 +63,29 @@ pb_data/
 # Claude Code local settings
 .claude/settings.local.json
 
-# Kubernetes secrets (if any)
-k8s/*secret*
-
+# Local notes / scratch
 note.md
+
+# Sensitive key/token files
+ai-keys.json
+zai-keys.json
+*.token
+*.tokens
+*.secret
+*.secrets
+*.secret.json
+*.secrets.json
+*api-key*.json
+*api-keys*.json
+cloudflared-credentials.json
+
+# Secret working directory
+secrets/
+
+# Kubernetes secret manifests (except explicit examples)
+k8s/*secret*.yaml
+k8s/*secret*.yml
+k8s/*token*.yaml
+k8s/*token*.yml
+!k8s/*example*.yaml
+!k8s/*example*.yml

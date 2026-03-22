@@ -150,6 +150,26 @@ kubectl apply -f k8s/pocketbase-service.yaml
 kubectl apply -f k8s/deployment.yaml
 ```
 
+### Expose App via Cloudflare Tunnel (`wallet.winyan.dev`, token mode)
+
+1) Create secret from tunnel token:
+
+```bash
+kubectl -n wallet-app create secret generic cloudflared-token --from-literal=TUNNEL_TOKEN='<YOUR_TUNNEL_TOKEN>' --dry-run=client -o yaml | kubectl apply -f -
+```
+
+2) Apply tunnel deployment:
+
+```bash
+kubectl apply -f k8s/cloudflare-tunnel.yaml
+kubectl rollout status deployment/cloudflared -n wallet-app
+```
+
+3) In Cloudflare Zero Trust, configure Public Hostname:
+- Hostname: `wallet.winyan.dev`
+- Service Type: `HTTP`
+- URL: `wallet-frontend-service.wallet-app.svc.cluster.local:80`
+
 After changing migration config:
 
 ```bash
