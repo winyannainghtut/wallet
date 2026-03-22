@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, Wallet, User, Palette } from 'lucide-react'
+import { useEffect, useState, useRef } from 'react'
+import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, User, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -14,17 +13,20 @@ import { exportToExcel, importFromExcel, downloadTemplate } from '@/lib/excel'
 import { t, Language } from '@/i18n/config'
 
 type NoticeType = 'success' | 'error'
-type AiProvider = 'auto' | 'gemini' | 'zai'
+type AiModel = 'glm-4.7' | 'glm-5-turbo' | 'glm-5'
 
 export default function SettingsPage() {
   const { settings, updateSettings, setLanguage, refreshExpenses, currentUser, expenses } = useApp()
   const { logout } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [apiKey, setApiKey] = useState(settings.apiKey || '')
-  const [aiProvider, setAiProvider] = useState<AiProvider>(settings.aiProvider || 'auto')
+  const [aiModel, setAiModel] = useState<AiModel>((settings.aiModel as AiModel) || 'glm-4.7')
   const [notice, setNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [isImporting, setIsImporting] = useState(false)
+
+  useEffect(() => {
+    setAiModel((settings.aiModel as AiModel) || 'glm-4.7')
+  }, [settings.aiModel])
 
   const showNotice = (type: NoticeType, message: string) => {
     setNotice({ type, message })
@@ -35,26 +37,10 @@ export default function SettingsPage() {
     showNotice('success', 'Language updated.')
   }
 
-  const handleSaveApiKey = () => {
-    const trimmed = apiKey.trim()
-    if (!trimmed) {
-      showNotice('error', 'No API key found. Please enter a valid key.')
-      return
-    }
-    updateSettings({ apiKey: trimmed, aiProvider })
-    showNotice('success', t('settings.apiKeySuccess'))
-  }
-
-  const handleProviderChange = (provider: AiProvider) => {
-    setAiProvider(provider)
-    updateSettings({ aiProvider: provider })
-    showNotice('success', 'AI provider updated.')
-  }
-
-  const handleClearApiKey = () => {
-    setApiKey('')
-    updateSettings({ apiKey: undefined })
-    showNotice('success', 'API key removed.')
+  const handleAiModelChange = (model: AiModel) => {
+    setAiModel(model)
+    updateSettings({ aiModel: model })
+    showNotice('success', t('settings.aiModelUpdated'))
   }
 
   const handleExport = () => {
@@ -198,48 +184,25 @@ export default function SettingsPage() {
             <span className={sectionIconClass}>
               <Key className="h-3.5 w-3.5 text-primary" />
             </span>
-            {t('settings.apiKey')}
+            {t('settings.aiModel')}
           </CardTitle>
-          <CardDescription>Gemini or Z.AI GLM API Key</CardDescription>
+          <CardDescription>{t('settings.aiModelDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="ai-provider" className="text-sm font-medium">AI Provider</Label>
-            <Select value={aiProvider} onValueChange={(v) => handleProviderChange(v as AiProvider)}>
-              <SelectTrigger id="ai-provider" className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
-                <SelectValue placeholder="Choose provider" />
+            <Label htmlFor="ai-model" className="text-sm font-medium">{t('settings.aiModel')}</Label>
+            <Select value={aiModel} onValueChange={(v) => handleAiModelChange(v as AiModel)}>
+              <SelectTrigger id="ai-model" className="w-full rounded-xl border-border/60 bg-muted/20 sm:w-56 transition-all focus:bg-background">
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="auto">Auto (detect by API key)</SelectItem>
-                <SelectItem value="gemini">Gemini</SelectItem>
-                <SelectItem value="zai">Z.AI GLM</SelectItem>
+                <SelectItem value="glm-4.7">GLM-4.7</SelectItem>
+                <SelectItem value="glm-5-turbo">GLM-5-Turbo</SelectItem>
+                <SelectItem value="glm-5">GLM-5</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <Input
-            type="password"
-            placeholder={t('settings.apiKeyPlaceholder')}
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
-          />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={handleSaveApiKey}
-              className="rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-sm shadow-primary/20"
-            >
-              {t('common.save')}
-            </Button>
-            {settings.apiKey && (
-              <Button
-                variant="destructive"
-                onClick={handleClearApiKey}
-                className="rounded-xl"
-              >
-                Clear API Key
-              </Button>
-            )}
-          </div>
+          <p className="text-xs text-muted-foreground">{t('settings.aiKeyManagedByAdmin')}</p>
         </CardContent>
       </Card>
 

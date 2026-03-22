@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Expense, Income, Subscription } from '@/types'
-import { getApiKey, getChatHistory, saveChatHistory } from '@/lib/storage'
-import { streamChatAboutExpenses } from '@/lib/ai'
+import { getChatHistory, saveChatHistory } from '@/lib/storage'
+import { streamChatAboutExpenses } from '@/lib/ai-client'
 import { sanitizeAiOutput } from '@/lib/ai-output'
 import { t, getLanguage } from '@/i18n/config'
 import { cn } from '@/lib/utils'
+import { useApp } from '@/contexts/AppContext'
 
 export interface ChatMessage {
   id: string
@@ -29,6 +30,7 @@ interface ChatAssistantProps {
 }
 
 export function ChatAssistant({ expenses, incomes = [], subscriptions = [], monthlySavings = 0, className, messagesClassName }: ChatAssistantProps) {
+  const { settings } = useApp()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -72,12 +74,6 @@ export function ChatAssistant({ expenses, incomes = [], subscriptions = [], mont
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return
 
-    const apiKey = getApiKey()
-    if (!apiKey) {
-      alert(t('ai.noApiKey'))
-      return
-    }
-
     setStickToBottom(true)
     const messageText = input.trim()
     const userMessage: ChatMessage = {
@@ -102,7 +98,15 @@ export function ChatAssistant({ expenses, incomes = [], subscriptions = [], mont
     try {
       let fullContent = ''
 
-      for await (const chunk of streamChatAboutExpenses(messageText, expenses, apiKey, language, incomes, subscriptions, monthlySavings)) {
+      for await (const chunk of streamChatAboutExpenses(
+        messageText,
+        expenses,
+        language,
+        incomes,
+        subscriptions,
+        monthlySavings,
+        settings.aiModel
+      )) {
         fullContent += chunk
         const cleanContent = sanitizeAiOutput(fullContent)
         setMessages(prev => prev.map(m =>

@@ -211,7 +211,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
-  const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD', aiProvider: 'auto' })
+  const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD', aiModel: 'glm-4.7' })
   const [isLoading, setIsLoading] = useState(true)
 
   // Current PocketBase user
@@ -336,7 +336,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSubscriptions([])
         setProfiles([])
         setActiveProfile(null)
-        setSettings({ language: 'en', currency: 'SGD', aiProvider: 'auto' })
+        setSettings({ language: 'en', currency: 'SGD', aiModel: 'glm-4.7' })
         setI18nLanguage('en')
         setIsLoading(false)
         return

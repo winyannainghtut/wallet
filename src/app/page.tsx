@@ -1,7 +1,7 @@
 'use client'
 
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subDays, eachDayOfInterval } from 'date-fns'
-import { PlusCircle, TrendingUp, Calendar, Wallet, Repeat, Bot, PiggyBank, Scale, Plus } from 'lucide-react'
+import { PlusCircle, TrendingUp, Calendar, Wallet, PiggyBank, Scale, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SummaryCard } from '@/components/SummaryCard'
@@ -12,7 +12,6 @@ import { TransactionList, TransactionItem } from '@/components/TransactionList'
 import { UpcomingSubscriptions } from '@/components/UpcomingSubscriptions'
 import { SavingsGoalWidget } from '@/components/SavingsGoalWidget'
 import { useApp } from '@/contexts/AppContext'
-import { getApiKey } from '@/lib/storage'
 import { t } from '@/i18n/config'
 
 function normalizeDateKey(rawDate: string): string {
@@ -93,8 +92,6 @@ export default function DashboardPage() {
   if (currentHour < 12) greeting = 'Good Morning'
   else if (currentHour < 18) greeting = 'Good Afternoon'
 
-  const hasApiKey = !!getApiKey()
-
   return (
     <div className="space-y-7">
       {/* Hero Banner */}
@@ -147,7 +144,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {(hasApiKey && (expenses.length > 0 || incomes.length > 0)) && (
+      {(expenses.length > 0 || incomes.length > 0) && (
         <AiInsightsCard 
           expenses={expenses} 
           incomes={incomes}
@@ -224,27 +221,13 @@ export default function DashboardPage() {
 
       {/* AI Assistant */}
       <div>
-        {hasApiKey ? (
-          <ChatAssistant
-            expenses={expenses}
-            incomes={incomes}
-            subscriptions={subscriptions}
-            monthlySavings={monthlySavings}
-            className="h-[620px]"
-          />
-        ) : (
-          <div className="flex h-[300px] items-center justify-center rounded-2xl border border-dashed border-border/50 bg-card/60 p-6 backdrop-blur-sm">
-            <div className="space-y-4 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60">
-                <Bot className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <p className="text-sm text-muted-foreground">{t('ai.noApiKey')}</p>
-              <Link href="/settings">
-                <Button variant="outline" className="rounded-xl border-border/60">{t('nav.settings')}</Button>
-              </Link>
-            </div>
-          </div>
-        )}
+        <ChatAssistant
+          expenses={expenses}
+          incomes={incomes}
+          subscriptions={subscriptions}
+          monthlySavings={monthlySavings}
+          className="h-[620px]"
+        />
       </div>
 
       {/* Recent Transactions */}

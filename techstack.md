@@ -50,9 +50,9 @@ This document summarizes the current technologies used in the Wallet App codebas
 
 ## AI
 
-- **@google/generative-ai** for Gemini provider integration.
 - **Z.AI GLM** via OpenAI-compatible HTTP endpoint.
-- **Runtime provider switch:** `auto | gemini | zai` from Settings/env.
+- **Server-side API key mapping** (per-user keys from env/Kubernetes secrets).
+- **Client setting:** model selection only (`glm-4.7`, `glm-5-turbo`, `glm-5`).
 
 ## State and i18n
 

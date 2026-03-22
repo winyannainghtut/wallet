@@ -10,9 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CATEGORIES, CATEGORY_LABELS, Category, Expense } from '@/types'
-import { getApiKey } from '@/lib/storage'
 import { useApp } from '@/contexts/AppContext'
-import { suggestCategory, parseExpenseText } from '@/lib/ai'
+import { suggestCategory, parseExpenseText } from '@/lib/ai-client'
 import { t, getLanguage } from '@/i18n/config'
 
 interface ExpenseFormProps {
@@ -23,7 +22,7 @@ interface ExpenseFormProps {
 }
 
 export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = false }: ExpenseFormProps) {
-  const { trips } = useApp()
+  const { trips, settings } = useApp()
   const [mode, setMode] = useState<'manual' | 'magic'>('manual')
   const [magicText, setMagicText] = useState('')
   const [isParsing, setIsParsing] = useState(false)
@@ -53,15 +52,9 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
   const handleSuggestCategory = async () => {
     if (!description.trim()) return
 
-    const apiKey = getApiKey()
-    if (!apiKey) {
-      alert(t('ai.noApiKey'))
-      return
-    }
-
     setIsSuggesting(true)
     try {
-      const suggested = await suggestCategory(description, apiKey)
+      const suggested = await suggestCategory(description, settings.aiModel)
       setCategory(suggested)
     } catch (error) {
       console.error('Error suggesting category:', error)
@@ -73,15 +66,9 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
   const handleMagicAdd = async () => {
     if (!magicText.trim()) return
 
-    const apiKey = getApiKey()
-    if (!apiKey) {
-      alert(t('ai.noApiKey'))
-      return
-    }
-
     setIsParsing(true)
     try {
-      const parsed = await parseExpenseText(magicText, apiKey)
+      const parsed = await parseExpenseText(magicText, settings.aiModel)
       if (parsed) {
         setAmount(parsed.amount.toString())
         setCategory(parsed.category)

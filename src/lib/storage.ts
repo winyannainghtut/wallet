@@ -214,19 +214,21 @@ export function getMonthlySummary(date: Date = new Date(), expensesArr?: Expense
 
 export function getSettings(): AppSettings {
   if (typeof window === 'undefined') {
-    return { language: 'en', currency: 'SGD', aiProvider: 'auto', theme: 'dark' }
+    return { language: 'en', currency: 'SGD', aiModel: 'glm-4.7', theme: 'dark' }
   }
   const data = localStorage.getItem(userKey(FIELD.SETTINGS))
-  if (!data) return { language: 'en', currency: 'SGD', aiProvider: 'auto', theme: 'dark' }
+  if (!data) return { language: 'en', currency: 'SGD', aiModel: 'glm-4.7', theme: 'dark' }
   const parsed = JSON.parse(data)
   // Force-fix any legacy MMK currency
   if (parsed.currency === 'MMK') parsed.currency = 'SGD'
-  if (!parsed.aiProvider || !['auto', 'gemini', 'zai'].includes(parsed.aiProvider)) {
-    parsed.aiProvider = 'auto'
+  if (!parsed.aiModel || !['glm-4.7', 'glm-5-turbo', 'glm-5'].includes(parsed.aiModel)) {
+    parsed.aiModel = 'glm-4.7'
   }
   if (!parsed.theme || !['dark', 'light', 'blossom'].includes(parsed.theme)) {
     parsed.theme = 'dark'
   }
+  delete parsed.apiKey
+  delete parsed.aiProvider
   return parsed
 }
 
@@ -235,14 +237,6 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
   const updated = { ...current, ...settings }
   localStorage.setItem(userKey(FIELD.SETTINGS), JSON.stringify(updated))
   return updated
-}
-
-export function getApiKey(): string | undefined {
-  return getSettings().apiKey
-}
-
-export function getAiProvider(): 'auto' | 'gemini' | 'zai' {
-  return getSettings().aiProvider || 'auto'
 }
 
 // ==================== Data Operations ====================

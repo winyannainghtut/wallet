@@ -5,9 +5,8 @@ import { Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Expense, Income, Subscription } from '@/types'
-import { getSpendingInsights } from '@/lib/ai'
+import { getSpendingInsights } from '@/lib/ai-client'
 import { sanitizeAiOutput } from '@/lib/ai-output'
-import { getApiKey } from '@/lib/storage'
 import { useApp } from '@/contexts/AppContext'
 import { getLanguage, t } from '@/i18n/config'
 
@@ -25,11 +24,10 @@ export function AiInsightsCard({
   const [insight, setInsight] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const { settings } = useApp()
-  const apiKey = getApiKey()
   const language = getLanguage()
 
   const handleFetchInsights = async () => {
-    if (!apiKey || (expenses.length === 0 && incomes.length === 0)) return
+    if (expenses.length === 0 && incomes.length === 0) return
     
     setLoading(true)
     try {
@@ -38,9 +36,9 @@ export function AiInsightsCard({
         incomes.slice(0, 50),
         subscriptions,
         monthlySavings,
-        apiKey,
         language,
-        settings.currency
+        settings.currency,
+        settings.aiModel
       )
       setInsight(sanitizeAiOutput(result))
     } catch (error) {
@@ -49,8 +47,6 @@ export function AiInsightsCard({
       setLoading(false)
     }
   }
-
-  if (!apiKey) return null
 
   return (
     <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 backdrop-blur-xl mb-6 shadow-sm overflow-hidden relative">

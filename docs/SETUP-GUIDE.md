@@ -85,6 +85,20 @@ AUTH_REGISTRATION_ENABLED=false
 
 If registration is disabled, create users manually from PocketBase Admin (`users` collection).
 
+### 2.6 AI keys (server-side only)
+
+In `.env.local`:
+
+```env
+AI_DEFAULT_MODEL=glm-4.7
+ZAI_OPENAI_BASE_URL=https://api.z.ai/api/coding/paas/v4
+ZAI_API_KEYS_JSON={"admin@wallet.local":"sk-xxx","finance@wallet.local":"sk-yyy"}
+# optional fallback:
+# ZAI_API_KEY=sk-fallback
+```
+
+Settings page is model-only (no browser API key field).
+
 ## 3) Verify Core Flows
 
 ### 3.1 Auth
@@ -126,6 +140,12 @@ Migration files:
 
 ```bash
 kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Create/update AI secret:
+
+```bash
+kubectl -n wallet-app create secret generic wallet-ai-secrets --from-literal=ZAI_API_KEYS_JSON='{"admin@wallet.local":"sk-xxx"}' --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ### 4.2 Apply manifests

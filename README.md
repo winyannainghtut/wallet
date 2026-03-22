@@ -14,7 +14,7 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
   - income
   - net savings
 - English/Myanmar language support
-- AI assistant with Gemini or Z.AI GLM (OpenAI-compatible)
+- AI assistant with Z.AI GLM (server-side key management)
   - Understands full financial context (expenses, incomes, savings, subscriptions)
   - Strict domain guarding (finance only) and forced Myanmar language output
   - Persistent chat history across sessions
@@ -49,6 +49,7 @@ Data:
 - `/api/trips/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
+- `/api/ai`
 
 ## Local Development
 
@@ -88,22 +89,20 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-### 5) Configure AI provider
+### 5) Configure AI keys (server-side)
 
-Provider selection:
-- `auto` (default): `AIza...` key -> Gemini, otherwise Z.AI
-- forced: `NEXT_PUBLIC_AI_PROVIDER=gemini|zai`
-
-Optional overrides:
+Set keys in `.env.local` for local dev:
 
 ```env
-NEXT_PUBLIC_AI_PROVIDER=auto
-NEXT_PUBLIC_ZAI_OPENAI_BASE_URL=https://api.z.ai/api/coding/paas/v4
-NEXT_PUBLIC_ZAI_MODEL=glm-4.7
-NEXT_PUBLIC_GEMINI_MODEL=gemini-3.1-flash-lite-preview
+AI_DEFAULT_MODEL=glm-4.7
+ZAI_OPENAI_BASE_URL=https://api.z.ai/api/coding/paas/v4
+ZAI_API_KEYS_JSON={"admin@wallet.local":"sk-xxx","user2@wallet.local":"sk-yyy"}
+# optional fallback:
+# ZAI_API_KEY=sk-fallback
 ```
 
-Set the API key in the app Settings page.
+Settings page now allows **model selection only** (`glm-4.7`, `glm-5-turbo`, `glm-5`).
+API keys are never stored in browser/localStorage.
 
 ### 6) Control registration (internal use)
 
@@ -144,6 +143,7 @@ Apply in order:
 ```bash
 kubectl apply -f k8s/namespace.yaml
 kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n wallet-app create secret generic wallet-ai-secrets --from-literal=ZAI_API_KEYS_JSON='{"admin@wallet.local":"sk-xxx"}' --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml

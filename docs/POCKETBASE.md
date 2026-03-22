@@ -32,6 +32,7 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/trips/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
+- `/api/ai` (server-side Z.AI calls; does not expose keys to browser)
 
 ## Schema and Migrations
 
@@ -74,6 +75,7 @@ Superuser credentials come from secret `pocketbase-bootstrap`.
 ```bash
 kubectl apply -f k8s/namespace.yaml
 kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n wallet-app create secret generic wallet-ai-secrets --from-literal=ZAI_API_KEYS_JSON='{"admin@wallet.local":"sk-xxx"}' --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml

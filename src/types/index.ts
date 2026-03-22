@@ -139,8 +139,7 @@ export interface MonthlySummary {
 export interface AppSettings {
   language: 'en' | 'my'
   currency: string
-  apiKey?: string
-  aiProvider?: 'auto' | 'gemini' | 'zai'
+  aiModel?: 'glm-4.7' | 'glm-5-turbo' | 'glm-5'
   theme?: 'dark' | 'light' | 'blossom'
 }
 
