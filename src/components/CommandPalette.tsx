@@ -3,12 +3,8 @@
 import * as React from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Calculator,
   Calendar,
-  CreditCard,
   Settings,
-  Smile,
-  User,
   PieChart,
   Home,
   PlusCircle,
@@ -26,7 +22,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  CommandShortcut,
 } from '@/components/ui/command'
 import { getLanguage, t, setLanguage } from '@/i18n/config'
 import { useApp } from '@/contexts/AppContext'

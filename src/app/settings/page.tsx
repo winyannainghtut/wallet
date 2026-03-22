@@ -1,25 +1,25 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Download, Upload, Trash2, Key, Globe, Shield, FileSpreadsheet, Wallet } from 'lucide-react'
+import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, Wallet, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApp } from '@/contexts/AppContext'
-import { clearAllData, getExpenses, hashPassword, saveExpenses } from '@/lib/storage'
+import { useAuth } from '@/contexts/AuthContext'
+import { clearAllData, getExpenses, saveExpenses } from '@/lib/storage'
 import { exportToExcel, importFromExcel, downloadTemplate } from '@/lib/excel'
 import { t, Language } from '@/i18n/config'
 
 type NoticeType = 'success' | 'error'
 
 export default function SettingsPage() {
-  const { settings, updateSettings, setLanguage, hasPassword, refreshExpenses } = useApp()
+  const { settings, updateSettings, setLanguage, refreshExpenses, currentUser } = useApp()
+  const { logout } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [apiKey, setApiKey] = useState(settings.apiKey || '')
   const [notice, setNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [isImporting, setIsImporting] = useState(false)
@@ -31,25 +31,6 @@ export default function SettingsPage() {
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang)
     showNotice('success', 'Language updated.')
-  }
-
-  const handleSetPassword = () => {
-    if (!newPassword || newPassword !== confirmPassword) {
-      showNotice('error', t('settings.passwordMismatch'))
-      return
-    }
-
-    updateSettings({ passwordHash: hashPassword(newPassword) })
-    setNewPassword('')
-    setConfirmPassword('')
-    showNotice('success', t('settings.passwordSuccess'))
-  }
-
-  const handleRemovePassword = () => {
-    if (confirm('Remove password protection?')) {
-      updateSettings({ passwordHash: undefined })
-      showNotice('success', 'Password protection removed.')
-    }
   }
 
   const handleSaveApiKey = () => {
@@ -106,7 +87,7 @@ export default function SettingsPage() {
     <div className="max-w-3xl space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight">{t('settings.title')}</h1>
-        <p className="text-sm text-muted-foreground">Manage language, security, AI, and data tools.</p>
+        <p className="text-sm text-muted-foreground">Manage language, AI, and data tools.</p>
       </div>
 
       {notice && (
@@ -120,6 +101,35 @@ export default function SettingsPage() {
         >
           {notice.message}
         </div>
+      )}
+
+      {/* Current User Info */}
+      {currentUser && (
+        <Card className="border-border/40">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2.5 text-base">
+              <span className={sectionIconClass}>
+                <User className="h-3.5 w-3.5 text-primary" />
+              </span>
+              Account
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between rounded-lg border border-border/40 p-3">
+              <div>
+                <p className="font-medium">{currentUser.name || 'User'}</p>
+                <p className="text-sm text-muted-foreground">{currentUser.email}</p>
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => logout()}
+                className="rounded-xl border-border/60"
+              >
+                Logout
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <Card className="border-border/40">
@@ -202,55 +212,6 @@ export default function SettingsPage() {
             onChange={(e) => updateSettings({ monthlyBudget: e.target.value ? Number(e.target.value) : undefined })}
             className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
           />
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/40">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2.5 text-base">
-            <span className={sectionIconClass}>
-              <Shield className="h-3.5 w-3.5 text-primary" />
-            </span>
-            {t('settings.password')}
-          </CardTitle>
-          <CardDescription>
-            {hasPassword ? 'Password protection is active.' : 'Set a password to protect local data.'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">{t('settings.newPassword')}</Label>
-            <Input
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••"
-              className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">{t('settings.confirmPassword')}</Label>
-            <Input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={handleSetPassword}
-              className="rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-sm shadow-primary/20"
-            >
-              {hasPassword ? t('settings.changePassword') : t('settings.setPassword')}
-            </Button>
-            {hasPassword && (
-              <Button variant="destructive" onClick={handleRemovePassword} className="rounded-xl">
-                {t('settings.removePassword')}
-              </Button>
-            )}
-          </div>
         </CardContent>
       </Card>
 

@@ -36,7 +36,28 @@ function getAuthenticatedPb(request: NextRequest):
   return { pb, userId: pb.authStore.model.id }
 }
 
-// GET - Get single transaction
+async function clearTripFromTransactions(pb: ReturnType<typeof createPbServer>, userId: string, tripId: string) {
+  try {
+    const records = await pb.collection('transactions').getFullList({
+      filter: `user = "${userId}" && tripId = "${tripId}"`,
+    })
+
+    await Promise.all(
+      records.map(async (record: { id: string }) => {
+        try {
+          await pb.collection('transactions').update(record.id, { tripId: null })
+        } catch {
+          await pb.collection('transactions').update(record.id, { tripId: '' })
+        }
+      })
+    )
+  } catch (error) {
+    // Ignore if the transactions collection doesn't have tripId yet.
+    console.warn('Skipping trip transaction unlink:', getErrorMessage(error, 'Unknown error'))
+  }
+}
+
+// GET - Get single trip
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,7 +70,7 @@ export async function GET(
     const { pb, userId } = auth
 
     const { id } = await params
-    const record = await pb.collection('transactions').getOne(id)
+    const record = await pb.collection('trips').getOne(id)
     if (record.user !== userId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
@@ -60,15 +81,15 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    console.error('Get transaction error:', error)
+    console.error('Get trip error:', error)
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to fetch transaction') },
+      { error: getErrorMessage(error, 'Failed to fetch trip') },
       { status: 500 }
     )
   }
 }
 
-// PUT - Update transaction
+// PUT - Update trip
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -81,14 +102,13 @@ export async function PUT(
     const { pb, userId } = auth
 
     const { id } = await params
-    const existing = await pb.collection('transactions').getOne(id)
+    const existing = await pb.collection('trips').getOne(id)
     if (existing.user !== userId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     const body = await request.json()
-
-    const record = await pb.collection('transactions').update(id, body)
+    const record = await pb.collection('trips').update(id, body)
 
     return NextResponse.json(record)
   } catch (error: unknown) {
@@ -96,15 +116,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    console.error('Update transaction error:', error)
+    console.error('Update trip error:', error)
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to update transaction') },
+      { error: getErrorMessage(error, 'Failed to update trip') },
       { status: 500 }
     )
   }
 }
 
-// DELETE - Delete transaction
+// DELETE - Delete trip
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -117,12 +137,13 @@ export async function DELETE(
     const { pb, userId } = auth
 
     const { id } = await params
-    const existing = await pb.collection('transactions').getOne(id)
+    const existing = await pb.collection('trips').getOne(id)
     if (existing.user !== userId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    await pb.collection('transactions').delete(id)
+    await clearTripFromTransactions(pb, userId, id)
+    await pb.collection('trips').delete(id)
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
@@ -130,9 +151,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    console.error('Delete transaction error:', error)
+    console.error('Delete trip error:', error)
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to delete transaction') },
+      { error: getErrorMessage(error, 'Failed to delete trip') },
       { status: 500 }
     )
   }

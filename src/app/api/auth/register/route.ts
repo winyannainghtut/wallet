@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const pb = createPbServer()
 
     // Create user
-    const user = await pb.collection('users').create({
+    await pb.collection('users').create({
       email,
       password,
       passwordConfirm: passwordConfirm || password,
@@ -52,10 +52,18 @@ export async function POST(request: NextRequest) {
     })
 
     return response
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message =
+      typeof error === 'object' &&
+      error !== null &&
+      'message' in error &&
+      typeof (error as { message?: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : 'Registration failed'
+
     console.error('Registration error:', error)
     return NextResponse.json(
-      { error: error.message || 'Registration failed' },
+      { error: message },
       { status: 400 }
     )
   }

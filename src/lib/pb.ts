@@ -14,15 +14,9 @@ export function createPbServer(authCookie?: string) {
   if (authCookie) {
     try {
       pb.authStore.loadFromCookie(authCookie)
-    } catch (e) {
+    } catch {
       // Invalid cookie, ignore
     }
   }
   return pb
 }
-
-// For client-side usage (not recommended for this architecture)
-// Only use if you need direct PocketBase access in client components
-export const pbClient = typeof window !== 'undefined' ? new PocketBase(pbUrl) : null
-
-export { pbUrl }

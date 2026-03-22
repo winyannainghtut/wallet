@@ -15,6 +15,7 @@ export default function TripsPage() {
   const { trips, addTrip, updateTrip, deleteTrip, expenses } = useApp()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   // Form states
   const [name, setName] = useState('')
@@ -47,7 +48,7 @@ export default function TripsPage() {
     setIsModalOpen(false)
   }
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name || !startDate || !endDate) return
 
@@ -59,19 +60,31 @@ export default function TripsPage() {
       budget: budget ? parseFloat(budget) : undefined
     }
 
-    if (editingTrip) {
-      updateTrip(editingTrip.id, tripData)
-    } else {
-      addTrip(tripData)
+    try {
+      setIsSaving(true)
+      if (editingTrip) {
+        await updateTrip(editingTrip.id, tripData)
+      } else {
+        await addTrip(tripData)
+      }
+      handleCloseModal()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save trip'
+      alert(message)
+    } finally {
+      setIsSaving(false)
     }
-
-    handleCloseModal()
   }
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
     if (confirm('Are you sure you want to delete this trip? All assigned expenses will become uncategorized.')) {
-      deleteTrip(id)
+      try {
+        await deleteTrip(id)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete trip'
+        alert(message)
+      }
     }
   }
 
@@ -156,7 +169,7 @@ export default function TripsPage() {
                         </CardDescription>
                       )}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 -mt-1 -mr-1" onClick={(e) => handleDelete(trip.id, e)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 -mt-1 -mr-1" onClick={(e) => void handleDelete(trip.id, e)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
@@ -281,7 +294,7 @@ export default function TripsPage() {
 
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={handleCloseModal} className="rounded-xl">Cancel</Button>
-              <Button type="submit" className="rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-sm">
+              <Button type="submit" disabled={isSaving} className="rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-sm">
                 {editingTrip ? 'Save Changes' : 'Create Trip'}
               </Button>
             </DialogFooter>

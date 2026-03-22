@@ -21,6 +21,7 @@ export default function SubscriptionsPage() {
   const language = getLanguage()
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSub, setEditingSub] = useState<Subscription | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [subForm, setSubForm] = useState<Partial<Subscription>>({
     name: '',
     amount: 0,
@@ -58,21 +59,33 @@ export default function SubscriptionsPage() {
     setIsDialogOpen(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!subForm.name || !subForm.amount || !subForm.startDate || !subForm.category || !subForm.billingCycle) return
 
-    if (editingSub) {
-      updateSubscription(editingSub.id, subForm as Partial<Omit<Subscription, 'id' | 'createdAt'>>)
-    } else {
-      addSubscription(subForm as Omit<Subscription, 'id' | 'createdAt'>)
+    try {
+      setIsSaving(true)
+      if (editingSub) {
+        await updateSubscription(editingSub.id, subForm as Partial<Omit<Subscription, 'id' | 'createdAt'>>)
+      } else {
+        await addSubscription(subForm as Omit<Subscription, 'id' | 'createdAt'>)
+      }
+      setIsDialogOpen(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save subscription'
+      alert(message)
+    } finally {
+      setIsSaving(false)
     }
-
-    setIsDialogOpen(false)
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm(t('subscriptions.deleteConfirm'))) {
-      deleteSubscription(id)
+      try {
+        await deleteSubscription(id)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to delete subscription'
+        alert(message)
+      }
     }
   }
 
@@ -150,7 +163,7 @@ export default function SubscriptionsPage() {
                         <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(sub)} className="h-8 w-8 rounded-lg">
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(sub.id)} className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10">
+                        <Button variant="ghost" size="icon" onClick={() => void handleDelete(sub.id)} className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -246,7 +259,7 @@ export default function SubscriptionsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{t('subscriptions.cancel')}</Button>
-            <Button onClick={handleSave}>{t('subscriptions.save')}</Button>
+            <Button onClick={() => void handleSave()} disabled={isSaving}>{t('subscriptions.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -15,10 +15,10 @@ export default function AddExpensePage() {
   const { addExpense } = useApp()
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (data: Omit<Expense, 'id' | 'createdAt'>) => {
+  const handleSubmit = async (data: Omit<Expense, 'id' | 'createdAt'>) => {
     setIsSubmitting(true)
     try {
-      addExpense(data)
+      await addExpense(data)
       router.push('/')
     } catch (error) {
       console.error('Error adding expense:', error)

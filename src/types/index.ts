@@ -108,7 +108,6 @@ export interface ExpenseFilter {
 export interface AppSettings {
   language: 'en' | 'my'
   currency: string
-  passwordHash?: string
   apiKey?: string
   monthlyBudget?: number
 }

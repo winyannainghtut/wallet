@@ -3,28 +3,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { Expense, Trip, Subscription, UserProfile, AppSettings, DailySummary, WeeklySummary, MonthlySummary, Category } from '@/types'
 import {
-  getExpenses as storageGetExpenses,
-  addExpense as storageAddExpense,
-  updateExpense as storageUpdateExpense,
-  deleteExpense as storageDeleteExpense,
   getSettings,
   saveSettings,
-  getTrips,
-  addTrip as storageAddTrip,
-  updateTrip as storageUpdateTrip,
-  deleteTrip as storageDeleteTrip,
-  getSubscriptions,
-  addSubscription as storageAddSubscription,
-  updateSubscription as storageUpdateSubscription,
-  deleteSubscription as storageDeleteSubscription,
   getDailySummary,
   getWeeklySummary,
   getMonthlySummary,
-  isAuthenticated,
-  setAuthenticated,
-  verifyPassword,
-  isPasswordProtected,
-  initializeProfiles,
+  ensureProfileForUser,
   getProfiles,
   addProfile as storageAddProfile,
   deleteProfile as storageDeleteProfile,
@@ -34,6 +18,104 @@ import {
 import { format } from 'date-fns'
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
 import { useAuth } from '@/contexts/AuthContext'
+
+function normalizeExpenseDate(rawDate: string): string {
+  const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (datePartMatch?.[1]) return datePartMatch[1]
+
+  const parsed = new Date(rawDate)
+  if (!Number.isNaN(parsed.getTime())) {
+    return format(parsed, 'yyyy-MM-dd')
+  }
+
+  return rawDate
+}
+
+type ExpenseApiRecord = {
+  id: string
+  amount: number
+  category: string
+  description?: string
+  date: string
+  created: string
+  updated?: string
+  tripId?: string
+}
+
+type TripApiRecord = {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  budget?: number
+  destinations?: string
+  created: string
+}
+
+type SubscriptionApiRecord = {
+  id: string
+  name: string
+  amount: number
+  category: string
+  billingCycle?: string
+  frequency?: string
+  startDate?: string
+  nextDueDate?: string
+  isActive?: boolean
+  created: string
+  updated?: string
+}
+
+function mapExpenseRecord(item: ExpenseApiRecord): Expense {
+  return {
+    id: item.id,
+    amount: item.amount,
+    category: item.category as Category,
+    description: item.description || '',
+    date: normalizeExpenseDate(item.date),
+    createdAt: item.created,
+    updatedAt: item.updated,
+    tripId: item.tripId,
+  }
+}
+
+function mapTripRecord(item: TripApiRecord): Trip {
+  return {
+    id: item.id,
+    name: item.name,
+    startDate: item.startDate,
+    endDate: item.endDate,
+    budget: item.budget,
+    destinations: item.destinations,
+    createdAt: item.created,
+  }
+}
+
+function mapSubscriptionRecord(item: SubscriptionApiRecord): Subscription {
+  return {
+    id: item.id,
+    name: item.name,
+    amount: item.amount,
+    category: item.category as Category,
+    billingCycle: (item.billingCycle ?? item.frequency ?? 'monthly') as Subscription['billingCycle'],
+    startDate: item.startDate ?? item.nextDueDate ?? format(new Date(), 'yyyy-MM-dd'),
+    isActive: item.isActive ?? true,
+    createdAt: item.created,
+    updatedAt: item.updated,
+  }
+}
+
+async function getResponseError(response: Response, fallback: string): Promise<string> {
+  try {
+    const payload = await response.json()
+    if (payload && typeof payload.error === 'string' && payload.error.length > 0) {
+      return payload.error
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return fallback
+}
 
 interface AppContextType {
   // Expenses
@@ -45,19 +127,19 @@ interface AppContextType {
 
   // Trips
   trips: Trip[]
-  addTrip: (trip: Omit<Trip, 'id' | 'createdAt'>) => Trip
-  updateTrip: (id: string, updates: Partial<Omit<Trip, 'id' | 'createdAt'>>) => Trip | null
-  deleteTrip: (id: string) => boolean
-  refreshTrips: () => void
+  addTrip: (trip: Omit<Trip, 'id' | 'createdAt'>) => Promise<Trip>
+  updateTrip: (id: string, updates: Partial<Omit<Trip, 'id' | 'createdAt'>>) => Promise<Trip | null>
+  deleteTrip: (id: string) => Promise<boolean>
+  refreshTrips: () => Promise<void>
 
   // Subscriptions
   subscriptions: Subscription[]
-  addSubscription: (sub: Omit<Subscription, 'id' | 'createdAt'>) => Subscription
-  updateSubscription: (id: string, updates: Partial<Omit<Subscription, 'id' | 'createdAt'>>) => Subscription | null
-  deleteSubscription: (id: string) => boolean
-  refreshSubscriptions: () => void
+  addSubscription: (sub: Omit<Subscription, 'id' | 'createdAt'>) => Promise<Subscription>
+  updateSubscription: (id: string, updates: Partial<Omit<Subscription, 'id' | 'createdAt'>>) => Promise<Subscription | null>
+  deleteSubscription: (id: string) => Promise<boolean>
+  refreshSubscriptions: () => Promise<void>
 
-  // User Profiles
+  // User Profiles (local multi-user support)
   profiles: UserProfile[]
   activeProfile: UserProfile | null
   switchUser: (userId: string) => void
@@ -74,22 +156,21 @@ interface AppContextType {
   updateSettings: (settings: Partial<AppSettings>) => void
   setLanguage: (lang: 'en' | 'my') => void
 
-  // Auth
-  isLocked: boolean
-  unlock: (password: string) => boolean
-  lock: () => void
-  hasPassword: boolean
-
   // Loading
   isLoading: boolean
-  isUsingBackend: boolean
+
+  // Current user info from PocketBase
+  currentUser: {
+    id: string
+    email: string
+    name?: string
+  } | null
 }
 
 const AppContext = createContext<AppContextType | null>(null)
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated: isPbAuthenticated, user } = useAuth()
-  const isUsingBackend = isPbAuthenticated && !!user
+  const { isAuthenticated, user } = useAuth()
 
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
@@ -97,274 +178,369 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD' })
-  const [hasPassword, setHasPassword] = useState(false)
-  const [isLocked, setIsLocked] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load expenses from PocketBase or localStorage
-  const refreshExpenses = useCallback(async () => {
-    if (isUsingBackend) {
-      try {
-        const res = await fetch('/api/transactions')
-        if (res.ok) {
-          const data = await res.json()
-          // Map PocketBase records to Expense type
-          const mappedExpenses: Expense[] = (data.items || []).map((item: any) => ({
-            id: item.id,
-            amount: item.amount,
-            category: item.category as Category,
-            description: item.description || '',
-            date: item.date,
-            createdAt: item.created,
-            updatedAt: item.updated,
-            tripId: item.tripId,
-          }))
-          setExpenses(mappedExpenses)
-        } else {
-          // Fallback to localStorage if API fails
-          setExpenses(storageGetExpenses())
-        }
-      } catch (error) {
-        console.error('Failed to fetch expenses from backend:', error)
-        setExpenses(storageGetExpenses())
-      }
-    } else {
-      setExpenses(storageGetExpenses())
-    }
-  }, [isUsingBackend])
+  // Current PocketBase user
+  const currentUser = user ? {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+  } : null
 
-  // Load all user-scoped data
+  // Load expenses from PocketBase
+  const refreshExpenses = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      setExpenses([])
+      return
+    }
+
+    try {
+      const res = await fetch('/api/transactions')
+      if (res.ok) {
+        const data = await res.json()
+        const mappedExpenses: Expense[] = (data.items || []).map(mapExpenseRecord)
+        setExpenses(mappedExpenses)
+      } else {
+        setExpenses([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch expenses:', error)
+      setExpenses([])
+    }
+  }, [isAuthenticated, user])
+
+  // Load trips from PocketBase
+  const refreshTrips = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      setTrips([])
+      return
+    }
+
+    try {
+      const res = await fetch('/api/trips')
+      if (res.ok) {
+        const data = await res.json()
+        const mappedTrips: Trip[] = (data.items || []).map(mapTripRecord)
+        setTrips(mappedTrips)
+      } else {
+        setTrips([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch trips:', error)
+      setTrips([])
+    }
+  }, [isAuthenticated, user])
+
+  // Load subscriptions from PocketBase
+  const refreshSubscriptions = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      setSubscriptions([])
+      return
+    }
+
+    try {
+      const res = await fetch('/api/subscriptions')
+      if (res.ok) {
+        const data = await res.json()
+        const mappedSubscriptions: Subscription[] = (data.items || []).map(mapSubscriptionRecord)
+        setSubscriptions(mappedSubscriptions)
+      } else {
+        setSubscriptions([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch subscriptions:', error)
+      setSubscriptions([])
+    }
+  }, [isAuthenticated, user])
+
+  // Load all user data
   const loadUserData = useCallback(async () => {
     const loadedSettings = getSettings()
     setI18nLanguage(loadedSettings.language)
     setSettings(loadedSettings)
 
-    const passwordProtected = isPasswordProtected()
-    setHasPassword(passwordProtected)
-    setIsLocked(passwordProtected ? !isAuthenticated() : false)
+    await Promise.all([
+      refreshExpenses(),
+      refreshTrips(),
+      refreshSubscriptions(),
+    ])
 
-    // Load expenses (from backend or localStorage)
-    await refreshExpenses()
-
-    setTrips(getTrips())
-    setSubscriptions(getSubscriptions())
     setActiveProfile(getActiveProfile())
-  }, [refreshExpenses])
+  }, [refreshExpenses, refreshTrips, refreshSubscriptions])
 
   useEffect(() => {
     const loadData = async () => {
-      // Initialize profiles (migrates legacy data on first run)
-      initializeProfiles()
+      if (!isAuthenticated || !user) {
+        setExpenses([])
+        setTrips([])
+        setSubscriptions([])
+        setProfiles([])
+        setActiveProfile(null)
+        setSettings({ language: 'en', currency: 'SGD' })
+        setI18nLanguage('en')
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(true)
+      const profile = ensureProfileForUser({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      })
       setProfiles(getProfiles())
+      setActiveProfile(profile)
       await loadUserData()
       setIsLoading(false)
     }
 
     queueMicrotask(loadData)
-  }, [loadUserData])
+  }, [isAuthenticated, user, loadUserData])
 
-  // Reload expenses when authentication changes
-  useEffect(() => {
-    if (!isLoading) {
-      refreshExpenses()
-    }
-  }, [isPbAuthenticated, user, isLoading, refreshExpenses])
-
-  // Switch active user
+  // Switch active user (local profiles)
   const switchUser = useCallback((userId: string) => {
+    if (!user || userId !== user.id) return
     setActiveUserId(userId)
     loadUserData()
     setProfiles(getProfiles())
-  }, [loadUserData])
+  }, [user, loadUserData])
 
-  // Add new profile
   const addProfile = useCallback((name: string, avatar?: string) => {
+    if (user) {
+      const profile = ensureProfileForUser({
+        id: user.id,
+        name: user.name || name,
+        email: user.email,
+        avatar,
+      })
+      setProfiles(getProfiles())
+      setActiveProfile(profile)
+      return profile
+    }
+
     const profile = storageAddProfile(name, avatar)
     setProfiles(getProfiles())
     return profile
-  }, [])
+  }, [user])
 
-  // Remove profile
   const removeProfile = useCallback((id: string) => {
+    if (user && id === user.id) {
+      return false
+    }
+
     const result = storageDeleteProfile(id)
     if (result) {
       setProfiles(getProfiles())
-      loadUserData() // Reload in case active user changed
+      loadUserData()
     }
     return result
-  }, [loadUserData])
+  }, [user, loadUserData])
 
-  // Refresh functions
-  const refreshTrips = useCallback(() => {
-    setTrips(getTrips())
-  }, [])
-
-  const refreshSubscriptions = useCallback(() => {
-    setSubscriptions(getSubscriptions())
-  }, [])
-
-  // Expense operations - use PocketBase when authenticated
+  // Expense operations - PocketBase only (requires authentication)
   const addExpense = useCallback(async (expense: Omit<Expense, 'id' | 'createdAt'>) => {
-    if (isUsingBackend) {
-      try {
-        const res = await fetch('/api/transactions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'expense',
-            category: expense.category,
-            amount: expense.amount,
-            description: expense.description,
-            date: expense.date,
-            tripId: expense.tripId,
-          }),
-        })
-
-        if (!res.ok) {
-          throw new Error('Failed to save to backend')
-        }
-
-        const data = await res.json()
-        const newExpense: Expense = {
-          id: data.id,
-          amount: data.amount,
-          category: data.category as Category,
-          description: data.description || '',
-          date: data.date,
-          createdAt: data.created,
-          updatedAt: data.updated,
-          tripId: data.tripId,
-        }
-
-        setExpenses(prev => [newExpense, ...prev])
-        return newExpense
-      } catch (error) {
-        console.error('Failed to save expense to backend:', error)
-        // Fallback to localStorage
-        const newExpense = storageAddExpense(expense)
-        refreshExpenses()
-        return newExpense
-      }
-    } else {
-      // Use localStorage
-      const newExpense = storageAddExpense(expense)
-      setExpenses(prev => [newExpense, ...prev])
-      return newExpense
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to add expenses')
     }
-  }, [isUsingBackend, refreshExpenses])
+
+    const res = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'expense',
+        category: expense.category,
+        amount: expense.amount,
+        description: expense.description,
+        date: expense.date,
+        tripId: expense.tripId,
+      }),
+    })
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to save expense'))
+    }
+
+    const data = (await res.json()) as ExpenseApiRecord
+    const newExpense = mapExpenseRecord(data)
+
+    setExpenses(prev => [newExpense, ...prev])
+    return newExpense
+  }, [isAuthenticated])
 
   const updateExpense = useCallback(async (id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>) => {
-    if (isUsingBackend) {
-      try {
-        const res = await fetch(`/api/transactions/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        })
-
-        if (!res.ok) {
-          throw new Error('Failed to update in backend')
-        }
-
-        const data = await res.json()
-        const updatedExpense: Expense = {
-          id: data.id,
-          amount: data.amount,
-          category: data.category as Category,
-          description: data.description || '',
-          date: data.date,
-          createdAt: data.created,
-          updatedAt: data.updated,
-          tripId: data.tripId,
-        }
-
-        setExpenses(prev => prev.map(e => e.id === id ? updatedExpense : e))
-        return updatedExpense
-      } catch (error) {
-        console.error('Failed to update expense in backend:', error)
-        // Fallback to localStorage
-        const result = storageUpdateExpense(id, updates)
-        if (result) refreshExpenses()
-        return result
-      }
-    } else {
-      const result = storageUpdateExpense(id, updates)
-      if (result) {
-        setExpenses(prev => prev.map(e => e.id === id ? result : e))
-      }
-      return result
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to update expenses')
     }
-  }, [isUsingBackend, refreshExpenses])
+
+    const res = await fetch(`/api/transactions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to update expense'))
+    }
+
+    const data = (await res.json()) as ExpenseApiRecord
+    const updatedExpense = mapExpenseRecord(data)
+
+    setExpenses(prev => prev.map(e => e.id === id ? updatedExpense : e))
+    return updatedExpense
+  }, [isAuthenticated])
 
   const deleteExpense = useCallback(async (id: string) => {
-    if (isUsingBackend) {
-      try {
-        const res = await fetch(`/api/transactions/${id}`, {
-          method: 'DELETE',
-        })
-
-        if (!res.ok) {
-          throw new Error('Failed to delete from backend')
-        }
-
-        setExpenses(prev => prev.filter(e => e.id !== id))
-        return true
-      } catch (error) {
-        console.error('Failed to delete expense from backend:', error)
-        // Fallback to localStorage
-        const result = storageDeleteExpense(id)
-        if (result) refreshExpenses()
-        return result
-      }
-    } else {
-      const result = storageDeleteExpense(id)
-      if (result) {
-        setExpenses(prev => prev.filter(e => e.id !== id))
-      }
-      return result
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to delete expenses')
     }
-  }, [isUsingBackend, refreshExpenses])
 
-  // Trip operations (still using localStorage for now)
-  const addTrip = useCallback((trip: Omit<Trip, 'id' | 'createdAt'>) => {
-    const newTrip = storageAddTrip(trip)
-    refreshTrips()
+    const res = await fetch(`/api/transactions/${id}`, {
+      method: 'DELETE',
+    })
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to delete expense'))
+    }
+
+    setExpenses(prev => prev.filter(e => e.id !== id))
+    return true
+  }, [isAuthenticated])
+
+  // Trip operations - PocketBase only (requires authentication)
+  const addTrip = useCallback(async (trip: Omit<Trip, 'id' | 'createdAt'>) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to add trips')
+    }
+
+    const res = await fetch('/api/trips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(trip),
+    })
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to save trip'))
+    }
+
+    const data = (await res.json()) as TripApiRecord
+    const newTrip = mapTripRecord(data)
+    setTrips(prev => [newTrip, ...prev])
     return newTrip
-  }, [refreshTrips])
+  }, [isAuthenticated])
 
-  const updateTrip = useCallback((id: string, updates: Partial<Omit<Trip, 'id' | 'createdAt'>>) => {
-    const result = storageUpdateTrip(id, updates)
-    if (result) refreshTrips()
-    return result
-  }, [refreshTrips])
-
-  const deleteTrip = useCallback((id: string) => {
-    const result = storageDeleteTrip(id)
-    if (result) {
-      refreshTrips()
-      refreshExpenses()
+  const updateTrip = useCallback(async (id: string, updates: Partial<Omit<Trip, 'id' | 'createdAt'>>) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to update trips')
     }
-    return result
-  }, [refreshTrips, refreshExpenses])
 
-  // Subscription operations (still using localStorage for now)
-  const addSubscription = useCallback((sub: Omit<Subscription, 'id' | 'createdAt'>) => {
-    const newSub = storageAddSubscription(sub)
-    refreshSubscriptions()
-    return newSub
-  }, [refreshSubscriptions])
+    const res = await fetch(`/api/trips/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
 
-  const updateSubscription = useCallback((id: string, updates: Partial<Omit<Subscription, 'id' | 'createdAt'>>) => {
-    const result = storageUpdateSubscription(id, updates)
-    if (result) refreshSubscriptions()
-    return result
-  }, [refreshSubscriptions])
+    if (res.status === 404) {
+      return null
+    }
 
-  const deleteSubscription = useCallback((id: string) => {
-    const result = storageDeleteSubscription(id)
-    if (result) refreshSubscriptions()
-    return result
-  }, [refreshSubscriptions])
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to update trip'))
+    }
+
+    const data = (await res.json()) as TripApiRecord
+    const updatedTrip = mapTripRecord(data)
+    setTrips(prev => prev.map(trip => trip.id === id ? updatedTrip : trip))
+    return updatedTrip
+  }, [isAuthenticated])
+
+  const deleteTrip = useCallback(async (id: string) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to delete trips')
+    }
+
+    const res = await fetch(`/api/trips/${id}`, {
+      method: 'DELETE',
+    })
+
+    if (res.status === 404) {
+      return false
+    }
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to delete trip'))
+    }
+
+    setTrips(prev => prev.filter(trip => trip.id !== id))
+    await refreshExpenses()
+    return true
+  }, [isAuthenticated, refreshExpenses])
+
+  // Subscription operations - PocketBase only (requires authentication)
+  const addSubscription = useCallback(async (sub: Omit<Subscription, 'id' | 'createdAt'>) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to add subscriptions')
+    }
+
+    const res = await fetch('/api/subscriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(sub),
+    })
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to save subscription'))
+    }
+
+    const data = (await res.json()) as SubscriptionApiRecord
+    const newSubscription = mapSubscriptionRecord(data)
+    setSubscriptions(prev => [newSubscription, ...prev])
+    return newSubscription
+  }, [isAuthenticated])
+
+  const updateSubscription = useCallback(async (id: string, updates: Partial<Omit<Subscription, 'id' | 'createdAt'>>) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to update subscriptions')
+    }
+
+    const res = await fetch(`/api/subscriptions/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+
+    if (res.status === 404) {
+      return null
+    }
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to update subscription'))
+    }
+
+    const data = (await res.json()) as SubscriptionApiRecord
+    const updatedSubscription = mapSubscriptionRecord(data)
+    setSubscriptions(prev => prev.map(sub => sub.id === id ? updatedSubscription : sub))
+    return updatedSubscription
+  }, [isAuthenticated])
+
+  const deleteSubscription = useCallback(async (id: string) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to delete subscriptions')
+    }
+
+    const res = await fetch(`/api/subscriptions/${id}`, {
+      method: 'DELETE',
+    })
+
+    if (res.status === 404) {
+      return false
+    }
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to delete subscription'))
+    }
+
+    setSubscriptions(prev => prev.filter(sub => sub.id !== id))
+    return true
+  }, [isAuthenticated])
 
   // Summaries
   const todaySummary = React.useMemo(() => getDailySummary(format(new Date(), 'yyyy-MM-dd'), expenses), [expenses])
@@ -375,32 +551,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
     const updated = saveSettings(newSettings)
     setSettings(updated)
-    const passwordProtected = !!updated.passwordHash
-    setHasPassword(passwordProtected)
-    if (!passwordProtected) {
-      setIsLocked(false)
-    }
   }, [])
 
   const setLanguage = useCallback((lang: 'en' | 'my') => {
     setI18nLanguage(lang)
     updateSettings({ language: lang })
   }, [updateSettings])
-
-  // Auth
-  const unlock = useCallback((password: string) => {
-    if (verifyPassword(password)) {
-      setAuthenticated(true)
-      setIsLocked(false)
-      return true
-    }
-    return false
-  }, [])
-
-  const lock = useCallback(() => {
-    setAuthenticated(false)
-    setIsLocked(true)
-  }, [])
 
   return (
     <AppContext.Provider
@@ -431,12 +587,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         settings,
         updateSettings,
         setLanguage,
-        isLocked,
-        unlock,
-        lock,
-        hasPassword,
         isLoading,
-        isUsingBackend,
+        currentUser,
       }}
     >
       {children}

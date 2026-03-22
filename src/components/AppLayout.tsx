@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard,
   PlusCircle,
@@ -17,14 +17,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Repeat,
-  CalendarDays
+  CalendarDays,
+  User
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { CommandPalette } from './CommandPalette'
 import { LanguageSwitcher } from './LanguageSwitcher'
-import { UserSwitcher } from './UserSwitcher'
 import { useApp } from '@/contexts/AppContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { t } from '@/i18n/config'
 
 const navItems = [
@@ -40,9 +41,16 @@ const navItems = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { lock, hasPassword, settings } = useApp()
+  const router = useRouter()
+  const { settings, currentUser } = useApp()
+  const { logout } = useAuth()
   const [open, setOpen] = useState(false)
   const [isCollapsed, setIsCollapsed] = useState(false)
+
+  const handleLogout = async () => {
+    await logout()
+    router.push('/login')
+  }
 
   // Desktop nav — respects collapsed state
   const renderDesktopNavLinks = () =>
@@ -139,15 +147,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
               {!isCollapsed && <LanguageSwitcher />}
             </div>
-            {/* User Switcher */}
-            {!isCollapsed && (
-              <div className="mt-3 flex items-center gap-2 rounded-lg border border-border/40 px-2 py-1">
-                <UserSwitcher />
+            {/* Current User Info */}
+            {!isCollapsed && currentUser && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-border/40 px-3 py-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{currentUser.name || currentUser.email}</p>
+                  <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
+                </div>
               </div>
             )}
-            {isCollapsed && (
+            {isCollapsed && currentUser && (
               <div className="mt-3 flex justify-center">
-                <UserSwitcher />
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
               </div>
             )}
             {/* Collapse/Expand Button */}
@@ -168,20 +184,18 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             {renderDesktopNavLinks()}
           </nav>
 
-          {/* Lock Button */}
-          {hasPassword && (
-            <div className="border-t border-border/40 p-3">
-              <Button
-                variant="ghost"
-                className={`w-full ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'} rounded-xl text-muted-foreground transition-colors hover:text-foreground`}
-                onClick={lock}
-                title={isCollapsed ? "Lock" : undefined}
-              >
-                <LogOut className="h-4 w-4 shrink-0" />
-                {!isCollapsed && "Lock"}
-              </Button>
-            </div>
-          )}
+          {/* Logout Button */}
+          <div className="border-t border-border/40 p-3">
+            <Button
+              variant="ghost"
+              className={`w-full ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'} rounded-xl text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/70`}
+              onClick={handleLogout}
+              title={isCollapsed ? "Logout" : undefined}
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              {!isCollapsed && "Logout"}
+            </Button>
+          </div>
         </div>
       </aside>
 
@@ -205,24 +219,34 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
+                {/* Current User - Mobile */}
+                {currentUser && (
+                  <div className="flex items-center gap-2 border-b border-border/40 px-4 py-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                      <User className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{currentUser.name || currentUser.email}</p>
+                      <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
+                    </div>
+                  </div>
+                )}
                 <nav className="flex-1 space-y-1 p-3">
                   {renderMobileNavLinks(() => setOpen(false))}
                 </nav>
-                {hasPassword && (
-                  <div className="border-t border-border/40 p-3">
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start gap-3 rounded-xl text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        lock()
-                        setOpen(false)
-                      }}
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Lock
-                    </Button>
-                  </div>
-                )}
+                <div className="border-t border-border/40 p-3">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent/70"
+                    onClick={() => {
+                      handleLogout()
+                      setOpen(false)
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </Button>
+                </div>
               </div>
             </SheetContent>
           </Sheet>

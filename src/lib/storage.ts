@@ -1,4 +1,4 @@
-import { Expense, Trip, Subscription, AppSettings, UserProfile, Category, DailySummary, WeeklySummary, MonthlySummary, ExpenseFilter } from '@/types'
+import { Expense, Trip, Subscription, AppSettings, UserProfile, Category, DailySummary, WeeklySummary, MonthlySummary } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from 'date-fns'
 
@@ -20,7 +20,6 @@ const FIELD = {
   TRIPS: 'trips',
   SUBSCRIPTIONS: 'subscriptions',
   SETTINGS: 'settings',
-  AUTH: 'auth',
 }
 
 // ==================== Profile Management ====================
@@ -45,6 +44,40 @@ export function addProfile(name: string, avatar?: string): UserProfile {
   }
   profiles.push(profile)
   saveProfiles(profiles)
+  return profile
+}
+
+export function ensureProfileForUser(user: {
+  id: string
+  name?: string
+  email?: string
+  avatar?: string
+}): UserProfile {
+  const profiles = getProfiles()
+  const existing = profiles.find((profile) => profile.id === user.id)
+  const displayName = user.name?.trim() || user.email?.trim() || 'User'
+  const avatar = user.avatar || existing?.avatar || displayName.charAt(0).toUpperCase()
+
+  const profile: UserProfile = existing
+    ? {
+        ...existing,
+        name: displayName,
+        avatar,
+      }
+    : {
+        id: user.id,
+        name: displayName,
+        avatar,
+        createdAt: new Date().toISOString(),
+      }
+
+  if (existing) {
+    saveProfiles(profiles.map((item) => (item.id === user.id ? profile : item)))
+  } else {
+    saveProfiles([...profiles, profile])
+  }
+
+  setActiveUserId(user.id)
   return profile
 }
 
@@ -84,75 +117,6 @@ export function getActiveProfile(): UserProfile | null {
   const profiles = getProfiles()
   const activeId = getActiveUserId()
   return profiles.find(p => p.id === activeId) || null
-}
-
-// Initialize profiles + migrate old data on first load
-export function initializeProfiles(): UserProfile {
-  let profiles = getProfiles()
-
-  if (profiles.length === 0) {
-    // First run — check for legacy data to migrate
-    const legacyExpenses = localStorage.getItem('wallet_app_expenses')
-    const legacyTrips = localStorage.getItem('wallet_app_trips')
-    const legacySubscriptions = localStorage.getItem('wallet_app_subscriptions')
-    const legacySettings = localStorage.getItem('wallet_app_settings')
-
-    const defaultProfile: UserProfile = {
-      id: 'default',
-      name: 'Default',
-      avatar: '👤',
-      createdAt: new Date().toISOString(),
-    }
-    profiles = [defaultProfile]
-    saveProfiles(profiles)
-    setActiveUserId('default')
-
-    // Migrate legacy data to the default user namespace
-    if (legacyExpenses) {
-      localStorage.setItem(userKey(FIELD.EXPENSES), legacyExpenses)
-      localStorage.removeItem('wallet_app_expenses')
-    }
-    if (legacyTrips) {
-      localStorage.setItem(userKey(FIELD.TRIPS), legacyTrips)
-      localStorage.removeItem('wallet_app_trips')
-    }
-    if (legacySubscriptions) {
-      localStorage.setItem(userKey(FIELD.SUBSCRIPTIONS), legacySubscriptions)
-      localStorage.removeItem('wallet_app_subscriptions')
-    }
-    if (legacySettings) {
-      // Also fix currency during migration
-      try {
-        const parsed = JSON.parse(legacySettings)
-        parsed.currency = 'SGD' // Force fix MMK -> SGD during migration
-        localStorage.setItem(userKey(FIELD.SETTINGS), JSON.stringify(parsed))
-      } catch {
-        localStorage.setItem(userKey(FIELD.SETTINGS), legacySettings)
-      }
-      localStorage.removeItem('wallet_app_settings')
-    }
-
-    return defaultProfile
-  }
-
-  // Ensure there's an active user
-  const activeId = getActiveUserId()
-  if (!profiles.find(p => p.id === activeId)) {
-    setActiveUserId(profiles[0].id)
-  }
-
-  return profiles.find(p => p.id === getActiveUserId()) || profiles[0]
-}
-
-// Simple hash function for password
-export function hashPassword(password: string): string {
-  let hash = 0
-  for (let i = 0; i < password.length; i++) {
-    const char = password.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
-  }
-  return hash.toString(16)
 }
 
 // ==================== Expense Operations ====================
@@ -199,11 +163,6 @@ export function deleteExpense(id: string): boolean {
   if (filtered.length === expenses.length) return false
   saveExpenses(filtered)
   return true
-}
-
-export function getExpenseById(id: string): Expense | null {
-  const expenses = getExpenses()
-  return expenses.find(e => e.id === id) || null
 }
 
 // ==================== Trip Operations ====================
@@ -255,19 +214,13 @@ export function deleteTrip(id: string): boolean {
   const updatedExpenses = expenses.map(e => {
     if (e.tripId === id) {
       expensesUpdated = true
-      const { tripId, ...rest } = e
-      return rest
+      return { ...e, tripId: undefined }
     }
     return e
   })
   if (expensesUpdated) saveExpenses(updatedExpenses as Expense[])
 
   return true
-}
-
-export function getTripById(id: string): Trip | null {
-  const trips = getTrips()
-  return trips.find(t => t.id === id) || null
 }
 
 // ==================== Subscription Operations ====================
@@ -314,35 +267,6 @@ export function deleteSubscription(id: string): boolean {
   if (filtered.length === subs.length) return false
   saveSubscriptions(filtered)
   return true
-}
-
-export function filterExpenses(filters: ExpenseFilter): Expense[] {
-  let expenses = getExpenses()
-
-  if (filters.startDate) {
-    expenses = expenses.filter(e => e.date >= filters.startDate!)
-  }
-  if (filters.endDate) {
-    expenses = expenses.filter(e => e.date <= filters.endDate!)
-  }
-  if (filters.category) {
-    expenses = expenses.filter(e => e.category === filters.category)
-  }
-  if (filters.minAmount !== undefined) {
-    expenses = expenses.filter(e => e.amount >= filters.minAmount!)
-  }
-  if (filters.maxAmount !== undefined) {
-    expenses = expenses.filter(e => e.amount <= filters.maxAmount!)
-  }
-  if (filters.search) {
-    const search = filters.search.toLowerCase()
-    expenses = expenses.filter(e =>
-      e.description.toLowerCase().includes(search) ||
-      e.category.toLowerCase().includes(search)
-    )
-  }
-
-  return expenses
 }
 
 // ==================== Summary Operations ====================
@@ -442,50 +366,8 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
   return updated
 }
 
-export function setLanguage(language: 'en' | 'my'): void {
-  saveSettings({ language })
-}
-
-export function setApiKey(apiKey: string): void {
-  saveSettings({ apiKey })
-}
-
 export function getApiKey(): string | undefined {
   return getSettings().apiKey
-}
-
-// ==================== Auth Operations ====================
-
-export function isPasswordProtected(): boolean {
-  const settings = getSettings()
-  return !!settings.passwordHash
-}
-
-export function setPassword(password: string): void {
-  const hash = hashPassword(password)
-  saveSettings({ passwordHash: hash })
-}
-
-export function removePassword(): void {
-  const settings = getSettings()
-  delete settings.passwordHash
-  localStorage.setItem(userKey(FIELD.SETTINGS), JSON.stringify(settings))
-}
-
-export function verifyPassword(password: string): boolean {
-  const settings = getSettings()
-  if (!settings.passwordHash) return true
-  return hashPassword(password) === settings.passwordHash
-}
-
-export function setAuthenticated(authenticated: boolean): void {
-  if (typeof window === 'undefined') return
-  sessionStorage.setItem(userKey(FIELD.AUTH), authenticated ? 'true' : 'false')
-}
-
-export function isAuthenticated(): boolean {
-  if (typeof window === 'undefined') return false
-  return sessionStorage.getItem(userKey(FIELD.AUTH)) === 'true'
 }
 
 // ==================== Data Operations ====================
@@ -495,21 +377,5 @@ export function clearAllData(): void {
   localStorage.removeItem(userKey(FIELD.TRIPS))
   localStorage.removeItem(userKey(FIELD.SUBSCRIPTIONS))
   localStorage.removeItem(userKey(FIELD.SETTINGS))
-  sessionStorage.removeItem(userKey(FIELD.AUTH))
 }
 
-export function exportAllData(): { expenses: Expense[]; settings: AppSettings } {
-  return {
-    expenses: getExpenses(),
-    settings: getSettings()
-  }
-}
-
-export function importData(data: { expenses?: Expense[]; settings?: AppSettings }): void {
-  if (data.expenses) {
-    saveExpenses(data.expenses)
-  }
-  if (data.settings) {
-    localStorage.setItem(userKey(FIELD.SETTINGS), JSON.stringify(data.settings))
-  }
-}

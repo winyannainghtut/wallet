@@ -7,7 +7,6 @@ export const translations = {
 }
 
 export type Language = 'en' | 'my'
-export type TranslationKey = keyof typeof translations.en
 
 let currentLanguage: Language = 'en'
 

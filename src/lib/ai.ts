@@ -98,74 +98,6 @@ Provide insights and advice:`
   }
 }
 
-// Chat with AI about expenses
-export async function chatAboutExpenses(
-  message: string,
-  expenses: Expense[],
-  apiKey: string,
-  language: 'en' | 'my' = 'en'
-): Promise<string> {
-  if (!apiKey) throw new Error('API key required')
-
-  const genAI = getClient(apiKey)
-  const model = genAI.getGenerativeModel({ model: MODEL })
-
-  // Prepare expense context
-  const recentExpenses = expenses.slice(0, 20).map(e =>
-    `${e.date}: ${CATEGORY_LABELS[e.category][language]} - ${e.amount} (${e.description})`
-  ).join('\n')
-
-  const totalByCategory: Record<string, number> = {}
-  expenses.forEach(e => {
-    totalByCategory[e.category] = (totalByCategory[e.category] || 0) + e.amount
-  })
-
-  const categorySummary = Object.entries(totalByCategory)
-    .map(([cat, total]) => `${CATEGORY_LABELS[cat as Category][language]}: ${total}`)
-    .join(', ')
-
-  const systemContext = language === 'my'
-    ? `သင်သည် သုံးစွဲမှု ခြေရာခံမှု အက်ပလီကေးရှင်းအတွက် AI လက်ထောက်ဖြစ်သည်။
-မြန်မာလို ပြန်ဖြေပါ။ အတိုချုံ့ပြီး အသုံးဝင်သော အဖြေများ ပေးပါ။
-
-အသုံးပြုသူ၏ သုံးစွဲမှု အကျဉ်းချုပ်:
-- စုစုပေါင်း: ${expenses.reduce((s, e) => s + e.amount, 0)}
-- အမျိုးအစားအလိုက်: ${categorySummary}
-
-မကြာသေးမီ သုံးစွဲမှုများ:
-${recentExpenses || 'မရှိသေးပါ'}`
-    : `You are a helpful AI assistant for an expense tracking app.
-Answer questions concisely and helpfully in English.
-
-User's Expense Summary:
-- Total spent: ${expenses.reduce((s, e) => s + e.amount, 0)}
-- By category: ${categorySummary}
-
-Recent expenses:
-${recentExpenses || 'No expenses yet'}`
-
-  try {
-    const chat = model.startChat({
-      history: [
-        {
-          role: 'user',
-          parts: [{ text: systemContext }]
-        },
-        {
-          role: 'model',
-          parts: [{ text: 'I understand. I will help answer questions about your expenses based on this data.' }]
-        }
-      ]
-    })
-
-    const result = await chat.sendMessage(message)
-    return result.response.text() || (language === 'my' ? 'အဖြေ မရနိုင်ပါ' : 'Unable to generate response')
-  } catch (error) {
-    console.error('Error chatting:', error)
-    throw error
-  }
-}
-
 // Stream chat response
 export async function* streamChatAboutExpenses(
   message: string,
@@ -302,3 +234,4 @@ Return EXACTLY a valid JSON object with no markdown formatting, no markdown bloc
     return null
   }
 }
+

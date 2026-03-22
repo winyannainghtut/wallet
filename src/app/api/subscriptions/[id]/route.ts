@@ -6,6 +6,17 @@ type PocketBaseLikeError = {
   message?: string
 }
 
+type SubscriptionInput = {
+  name?: string
+  amount?: number
+  category?: string
+  billingCycle?: string
+  startDate?: string
+  frequency?: string
+  nextDueDate?: string
+  isActive?: boolean
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
     const message = (error as PocketBaseLikeError).message
@@ -36,7 +47,58 @@ function getAuthenticatedPb(request: NextRequest):
   return { pb, userId: pb.authStore.model.id }
 }
 
-// GET - Get single transaction
+function stripUndefined(obj: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined))
+}
+
+function getNormalizedSubscriptionValues(input: SubscriptionInput) {
+  return {
+    name: input.name,
+    amount: input.amount,
+    category: input.category,
+    isActive: input.isActive,
+    billingCycle: input.billingCycle ?? input.frequency,
+    startDate: input.startDate ?? input.nextDueDate,
+  }
+}
+
+async function updateSubscription(
+  pb: ReturnType<typeof createPbServer>,
+  id: string,
+  input: SubscriptionInput
+) {
+  const normalized = getNormalizedSubscriptionValues(input)
+
+  const primaryPayload = stripUndefined({
+    name: normalized.name,
+    amount: normalized.amount,
+    category: normalized.category,
+    billingCycle: normalized.billingCycle,
+    startDate: normalized.startDate,
+    isActive: normalized.isActive,
+  })
+
+  try {
+    return await pb.collection('subscriptions').update(id, primaryPayload)
+  } catch (primaryError) {
+    const fallbackPayload = stripUndefined({
+      name: normalized.name,
+      amount: normalized.amount,
+      category: normalized.category,
+      frequency: normalized.billingCycle,
+      nextDueDate: normalized.startDate,
+      isActive: normalized.isActive,
+    })
+
+    try {
+      return await pb.collection('subscriptions').update(id, fallbackPayload)
+    } catch {
+      throw primaryError
+    }
+  }
+}
+
+// GET - Get single subscription
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,7 +111,7 @@ export async function GET(
     const { pb, userId } = auth
 
     const { id } = await params
-    const record = await pb.collection('transactions').getOne(id)
+    const record = await pb.collection('subscriptions').getOne(id)
     if (record.user !== userId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
@@ -60,15 +122,15 @@ export async function GET(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    console.error('Get transaction error:', error)
+    console.error('Get subscription error:', error)
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to fetch transaction') },
+      { error: getErrorMessage(error, 'Failed to fetch subscription') },
       { status: 500 }
     )
   }
 }
 
-// PUT - Update transaction
+// PUT - Update subscription
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -81,14 +143,13 @@ export async function PUT(
     const { pb, userId } = auth
 
     const { id } = await params
-    const existing = await pb.collection('transactions').getOne(id)
+    const existing = await pb.collection('subscriptions').getOne(id)
     if (existing.user !== userId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const body = await request.json()
-
-    const record = await pb.collection('transactions').update(id, body)
+    const body = (await request.json()) as SubscriptionInput
+    const record = await updateSubscription(pb, id, body)
 
     return NextResponse.json(record)
   } catch (error: unknown) {
@@ -96,15 +157,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    console.error('Update transaction error:', error)
+    console.error('Update subscription error:', error)
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to update transaction') },
+      { error: getErrorMessage(error, 'Failed to update subscription') },
       { status: 500 }
     )
   }
 }
 
-// DELETE - Delete transaction
+// DELETE - Delete subscription
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -117,12 +178,12 @@ export async function DELETE(
     const { pb, userId } = auth
 
     const { id } = await params
-    const existing = await pb.collection('transactions').getOne(id)
+    const existing = await pb.collection('subscriptions').getOne(id)
     if (existing.user !== userId) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    await pb.collection('transactions').delete(id)
+    await pb.collection('subscriptions').delete(id)
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
@@ -130,9 +191,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    console.error('Delete transaction error:', error)
+    console.error('Delete subscription error:', error)
     return NextResponse.json(
-      { error: getErrorMessage(error, 'Failed to delete transaction') },
+      { error: getErrorMessage(error, 'Failed to delete subscription') },
       { status: 500 }
     )
   }

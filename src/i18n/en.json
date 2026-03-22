@@ -112,15 +112,6 @@
     "english": "English",
     "myanmar": "Myanmar",
     "currency": "Currency",
-    "password": "Password Protection",
-    "setPassword": "Set Password",
-    "changePassword": "Change Password",
-    "removePassword": "Remove Password",
-    "currentPassword": "Current Password",
-    "newPassword": "New Password",
-    "confirmPassword": "Confirm Password",
-    "passwordMismatch": "Passwords do not match",
-    "passwordSuccess": "Password updated successfully",
     "apiKey": "AI API Key",
     "apiKeyPlaceholder": "Enter your z.ai API key",
     "apiKeySuccess": "API key saved successfully",
@@ -156,12 +147,6 @@
     "importError": "Failed to import data",
     "invalidFormat": "Invalid file format",
     "downloadTemplate": "Download Template"
-  },
-  "auth": {
-    "passwordRequired": "Password Required",
-    "enterPassword": "Enter password to continue",
-    "incorrectPassword": "Incorrect password",
-    "unlock": "Unlock"
   },
   "budget": {
     "title": "Budget Progress",

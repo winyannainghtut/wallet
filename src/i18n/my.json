@@ -112,15 +112,6 @@
     "english": "အင်္ဂလိပ်",
     "myanmar": "မြန်မာ",
     "currency": "ငွေကြေး",
-    "password": "စကားဝှက် ကာကွယ်မှု",
-    "setPassword": "စကားဝှက် သတ်မှတ်မည်",
-    "changePassword": "စကားဝှက် ပြောင်းမည်",
-    "removePassword": "စကားဝှက် ဖယ်ရှားမည်",
-    "currentPassword": "လက်ရှိ စကားဝှက်",
-    "newPassword": "စကားဝှက် အသစ်",
-    "confirmPassword": "စကားဝှက် အတည်ပြု",
-    "passwordMismatch": "စကားဝှက်များ ကွဲလွဲနေပါသည်",
-    "passwordSuccess": "စကားဝှက် အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ",
     "apiKey": "AI API Key",
     "apiKeyPlaceholder": "z.ai API key ထည့်ပါ",
     "apiKeySuccess": "API key အောင်မြင်စွာ သိမ်းဆည်းပြီးပါပြီ",
@@ -156,12 +147,6 @@
     "importError": "ဒေတာ သွင်း၍ မရပါ",
     "invalidFormat": "ဖိုင်ပုံစံ မမှန်ကန်ပါ",
     "downloadTemplate": "Template ဒေါင်းလုဒ်"
-  },
-  "auth": {
-    "passwordRequired": "စကားဝှက် လိုအပ်ပါသည်",
-    "enterPassword": "ဆက်လက်လုပ်ဆောင်ရန် စကားဝှက် ထည့်ပါ",
-    "incorrectPassword": "စကားဝှက် မမှန်ကန်ပါ",
-    "unlock": "ဖွင့်မည်"
   },
   "budget": {
     "title": "ဘတ်ဂျက် အခြေအနေ",
@@ -202,3 +187,4 @@
     "selectDay": "အသေးစိတ် ကြည့်ရန် ရက်ကို နှိပ်ပါ"
   }
 }
+
