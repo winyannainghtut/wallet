@@ -16,6 +16,7 @@ export default function TripsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
 
   // Form states
   const [name, setName] = useState('')
@@ -77,13 +78,19 @@ export default function TripsPage() {
   }
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault()
     e.stopPropagation()
+    if (deletingTripId === id) return
+
     if (confirm('Are you sure you want to delete this trip? All assigned expenses will become uncategorized.')) {
       try {
+        setDeletingTripId(id)
         await deleteTrip(id)
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to delete trip'
         alert(message)
+      } finally {
+        setDeletingTripId(null)
       }
     }
   }
@@ -156,7 +163,7 @@ export default function TripsPage() {
                 className="group relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-md cursor-pointer border-border/40 hover:border-primary/30"
                 onClick={() => handleOpenModal(trip)}
               >
-                <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.03] to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/[0.03] to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
                 
                 <CardHeader className="pb-3 border-b border-border/20 bg-muted/20">
                   <div className="flex items-start justify-between">
@@ -169,7 +176,16 @@ export default function TripsPage() {
                         </CardDescription>
                       )}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 -mt-1 -mr-1" onClick={(e) => void handleDelete(trip.id, e)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Delete trip"
+                      disabled={deletingTripId === trip.id}
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 -mt-1 -mr-1"
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => void handleDelete(trip.id, e)}
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

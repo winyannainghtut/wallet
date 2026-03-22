@@ -1,14 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { checkRegistrationAccess } from '@/lib/auth-policy'
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password, passwordConfirm, name } = await request.json()
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : ''
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
+      )
+    }
+
+    const access = checkRegistrationAccess(normalizedEmail)
+    if (!access.allowed) {
+      const message = access.reason === 'disabled'
+        ? 'Registration is disabled. Contact your admin.'
+        : 'This email is not allowed to register. Contact your admin.'
+
+      return NextResponse.json(
+        { error: message },
+        { status: 403 }
       )
     }
 
@@ -23,14 +37,14 @@ export async function POST(request: NextRequest) {
 
     // Create user
     await pb.collection('users').create({
-      email,
+      email: normalizedEmail,
       password,
       passwordConfirm: passwordConfirm || password,
       name,
     })
 
     // Auto-login after registration
-    const authData = await pb.collection('users').authWithPassword(email, password)
+    const authData = await pb.collection('users').authWithPassword(normalizedEmail, password)
 
     // Create response
     const response = NextResponse.json({

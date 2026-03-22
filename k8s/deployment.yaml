@@ -31,6 +31,12 @@ spec:
               value: "https://pb.yourdomain.com"
             - name: POCKETBASE_URL
               value: "http://pocketbase-service.wallet-app.svc.cluster.local:8090"
+            - name: AUTH_REGISTRATION_ENABLED
+              value: "false"
+            - name: AUTH_ALLOWED_EMAILS
+              value: ""
+            - name: AUTH_ALLOWED_DOMAINS
+              value: ""
           resources:
             requests:
               memory: "256Mi"

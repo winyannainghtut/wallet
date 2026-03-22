@@ -60,6 +60,21 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+### 5. Control who can register
+
+Registration is controlled by server env vars:
+
+```env
+AUTH_REGISTRATION_ENABLED=false
+AUTH_ALLOWED_EMAILS=alice@company.com,bob@company.com
+AUTH_ALLOWED_DOMAINS=company.com
+```
+
+Rules:
+- `AUTH_REGISTRATION_ENABLED=false`: no self-registration (internal default).
+- `AUTH_REGISTRATION_ENABLED=true` with allowlists: only listed emails/domains can register.
+- `AUTH_REGISTRATION_ENABLED=true` with no allowlists: anyone can register.
+
 ## Kubernetes Deployment
 
 PocketBase bootstrap is automated in K8s:

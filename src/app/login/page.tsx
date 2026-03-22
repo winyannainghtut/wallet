@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,6 +26,26 @@ export default function LoginPage() {
 
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [registrationEnabled, setRegistrationEnabled] = useState(false)
+
+  useEffect(() => {
+    const loadRegistrationPolicy = async () => {
+      try {
+        const res = await fetch('/api/auth/register-policy')
+        if (!res.ok) {
+          setRegistrationEnabled(false)
+          return
+        }
+
+        const data = await res.json()
+        setRegistrationEnabled(Boolean(data.registrationEnabled))
+      } catch {
+        setRegistrationEnabled(false)
+      }
+    }
+
+    loadRegistrationPolicy()
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -90,9 +110,9 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className={`grid w-full ${registrationEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
+              {registrationEnabled && <TabsTrigger value="register">Register</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="login" className="mt-4">
@@ -139,7 +159,8 @@ export default function LoginPage() {
               </form>
             </TabsContent>
 
-            <TabsContent value="register" className="mt-4">
+            {registrationEnabled && (
+              <TabsContent value="register" className="mt-4">
               <form onSubmit={handleRegister} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="register-name">Name (optional)</Label>
@@ -204,8 +225,14 @@ export default function LoginPage() {
                   )}
                 </Button>
               </form>
-            </TabsContent>
+              </TabsContent>
+            )}
           </Tabs>
+          {!registrationEnabled && (
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Registration is disabled. Ask your admin to create your account.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

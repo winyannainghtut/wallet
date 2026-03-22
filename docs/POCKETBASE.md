@@ -112,6 +112,10 @@ docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketb
 - `superuser upsert` is idempotent and safe on restart.
 - Existing PVC data is preserved across pod restarts.
 - For a completely clean environment, delete the PVC/data and run bootstrap again.
+- App self-registration is controlled by Next.js env vars:
+  - `AUTH_REGISTRATION_ENABLED`
+  - `AUTH_ALLOWED_EMAILS`
+  - `AUTH_ALLOWED_DOMAINS`
 
 ## Troubleshooting
 

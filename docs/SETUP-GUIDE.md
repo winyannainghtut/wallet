@@ -67,6 +67,18 @@ Open:
 - App: `http://localhost:3000`
 - PocketBase Admin: `http://localhost:8090/_/`
 
+### 2.5 Restrict registration (internal use)
+
+Set these in your `.env.local`:
+
+```env
+AUTH_REGISTRATION_ENABLED=false
+# AUTH_ALLOWED_EMAILS=alice@company.com,bob@company.com
+# AUTH_ALLOWED_DOMAINS=company.com
+```
+
+If you later set `AUTH_REGISTRATION_ENABLED=true`, you can restrict access by allowlisted emails/domains.
+
 ## 3) Verify Application Flow
 
 ### 3.1 Auth flow
