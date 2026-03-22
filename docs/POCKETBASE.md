@@ -46,17 +46,19 @@ Managed collections:
 ### Files involved
 
 - `k8s/pocketbase-bootstrap.yaml`
-  - Secret: `pocketbase-bootstrap` (`PB_SUPERUSER_EMAIL`, `PB_SUPERUSER_PASSWORD`)
   - ConfigMap: `pocketbase-migrations` (migration JS files)
 - `k8s/pocketbase-deployment.yaml`
   - initContainer runs:
     - `pocketbase migrate up`
     - `pocketbase superuser upsert`
 
+Superuser credentials are provided by K8s secret `pocketbase-bootstrap`.
+
 ### Deploy order
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
+kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
@@ -126,7 +128,12 @@ docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketb
 
 ### Superuser credentials not working
 
-- Update secret values in `k8s/pocketbase-bootstrap.yaml`.
+- Update K8s secret values:
+
+```bash
+kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
+```
+
 - Re-apply and restart PocketBase deployment.
 
 ### App can login but cannot save data

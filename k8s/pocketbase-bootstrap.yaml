@@ -1,14 +1,4 @@
 apiVersion: v1
-kind: Secret
-metadata:
-  name: pocketbase-bootstrap
-  namespace: wallet-app
-type: Opaque
-stringData:
-  PB_SUPERUSER_EMAIL: "admin@wallet.local"
-  PB_SUPERUSER_PASSWORD: "change-me-strong-password"
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: pocketbase-migrations

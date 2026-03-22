@@ -27,8 +27,6 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
-            - name: NEXT_PUBLIC_POCKETBASE_URL
-              value: "https://pb.yourdomain.com"
             - name: POCKETBASE_URL
               value: "http://pocketbase-service.wallet-app.svc.cluster.local:8090"
             - name: AUTH_REGISTRATION_ENABLED
@@ -64,7 +62,7 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 1001
             capabilities:
               drop:
                 - ALL
@@ -86,25 +84,3 @@ spec:
       name: http
   selector:
     app: wallet-frontend
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: wallet-frontend-ingress
-  namespace: wallet-app
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: wallet.yourdomain.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: wallet-frontend-service
-                port:
-                  number: 80

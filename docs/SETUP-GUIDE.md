@@ -112,17 +112,19 @@ Schema source is tracked in:
 
 ## 4) Kubernetes Setup
 
-### 4.1 Configure bootstrap secret
+### 4.1 Create bootstrap secret
 
-Edit values in `k8s/pocketbase-bootstrap.yaml`:
+Create or update the PocketBase bootstrap secret in the cluster:
 
-- `PB_SUPERUSER_EMAIL`
-- `PB_SUPERUSER_PASSWORD`
+```bash
+kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
+```
 
 ### 4.2 Apply manifests
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
+kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
@@ -151,7 +153,12 @@ You should see migration apply and superuser upsert messages.
 
 ### Superuser login fails in PocketBase Admin
 
-- Re-run `superuser upsert` command with the password you want
+- Update the `pocketbase-bootstrap` K8s secret with the command in section 4.1
+- Restart PocketBase deployment:
+
+```bash
+kubectl rollout restart deployment/pocketbase -n wallet-app
+```
 
 ### Container port conflict on 8090
 

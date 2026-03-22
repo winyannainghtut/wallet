@@ -80,17 +80,40 @@ Rules:
 PocketBase bootstrap is automated in K8s:
 
 - migrations from `pb_migrations/1774166000_wallet_schema.js`
-- superuser upsert from `k8s/pocketbase-bootstrap.yaml`
+- superuser upsert via K8s secret `pocketbase-bootstrap`
 
 Apply in order:
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
+kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
 kubectl apply -f k8s/deployment.yaml
 ```
+
+## GitHub Pipeline (Docker Hub)
+
+Workflow file:
+
+- `.github/workflows/dockerhub-build.yml`
+
+Triggers:
+
+- push to `dev` and `main`
+- manual run via `workflow_dispatch`
+
+Required GitHub Secrets:
+
+- `DOCKERHUB_USERNAME`
+- `DOCKERHUB_TOKEN`
+
+Published tags:
+
+- `sha-<commit>` (every build)
+- `dev-latest` (when pushing `dev`)
+- `latest` (when pushing `main`)
 
 ## Docs
 

@@ -15,26 +15,3 @@ spec:
       name: http
   selector:
     app: pocketbase
----
-# Optional: Ingress for internal cluster access (if needed)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: pocketbase-ingress
-  namespace: wallet-app
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-spec:
-  ingressClassName: nginx
-  rules:
-    - host: pocketbase.internal.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: pocketbase-service
-                port:
-                  number: 8090
