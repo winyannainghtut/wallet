@@ -18,7 +18,9 @@ import {
   PanelLeftOpen,
   Repeat,
   CalendarDays,
-  User
+  User,
+  Landmark,
+  PiggyBank
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -32,6 +34,8 @@ const navItems = [
   { href: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard' },
   { href: '/add', icon: PlusCircle, labelKey: 'nav.addExpense' },
   { href: '/history', icon: History, labelKey: 'nav.history' },
+  { href: '/income', icon: Landmark, labelKey: 'nav.income' },
+  { href: '/savings', icon: PiggyBank, labelKey: 'nav.savings' },
   { href: '/reports', icon: BarChart3, labelKey: 'nav.reports' },
   { href: '/calendar', icon: CalendarDays, labelKey: 'nav.calendar' },
   { href: '/trips', icon: Plane, labelKey: 'nav.trips' },

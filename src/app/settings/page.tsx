@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, Wallet, User } from 'lucide-react'
+import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, Wallet, User, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,13 +14,15 @@ import { exportToExcel, importFromExcel, downloadTemplate } from '@/lib/excel'
 import { t, Language } from '@/i18n/config'
 
 type NoticeType = 'success' | 'error'
+type AiProvider = 'auto' | 'gemini' | 'zai'
 
 export default function SettingsPage() {
-  const { settings, updateSettings, setLanguage, refreshExpenses, currentUser } = useApp()
+  const { settings, updateSettings, setLanguage, refreshExpenses, currentUser, expenses } = useApp()
   const { logout } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [apiKey, setApiKey] = useState(settings.apiKey || '')
+  const [aiProvider, setAiProvider] = useState<AiProvider>(settings.aiProvider || 'auto')
   const [notice, setNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [isImporting, setIsImporting] = useState(false)
 
@@ -39,8 +41,14 @@ export default function SettingsPage() {
       showNotice('error', 'No API key found. Please enter a valid key.')
       return
     }
-    updateSettings({ apiKey: trimmed })
+    updateSettings({ apiKey: trimmed, aiProvider })
     showNotice('success', t('settings.apiKeySuccess'))
+  }
+
+  const handleProviderChange = (provider: AiProvider) => {
+    setAiProvider(provider)
+    updateSettings({ aiProvider: provider })
+    showNotice('success', 'AI provider updated.')
   }
 
   const handleClearApiKey = () => {
@@ -50,7 +58,13 @@ export default function SettingsPage() {
   }
 
   const handleExport = () => {
-    exportToExcel(getExpenses())
+    if (expenses.length === 0) {
+      showNotice('error', t('common.noData'))
+      return
+    }
+
+    exportToExcel(expenses)
+    showNotice('success', t('excel.exportSuccess'))
   }
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,16 +172,53 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2.5 text-base">
             <span className={sectionIconClass}>
+              <Palette className="h-3.5 w-3.5 text-primary" />
+            </span>
+            Theme
+          </CardTitle>
+          <CardDescription>Choose how the app looks like.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select value={settings.theme || 'dark'} onValueChange={(v) => v && updateSettings({ theme: v as any })}>
+            <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20 sm:w-56 transition-all focus:bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="dark">Dark Theme</SelectItem>
+              <SelectItem value="light">Light Theme</SelectItem>
+              <SelectItem value="blossom">🌸 Blossom (Unique)</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className={sectionIconClass}>
               <Key className="h-3.5 w-3.5 text-primary" />
             </span>
             {t('settings.apiKey')}
           </CardTitle>
-          <CardDescription>Google Gemini API Key (free tier available)</CardDescription>
+          <CardDescription>Gemini or Z.AI GLM API Key</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="ai-provider" className="text-sm font-medium">AI Provider</Label>
+            <Select value={aiProvider} onValueChange={(v) => handleProviderChange(v as AiProvider)}>
+              <SelectTrigger id="ai-provider" className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
+                <SelectValue placeholder="Choose provider" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">Auto (detect by API key)</SelectItem>
+                <SelectItem value="gemini">Gemini</SelectItem>
+                <SelectItem value="zai">Z.AI GLM</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Input
             type="password"
-            placeholder="Enter your Gemini API key"
+            placeholder={t('settings.apiKeyPlaceholder')}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
@@ -192,28 +243,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/40">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2.5 text-base">
-            <span className={sectionIconClass}>
-              <Wallet className="h-3.5 w-3.5 text-primary" />
-            </span>
-            {t('settings.monthlyBudget')}
-          </CardTitle>
-          <CardDescription>{t('settings.monthlyBudgetDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input
-            type="number"
-            min="0"
-            step="1000"
-            placeholder={t('settings.monthlyBudgetPlaceholder')}
-            value={settings.monthlyBudget || ''}
-            onChange={(e) => updateSettings({ monthlyBudget: e.target.value ? Number(e.target.value) : undefined })}
-            className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
-          />
-        </CardContent>
-      </Card>
+
 
       <Card className="border-border/40">
         <CardHeader>

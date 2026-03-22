@@ -119,6 +119,40 @@
   --sidebar-ring: oklch(0.68 0.19 265);
 }
 
+/* ─── Blossom Theme ─── */
+.theme-blossom {
+  --background: oklch(0.985 0.015 350);
+  --foreground: oklch(0.20 0.05 350);
+  --card: oklch(0.995 0.005 350);
+  --card-foreground: oklch(0.20 0.05 350);
+  --popover: oklch(0.995 0.005 350);
+  --popover-foreground: oklch(0.20 0.05 350);
+  --primary: oklch(0.65 0.20 350);
+  --primary-foreground: oklch(0.99 0.01 350);
+  --secondary: oklch(0.95 0.03 350);
+  --secondary-foreground: oklch(0.35 0.10 350);
+  --muted: oklch(0.96 0.02 350);
+  --muted-foreground: oklch(0.55 0.06 350);
+  --accent: oklch(0.92 0.05 350);
+  --accent-foreground: oklch(0.30 0.12 350);
+  --destructive: oklch(0.60 0.20 20);
+  --border: oklch(0.92 0.03 350);
+  --input: oklch(0.94 0.02 350);
+  --ring: oklch(0.65 0.20 350);
+  --chart-1: oklch(0.65 0.20 350);
+  --chart-2: oklch(0.70 0.15 320);
+  --chart-3: oklch(0.75 0.12 20);
+  --chart-4: oklch(0.80 0.10 40);
+  --chart-5: oklch(0.60 0.18 360);
+  --sidebar: oklch(0.985 0.015 350);
+  --sidebar-foreground: oklch(0.20 0.05 350);
+  --sidebar-primary: oklch(0.65 0.20 350);
+  --sidebar-primary-foreground: oklch(0.99 0.01 350);
+  --sidebar-accent: oklch(0.92 0.05 350);
+  --sidebar-accent-foreground: oklch(0.30 0.12 350);
+  --sidebar-border: oklch(0.92 0.03 350);
+  --sidebar-ring: oklch(0.65 0.20 350);
+}
 /* ─── Micro-animation Keyframes ─── */
 @keyframes fadeInUp {
   from {

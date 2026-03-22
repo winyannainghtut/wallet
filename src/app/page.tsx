@@ -1,20 +1,34 @@
 'use client'
 
-import { PlusCircle, TrendingUp, Calendar, Wallet, Repeat } from 'lucide-react'
+import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subDays, eachDayOfInterval } from 'date-fns'
+import { PlusCircle, TrendingUp, Calendar, Wallet, Repeat, Bot, PiggyBank, Scale, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { SummaryCard } from '@/components/SummaryCard'
-import { ExpenseList } from '@/components/ExpenseList'
-import { CategoryPieChart } from '@/components/Charts'
+import { CategoryPieChart, IncomeExpenseBarChart } from '@/components/Charts'
 import { ChatAssistant } from '@/components/ChatAssistant'
 import { AiInsightsCard } from '@/components/AiInsightsCard'
-import { BudgetProgressCard } from '@/components/BudgetProgressCard'
+import { TransactionList, TransactionItem } from '@/components/TransactionList'
+import { UpcomingSubscriptions } from '@/components/UpcomingSubscriptions'
+import { SavingsGoalWidget } from '@/components/SavingsGoalWidget'
 import { useApp } from '@/contexts/AppContext'
 import { getApiKey } from '@/lib/storage'
 import { t } from '@/i18n/config'
 
+function normalizeDateKey(rawDate: string): string {
+  const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (datePartMatch?.[1]) return datePartMatch[1]
+
+  const parsed = new Date(rawDate)
+  if (!Number.isNaN(parsed.getTime())) {
+    return format(parsed, 'yyyy-MM-dd')
+  }
+
+  return rawDate
+}
+
 export default function DashboardPage() {
-  const { expenses, subscriptions, todaySummary, weeklySummary, monthlySummary, settings } = useApp()
+  const { expenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, settings, currentUser } = useApp()
 
   // Monthly subscription cost
   const monthlySubCost = subscriptions
@@ -26,10 +40,58 @@ export default function DashboardPage() {
       return sum
     }, 0)
 
-  // Get top 5 recent expenses
-  const recentExpenses = [...expenses]
+  const monthStart = startOfMonth(new Date())
+  const monthEnd = endOfMonth(new Date())
+  const monthStartKey = format(monthStart, 'yyyy-MM-dd')
+  const monthEndKey = format(monthEnd, 'yyyy-MM-dd')
+  const weekStart = startOfWeek(new Date())
+  const weekEnd = endOfWeek(new Date())
+  const weekStartKey = format(weekStart, 'yyyy-MM-dd')
+  const weekEndKey = format(weekEnd, 'yyyy-MM-dd')
+
+  const monthlyIncome = incomes.reduce((sum, income) => {
+    const key = normalizeDateKey(income.date)
+    if (key < monthStartKey || key > monthEndKey) {
+      return sum
+    }
+    return sum + income.amount
+  }, 0)
+
+  const weeklyIncome = incomes.reduce((sum, income) => {
+    const key = normalizeDateKey(income.date)
+    if (key < weekStartKey || key > weekEndKey) {
+      return sum
+    }
+    return sum + income.amount
+  }, 0)
+
+  const monthlySavings = monthlyIncome - monthlySummary.total
+  const weeklySavings = weeklyIncome - weeklySummary.total
+  const expenseIncomeRatio = monthlyIncome > 0 ? (monthlySummary.total / monthlyIncome) * 100 : 0
+  const averageDailyExpense = monthlySummary.total / 30
+
+  // Combine Income and Expenses for Recent Transactions
+  const recentTransactions: TransactionItem[] = [
+    ...expenses.map(e => ({ ...e, type: 'expense' as const })),
+    ...incomes.map(i => ({ ...i, type: 'income' as const }))
+  ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5)
+
+  // Chart Data: Income vs Expense last 7 days
+  const last7Days = eachDayOfInterval({ start: subDays(new Date(), 6), end: new Date() })
+  const trendData = last7Days.map(day => {
+    const dayKey = format(day, 'yyyy-MM-dd')
+    const dayIncome = incomes.filter(i => i.date === dayKey).reduce((s, i) => s + i.amount, 0)
+    const dayExpense = expenses.filter(e => e.date === dayKey).reduce((s, e) => s + e.amount, 0)
+    return { date: dayKey, income: dayIncome, expense: dayExpense }
+  })
+
+  // Time-based Greeting
+  const currentHour = new Date().getHours()
+  let greeting = 'Good Evening'
+  if (currentHour < 12) greeting = 'Good Morning'
+  else if (currentHour < 18) greeting = 'Good Afternoon'
 
   const hasApiKey = !!getApiKey()
 
@@ -41,7 +103,7 @@ export default function DashboardPage() {
         <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary/70">
-              {t('dashboard.title')}
+              {greeting}, {currentUser?.name || 'User'}
             </p>
             <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
               {t('common.appName')}
@@ -54,105 +116,146 @@ export default function DashboardPage() {
                 {todaySummary.count} items today
               </span>
               <span className="rounded-full bg-secondary px-3 py-1.5 font-medium text-secondary-foreground">
-                Week: {weeklySummary.total.toLocaleString()} SGD
+                Week: {weeklySummary.total.toLocaleString()} {settings.currency}
+              </span>
+              <span className={`rounded-full px-3 py-1.5 font-medium ${weeklySavings >= 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-rose-500/10 text-rose-700'}`}>
+                Weekly Net: {Math.round(weeklySavings).toLocaleString()} {settings.currency}
               </span>
             </div>
           </div>
-          <Link href="/add">
-            <Button
-              size="lg"
-              className="w-full rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/25 md:w-auto"
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              {t('dashboard.quickAdd')}
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
+            <Link href="/add" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                className="w-full rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/25"
+              >
+                <PlusCircle className="mr-2 h-4 w-4" />
+                {t('dashboard.quickAdd')}
+              </Button>
+            </Link>
+            <Link href="/income" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full rounded-xl border-primary/20 text-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary/5"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Income
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
-      {settings.monthlyBudget && settings.monthlyBudget > 0 && (
-        <BudgetProgressCard
-          currentSpend={monthlySummary.total}
-          budget={settings.monthlyBudget}
+      {(hasApiKey && (expenses.length > 0 || incomes.length > 0)) && (
+        <AiInsightsCard 
+          expenses={expenses} 
+          incomes={incomes}
+          subscriptions={subscriptions}
+          monthlySavings={monthlySavings}
         />
       )}
 
-      {hasApiKey && expenses.length > 0 && (
-        <AiInsightsCard expenses={expenses} />
-      )}
+      <div className="grid grid-cols-1 gap-4">
+        <SavingsGoalWidget currentSavings={monthlySavings} currency={settings.currency} />
+        <UpcomingSubscriptions subscriptions={subscriptions} currency={settings.currency} />
+      </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
         <SummaryCard
           title={t('dashboard.todayExpenses')}
           amount={todaySummary.total}
           icon={Calendar}
-          subtitle={`${todaySummary.count} expenses`}
+          subtitle={`${todaySummary.count} items`}
+          currency={settings.currency}
         />
         <SummaryCard
           title={t('dashboard.weeklyExpenses')}
           amount={weeklySummary.total}
           icon={TrendingUp}
+          currency={settings.currency}
         />
         <SummaryCard
           title={t('dashboard.monthlyExpenses')}
           amount={monthlySummary.total}
           icon={Wallet}
+          currency={settings.currency}
         />
         <SummaryCard
-          title={t('reports.averageDaily')}
-          amount={monthlySummary.total / 30}
+          title={t('dashboard.monthlyIncome')}
+          amount={monthlyIncome}
           icon={TrendingUp}
+          currency={settings.currency}
         />
-        {subscriptions.length > 0 && (
-          <SummaryCard
-            title={t('subscriptions.totalMonthly')}
-            amount={Math.round(monthlySubCost)}
-            icon={Repeat}
-            subtitle={`${subscriptions.filter(s => s.isActive).length} active`}
-          />
-        )}
+        <SummaryCard
+          title={t('dashboard.monthlyNetSavings')}
+          amount={monthlySavings}
+          icon={PiggyBank}
+          subtitle={monthlyIncome > 0 ? `${((monthlySavings / monthlyIncome) * 100).toFixed(1)}% savings rate` : 'No income records this month'}
+          currency={settings.currency}
+        />
+        <SummaryCard
+          title={t('dashboard.expenseIncomeRatio')}
+          amount={Math.round(expenseIncomeRatio)}
+          icon={Scale}
+          subtitle={`${Math.round(averageDailyExpense).toLocaleString()} ${settings.currency} avg/day`}
+          currency="%"
+        />
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         {/* Category Chart */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
+          <IncomeExpenseBarChart
+            expenses={expenses}
+            incomes={incomes}
+            title="Trend"
+            currency={settings.currency}
+          />
+        </div>
+        <div className="lg:col-span-3">
           <CategoryPieChart
             data={monthlySummary.byCategory}
             title={t('reports.byCategory')}
           />
         </div>
-
-        {/* AI Chat Assistant */}
-        <div className="lg:col-span-1">
-          {hasApiKey ? (
-            <ChatAssistant expenses={expenses} />
-          ) : (
-            <div className="flex h-[500px] items-center justify-center rounded-2xl border border-dashed border-border/50 bg-card/60 p-6 backdrop-blur-sm">
-              <div className="space-y-4 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60">
-                  <span className="text-2xl">🤖</span>
-                </div>
-                <p className="text-sm text-muted-foreground">{t('ai.noApiKey')}</p>
-                <Link href="/settings">
-                  <Button variant="outline" className="rounded-xl border-border/60">{t('nav.settings')}</Button>
-                </Link>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Recent Expenses */}
+      {/* AI Assistant */}
+      <div>
+        {hasApiKey ? (
+          <ChatAssistant
+            expenses={expenses}
+            incomes={incomes}
+            subscriptions={subscriptions}
+            monthlySavings={monthlySavings}
+            className="h-[620px]"
+          />
+        ) : (
+          <div className="flex h-[300px] items-center justify-center rounded-2xl border border-dashed border-border/50 bg-card/60 p-6 backdrop-blur-sm">
+            <div className="space-y-4 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60">
+                <Bot className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">{t('ai.noApiKey')}</p>
+              <Link href="/settings">
+                <Button variant="outline" className="rounded-xl border-border/60">{t('nav.settings')}</Button>
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Recent Transactions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold tracking-tight">{t('dashboard.recentExpenses')}</h2>
+          <h2 className="text-lg font-bold tracking-tight">Recent Transactions</h2>
           <Link href="/history">
             <Button variant="link" className="text-primary">{t('dashboard.viewAll')}</Button>
           </Link>
         </div>
-        <ExpenseList expenses={recentExpenses} showDate />
+        <TransactionList transactions={recentTransactions} currency={settings.currency} showDate />
       </div>
     </div>
   )

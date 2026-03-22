@@ -65,3 +65,5 @@ pb_data/
 
 # Kubernetes secrets (if any)
 k8s/*secret*
+
+note.md

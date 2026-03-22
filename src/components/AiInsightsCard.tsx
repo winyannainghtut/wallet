@@ -4,24 +4,45 @@ import React, { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Expense } from '@/types'
+import { Expense, Income, Subscription } from '@/types'
 import { getSpendingInsights } from '@/lib/ai'
+import { sanitizeAiOutput } from '@/lib/ai-output'
 import { getApiKey } from '@/lib/storage'
+import { useApp } from '@/contexts/AppContext'
 import { getLanguage, t } from '@/i18n/config'
 
-export function AiInsightsCard({ expenses }: { expenses: Expense[] }) {
+export function AiInsightsCard({ 
+  expenses, 
+  incomes, 
+  subscriptions, 
+  monthlySavings 
+}: { 
+  expenses: Expense[]
+  incomes: Income[]
+  subscriptions: Subscription[]
+  monthlySavings: number
+}) {
   const [insight, setInsight] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const { settings } = useApp()
   const apiKey = getApiKey()
   const language = getLanguage()
 
   const handleFetchInsights = async () => {
-    if (!apiKey || expenses.length === 0) return
+    if (!apiKey || (expenses.length === 0 && incomes.length === 0)) return
     
     setLoading(true)
     try {
-      const result = await getSpendingInsights(expenses.slice(0, 50), apiKey, language)
-      setInsight(result)
+      const result = await getSpendingInsights(
+        expenses.slice(0, 50),
+        incomes.slice(0, 50),
+        subscriptions,
+        monthlySavings,
+        apiKey,
+        language,
+        settings.currency
+      )
+      setInsight(sanitizeAiOutput(result))
     } catch (error) {
       console.error('Failed to get insights', error)
     } finally {

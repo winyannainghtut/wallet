@@ -30,7 +30,7 @@ export function getProfiles(): UserProfile[] {
   return data ? JSON.parse(data) : []
 }
 
-export function saveProfiles(profiles: UserProfile[]): void {
+function saveProfiles(profiles: UserProfile[]): void {
   localStorage.setItem(GLOBAL_KEYS.PROFILES, JSON.stringify(profiles))
 }
 
@@ -104,7 +104,7 @@ export function deleteProfile(id: string): boolean {
   return true
 }
 
-export function getActiveUserId(): string {
+function getActiveUserId(): string {
   if (typeof window === 'undefined') return 'default'
   return localStorage.getItem(GLOBAL_KEYS.ACTIVE_USER) || 'default'
 }
@@ -131,143 +131,8 @@ export function saveExpenses(expenses: Expense[]): void {
   localStorage.setItem(userKey(FIELD.EXPENSES), JSON.stringify(expenses))
 }
 
-export function addExpense(expense: Omit<Expense, 'id' | 'createdAt'>): Expense {
-  const expenses = getExpenses()
-  const newExpense: Expense = {
-    ...expense,
-    id: uuidv4(),
-    createdAt: new Date().toISOString()
-  }
-  expenses.push(newExpense)
-  saveExpenses(expenses)
-  return newExpense
-}
 
-export function updateExpense(id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>): Expense | null {
-  const expenses = getExpenses()
-  const index = expenses.findIndex(e => e.id === id)
-  if (index === -1) return null
 
-  expenses[index] = {
-    ...expenses[index],
-    ...updates,
-    updatedAt: new Date().toISOString()
-  }
-  saveExpenses(expenses)
-  return expenses[index]
-}
-
-export function deleteExpense(id: string): boolean {
-  const expenses = getExpenses()
-  const filtered = expenses.filter(e => e.id !== id)
-  if (filtered.length === expenses.length) return false
-  saveExpenses(filtered)
-  return true
-}
-
-// ==================== Trip Operations ====================
-
-export function getTrips(): Trip[] {
-  if (typeof window === 'undefined') return []
-  const data = localStorage.getItem(userKey(FIELD.TRIPS))
-  return data ? JSON.parse(data) : []
-}
-
-export function saveTrips(trips: Trip[]): void {
-  localStorage.setItem(userKey(FIELD.TRIPS), JSON.stringify(trips))
-}
-
-export function addTrip(trip: Omit<Trip, 'id' | 'createdAt'>): Trip {
-  const trips = getTrips()
-  const newTrip: Trip = {
-    ...trip,
-    id: uuidv4(),
-    createdAt: new Date().toISOString()
-  }
-  trips.push(newTrip)
-  saveTrips(trips)
-  return newTrip
-}
-
-export function updateTrip(id: string, updates: Partial<Omit<Trip, 'id' | 'createdAt'>>): Trip | null {
-  const trips = getTrips()
-  const index = trips.findIndex(t => t.id === id)
-  if (index === -1) return null
-
-  trips[index] = {
-    ...trips[index],
-    ...updates
-  }
-  saveTrips(trips)
-  return trips[index]
-}
-
-export function deleteTrip(id: string): boolean {
-  const trips = getTrips()
-  const filtered = trips.filter(t => t.id !== id)
-  if (filtered.length === trips.length) return false
-  saveTrips(filtered)
-  
-  // Optional: Remove tripId from all expenses associated with this trip
-  const expenses = getExpenses()
-  let expensesUpdated = false
-  const updatedExpenses = expenses.map(e => {
-    if (e.tripId === id) {
-      expensesUpdated = true
-      return { ...e, tripId: undefined }
-    }
-    return e
-  })
-  if (expensesUpdated) saveExpenses(updatedExpenses as Expense[])
-
-  return true
-}
-
-// ==================== Subscription Operations ====================
-
-export function getSubscriptions(): Subscription[] {
-  if (typeof window === 'undefined') return []
-  const data = localStorage.getItem(userKey(FIELD.SUBSCRIPTIONS))
-  return data ? JSON.parse(data) : []
-}
-
-export function saveSubscriptions(subscriptions: Subscription[]): void {
-  localStorage.setItem(userKey(FIELD.SUBSCRIPTIONS), JSON.stringify(subscriptions))
-}
-
-export function addSubscription(sub: Omit<Subscription, 'id' | 'createdAt'>): Subscription {
-  const subs = getSubscriptions()
-  const newSub: Subscription = {
-    ...sub,
-    id: uuidv4(),
-    createdAt: new Date().toISOString()
-  }
-  subs.push(newSub)
-  saveSubscriptions(subs)
-  return newSub
-}
-
-export function updateSubscription(id: string, updates: Partial<Omit<Subscription, 'id' | 'createdAt'>>): Subscription | null {
-  const subs = getSubscriptions()
-  const index = subs.findIndex(s => s.id === id)
-  if (index === -1) return null
-
-  subs[index] = {
-    ...subs[index],
-    ...updates,
-    updatedAt: new Date().toISOString()
-  }
-  saveSubscriptions(subs)
-  return subs[index]
-}
-
-export function deleteSubscription(id: string): boolean {
-  const subs = getSubscriptions()
-  const filtered = subs.filter(s => s.id !== id)
-  if (filtered.length === subs.length) return false
-  saveSubscriptions(filtered)
-  return true
-}
 
 // ==================== Summary Operations ====================
 
@@ -349,13 +214,19 @@ export function getMonthlySummary(date: Date = new Date(), expensesArr?: Expense
 
 export function getSettings(): AppSettings {
   if (typeof window === 'undefined') {
-    return { language: 'en', currency: 'SGD' }
+    return { language: 'en', currency: 'SGD', aiProvider: 'auto', theme: 'dark' }
   }
   const data = localStorage.getItem(userKey(FIELD.SETTINGS))
-  if (!data) return { language: 'en', currency: 'SGD' }
+  if (!data) return { language: 'en', currency: 'SGD', aiProvider: 'auto', theme: 'dark' }
   const parsed = JSON.parse(data)
   // Force-fix any legacy MMK currency
   if (parsed.currency === 'MMK') parsed.currency = 'SGD'
+  if (!parsed.aiProvider || !['auto', 'gemini', 'zai'].includes(parsed.aiProvider)) {
+    parsed.aiProvider = 'auto'
+  }
+  if (!parsed.theme || !['dark', 'light', 'blossom'].includes(parsed.theme)) {
+    parsed.theme = 'dark'
+  }
   return parsed
 }
 
@@ -370,12 +241,27 @@ export function getApiKey(): string | undefined {
   return getSettings().apiKey
 }
 
+export function getAiProvider(): 'auto' | 'gemini' | 'zai' {
+  return getSettings().aiProvider || 'auto'
+}
+
 // ==================== Data Operations ====================
+
+export function getChatHistory(): any[] {
+  if (typeof window === 'undefined') return []
+  const data = localStorage.getItem(userKey('chat_history'))
+  return data ? JSON.parse(data) : []
+}
+
+export function saveChatHistory(messages: any[]): void {
+  localStorage.setItem(userKey('chat_history'), JSON.stringify(messages))
+}
 
 export function clearAllData(): void {
   localStorage.removeItem(userKey(FIELD.EXPENSES))
   localStorage.removeItem(userKey(FIELD.TRIPS))
   localStorage.removeItem(userKey(FIELD.SUBSCRIPTIONS))
   localStorage.removeItem(userKey(FIELD.SETTINGS))
+  localStorage.removeItem(userKey('chat_history'))
 }
 

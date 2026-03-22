@@ -32,6 +32,25 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var activeUser = localStorage.getItem('wallet_app_active_user') || 'default';
+                var settingsStr = localStorage.getItem('wallet_app_' + activeUser + '_settings');
+                var theme = 'dark';
+                if (settingsStr) {
+                  var settings = JSON.parse(settingsStr);
+                  if (settings.theme) theme = settings.theme;
+                }
+                if (theme === 'dark') document.documentElement.classList.add('dark');
+                if (theme === 'blossom') document.documentElement.classList.add('theme-blossom');
+              } catch (e) {}
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
       </body>

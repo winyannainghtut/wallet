@@ -1,7 +1,19 @@
 'use client'
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
-import { Expense, Trip, Subscription, UserProfile, AppSettings, DailySummary, WeeklySummary, MonthlySummary, Category } from '@/types'
+import {
+  Expense,
+  Income,
+  IncomeCategory,
+  Trip,
+  Subscription,
+  UserProfile,
+  AppSettings,
+  DailySummary,
+  WeeklySummary,
+  MonthlySummary,
+  Category
+} from '@/types'
 import {
   getSettings,
   saveSettings,
@@ -15,9 +27,10 @@ import {
   setActiveUserId,
   getActiveProfile,
 } from '@/lib/storage'
-import { format } from 'date-fns'
+import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
 import { useAuth } from '@/contexts/AuthContext'
+import { mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-expenses'
 
 function normalizeExpenseDate(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -31,7 +44,7 @@ function normalizeExpenseDate(rawDate: string): string {
   return rawDate
 }
 
-type ExpenseApiRecord = {
+type TransactionApiRecord = {
   id: string
   amount: number
   category: string
@@ -40,6 +53,7 @@ type ExpenseApiRecord = {
   created: string
   updated?: string
   tripId?: string
+  type?: 'income' | 'expense' | string
 }
 
 type TripApiRecord = {
@@ -66,7 +80,7 @@ type SubscriptionApiRecord = {
   updated?: string
 }
 
-function mapExpenseRecord(item: ExpenseApiRecord): Expense {
+function mapExpenseRecord(item: TransactionApiRecord): Expense {
   return {
     id: item.id,
     amount: item.amount,
@@ -76,6 +90,18 @@ function mapExpenseRecord(item: ExpenseApiRecord): Expense {
     createdAt: item.created,
     updatedAt: item.updated,
     tripId: item.tripId,
+  }
+}
+
+function mapIncomeRecord(item: TransactionApiRecord): Income {
+  return {
+    id: item.id,
+    amount: item.amount,
+    category: (item.category || 'other') as IncomeCategory,
+    description: item.description || '',
+    date: normalizeExpenseDate(item.date),
+    createdAt: item.created,
+    updatedAt: item.updated,
   }
 }
 
@@ -125,6 +151,13 @@ interface AppContextType {
   deleteExpense: (id: string) => Promise<boolean>
   refreshExpenses: () => Promise<void>
 
+  // Income
+  incomes: Income[]
+  addIncome: (income: Omit<Income, 'id' | 'createdAt'>) => Promise<Income>
+  updateIncome: (id: string, updates: Partial<Omit<Income, 'id' | 'createdAt'>>) => Promise<Income | null>
+  deleteIncome: (id: string) => Promise<boolean>
+  refreshIncomes: () => Promise<void>
+
   // Trips
   trips: Trip[]
   addTrip: (trip: Omit<Trip, 'id' | 'createdAt'>) => Promise<Trip>
@@ -173,11 +206,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user } = useAuth()
 
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [incomes, setIncomes] = useState<Income[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
-  const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD' })
+  const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD', aiProvider: 'auto' })
   const [isLoading, setIsLoading] = useState(true)
 
   // Current PocketBase user
@@ -198,7 +232,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/transactions')
       if (res.ok) {
         const data = await res.json()
-        const mappedExpenses: Expense[] = (data.items || []).map(mapExpenseRecord)
+        const mappedExpenses: Expense[] = (data.items || [])
+          .filter((item: TransactionApiRecord) => item.type !== 'income')
+          .map(mapExpenseRecord)
         setExpenses(mappedExpenses)
       } else {
         setExpenses([])
@@ -206,6 +242,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to fetch expenses:', error)
       setExpenses([])
+    }
+  }, [isAuthenticated, user])
+
+  // Load incomes from PocketBase
+  const refreshIncomes = useCallback(async () => {
+    if (!isAuthenticated || !user) {
+      setIncomes([])
+      return
+    }
+
+    try {
+      const res = await fetch('/api/incomes')
+      if (res.ok) {
+        const data = await res.json()
+        const mappedIncomes: Income[] = (data.items || []).map(mapIncomeRecord)
+        setIncomes(mappedIncomes)
+      } else {
+        setIncomes([])
+      }
+    } catch (error) {
+      console.error('Failed to fetch incomes:', error)
+      setIncomes([])
     }
   }, [isAuthenticated, user])
 
@@ -261,22 +319,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     await Promise.all([
       refreshExpenses(),
+      refreshIncomes(),
       refreshTrips(),
       refreshSubscriptions(),
     ])
 
     setActiveProfile(getActiveProfile())
-  }, [refreshExpenses, refreshTrips, refreshSubscriptions])
+  }, [refreshExpenses, refreshIncomes, refreshTrips, refreshSubscriptions])
 
   useEffect(() => {
     const loadData = async () => {
       if (!isAuthenticated || !user) {
         setExpenses([])
+        setIncomes([])
         setTrips([])
         setSubscriptions([])
         setProfiles([])
         setActiveProfile(null)
-        setSettings({ language: 'en', currency: 'SGD' })
+        setSettings({ language: 'en', currency: 'SGD', aiProvider: 'auto' })
         setI18nLanguage('en')
         setIsLoading(false)
         return
@@ -359,7 +419,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error(await getResponseError(res, 'Failed to save expense'))
     }
 
-    const data = (await res.json()) as ExpenseApiRecord
+    const data = (await res.json()) as TransactionApiRecord
     const newExpense = mapExpenseRecord(data)
 
     setExpenses(prev => [newExpense, ...prev])
@@ -381,7 +441,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error(await getResponseError(res, 'Failed to update expense'))
     }
 
-    const data = (await res.json()) as ExpenseApiRecord
+    const data = (await res.json()) as TransactionApiRecord
     const updatedExpense = mapExpenseRecord(data)
 
     setExpenses(prev => prev.map(e => e.id === id ? updatedExpense : e))
@@ -402,6 +462,81 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     setExpenses(prev => prev.filter(e => e.id !== id))
+    return true
+  }, [isAuthenticated])
+
+  // Income operations - PocketBase only (requires authentication)
+  const addIncome = useCallback(async (income: Omit<Income, 'id' | 'createdAt'>) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to add income')
+    }
+
+    const res = await fetch('/api/incomes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        category: income.category,
+        amount: income.amount,
+        description: income.description,
+        date: income.date,
+      }),
+    })
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to save income'))
+    }
+
+    const data = (await res.json()) as TransactionApiRecord
+    const newIncome = mapIncomeRecord(data)
+
+    setIncomes(prev => [newIncome, ...prev])
+    return newIncome
+  }, [isAuthenticated])
+
+  const updateIncome = useCallback(async (id: string, updates: Partial<Omit<Income, 'id' | 'createdAt'>>) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to update income')
+    }
+
+    const res = await fetch(`/api/incomes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+
+    if (res.status === 404) {
+      return null
+    }
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to update income'))
+    }
+
+    const data = (await res.json()) as TransactionApiRecord
+    const updatedIncome = mapIncomeRecord(data)
+
+    setIncomes(prev => prev.map(item => item.id === id ? updatedIncome : item))
+    return updatedIncome
+  }, [isAuthenticated])
+
+  const deleteIncome = useCallback(async (id: string) => {
+    if (!isAuthenticated) {
+      throw new Error('Must be logged in to delete income')
+    }
+
+    const res = await fetch(`/api/incomes/${id}`, {
+      method: 'DELETE',
+    })
+
+    if (res.status === 404) {
+      return false
+    }
+
+    if (!res.ok) {
+      throw new Error(await getResponseError(res, 'Failed to delete income'))
+    }
+
+    setIncomes(prev => prev.filter(item => item.id !== id))
     return true
   }, [isAuthenticated])
 
@@ -542,10 +677,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return true
   }, [isAuthenticated])
 
-  // Summaries
-  const todaySummary = React.useMemo(() => getDailySummary(format(new Date(), 'yyyy-MM-dd'), expenses), [expenses])
-  const weeklySummary = React.useMemo(() => getWeeklySummary(new Date(), expenses), [expenses])
-  const monthlySummary = React.useMemo(() => getMonthlySummary(new Date(), expenses), [expenses])
+  // Summaries (include recurring subscriptions as part of spend)
+  const todaySummary = React.useMemo(() => {
+    const now = new Date()
+    const dateKey = format(now, 'yyyy-MM-dd')
+    const withSubs = mergeExpensesWithSubscriptionOccurrences(expenses, subscriptions, now, now)
+    return getDailySummary(dateKey, withSubs)
+  }, [expenses, subscriptions])
+
+  const weeklySummary = React.useMemo(() => {
+    const now = new Date()
+    const weekStart = startOfWeek(now)
+    const weekEnd = endOfWeek(now)
+    const withSubs = mergeExpensesWithSubscriptionOccurrences(expenses, subscriptions, weekStart, weekEnd)
+    return getWeeklySummary(now, withSubs)
+  }, [expenses, subscriptions])
+
+  const monthlySummary = React.useMemo(() => {
+    const now = new Date()
+    const monthStart = startOfMonth(now)
+    const monthEnd = endOfMonth(now)
+    const withSubs = mergeExpensesWithSubscriptionOccurrences(expenses, subscriptions, monthStart, monthEnd)
+    return getMonthlySummary(now, withSubs)
+  }, [expenses, subscriptions])
 
   // Settings
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
@@ -558,6 +712,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateSettings({ language: lang })
   }, [updateSettings])
 
+  // Sync Theme to DOM
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      const root = document.documentElement
+      root.classList.remove('dark', 'theme-blossom')
+      if (settings.theme === 'dark') {
+        root.classList.add('dark')
+      } else if (settings.theme === 'blossom') {
+        root.classList.add('theme-blossom')
+      }
+    }
+  }, [settings.theme])
+
   return (
     <AppContext.Provider
       value={{
@@ -566,6 +733,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateExpense,
         deleteExpense,
         refreshExpenses,
+        incomes,
+        addIncome,
+        updateIncome,
+        deleteIncome,
+        refreshIncomes,
         trips,
         addTrip,
         updateTrip,

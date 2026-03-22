@@ -53,7 +53,3 @@ export function checkRegistrationAccess(rawEmail: string): RegistrationAccessRes
   return { allowed: false, reason: 'not_allowlisted' }
 }
 
-export function isRegistrationEnabledForUi(): boolean {
-  const policy = getRegistrationPolicy()
-  return policy.enabled
-}

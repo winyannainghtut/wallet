@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Vibrant Wallet Back -->
+    <linearGradient id="walletBack" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d946ef" />
+      <stop offset="100%" stop-color="#be185d" />
+    </linearGradient>
+
+    <!-- Vibrant Wallet Front -->
+    <linearGradient id="walletFront" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f472b6" />
+      <stop offset="100%" stop-color="#e11d48" />
+    </linearGradient>
+    
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="16" stdDeviation="16" flood-color="#881337" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <g transform="translate(256, 260) scale(1.15) translate(-256, -260)">
+    <!-- Cash / Card popping out -->
+    <rect x="144" y="110" width="224" height="140" rx="16" fill="#fbcfe8" opacity="0.95" />
+    <circle cx="256" cy="180" r="32" fill="#f43f5e" opacity="0.4" />
+    <rect x="170" y="140" width="60" height="12" rx="6" fill="#f43f5e" opacity="0.3" />
+
+    <!-- Wallet Back Flap -->
+    <rect x="80" y="200" width="352" height="230" rx="32" fill="url(#walletBack)" filter="url(#shadow)" />
+    
+    <!-- Wallet Front Envelope Flap -->
+    <path d="M 80 200 L 256 310 L 432 200 L 432 398 C 432 415.67 417.67 430 400 430 L 112 430 C 94.33 430 80 415.67 80 398 Z" fill="url(#walletFront)" filter="url(#shadow)"/>
+    
+    <!-- Cute Clasp -->
+    <circle cx="256" cy="310" r="32" fill="#fbcfe8" />
+    <circle cx="256" cy="310" r="12" fill="#f43f5e" />
+  </g>
+</svg>

@@ -1,6 +1,6 @@
 'use client'
 
-import { subMonths, subWeeks } from 'date-fns'
+import { eachDayOfInterval, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subMonths, subWeeks } from 'date-fns'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CategoryPieChart, DailyBarChart, WeeklyTrendChart } from '@/components/Charts'
@@ -8,10 +8,23 @@ import { useApp } from '@/contexts/AppContext'
 import { getWeeklySummary, getMonthlySummary } from '@/lib/storage'
 import { CATEGORY_LABELS, Category, WeeklySummary } from '@/types'
 import { t, getLanguage } from '@/i18n/config'
+import { getSubscriptionSpendForRange, mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-expenses'
+
+function getDateKey(rawDate: string): string {
+  const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (datePartMatch?.[1]) return datePartMatch[1]
+
+  const parsed = new Date(rawDate)
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10)
+  }
+  return rawDate
+}
 
 export default function ReportsPage() {
   const language = getLanguage()
-  const { weeklySummary, monthlySummary, subscriptions } = useApp()
+  const { weeklySummary, monthlySummary, subscriptions, expenses, incomes, settings } = useApp()
+  const currency = settings.currency
 
   // Monthly subscription cost
   const monthlySubCost = subscriptions
@@ -23,16 +36,74 @@ export default function ReportsPage() {
       return sum
     }, 0)
 
+  const currentWeekSubSpend = Math.round(
+    getSubscriptionSpendForRange(subscriptions, startOfWeek(new Date()), endOfWeek(new Date()))
+  )
+  const currentMonthSubSpend = Math.round(
+    getSubscriptionSpendForRange(subscriptions, startOfMonth(new Date()), endOfMonth(new Date()))
+  )
+  const currentMonthExpenseOnly = Math.max(0, monthlySummary.total - currentMonthSubSpend)
+
+  const weekStart = startOfWeek(new Date())
+  const weekEnd = endOfWeek(new Date())
+  const monthStart = startOfMonth(new Date())
+  const monthEnd = endOfMonth(new Date())
+  const weekStartKey = format(weekStart, 'yyyy-MM-dd')
+  const weekEndKey = format(weekEnd, 'yyyy-MM-dd')
+  const monthStartKey = format(monthStart, 'yyyy-MM-dd')
+  const monthEndKey = format(monthEnd, 'yyyy-MM-dd')
+
+  const weeklyIncomeTotal = incomes.reduce((sum, income) => {
+    const key = getDateKey(income.date)
+    if (key < weekStartKey || key > weekEndKey) {
+      return sum
+    }
+    return sum + income.amount
+  }, 0)
+
+  const monthlyIncomeTotal = incomes.reduce((sum, income) => {
+    const key = getDateKey(income.date)
+    if (key < monthStartKey || key > monthEndKey) {
+      return sum
+    }
+    return sum + income.amount
+  }, 0)
+
+  const weeklyExpenseOnlyTotal = expenses.reduce((sum, expense) => {
+    const dateKey = getDateKey(expense.date)
+    if (dateKey < format(weekStart, 'yyyy-MM-dd') || dateKey > format(weekEnd, 'yyyy-MM-dd')) {
+      return sum
+    }
+    return sum + expense.amount
+  }, 0)
+  const weeklyTotalWithSubs = weeklySummary.total
+  const weeklySubShare = weeklyTotalWithSubs > 0 ? (currentWeekSubSpend / weeklyTotalWithSubs) * 100 : 0
+  const weeklyNetSavings = weeklyIncomeTotal - weeklyTotalWithSubs
+  const weeklySavingsRate = weeklyIncomeTotal > 0 ? (weeklyNetSavings / weeklyIncomeTotal) * 100 : 0
+  const weeklyExpenseIncomeRatio = weeklyIncomeTotal > 0 ? (weeklyTotalWithSubs / weeklyIncomeTotal) * 100 : 0
+  const monthlyNetSavings = monthlyIncomeTotal - monthlySummary.total
+  const monthlySavingsRate = monthlyIncomeTotal > 0 ? (monthlyNetSavings / monthlyIncomeTotal) * 100 : 0
+  const monthlyExpenseIncomeRatio = monthlyIncomeTotal > 0 ? (monthlySummary.total / monthlyIncomeTotal) * 100 : 0
+
+  const reportRangeStart = startOfMonth(subMonths(new Date(), 5))
+  const reportRangeEnd = endOfMonth(new Date())
+  const expensesWithSubsForReports = mergeExpensesWithSubscriptionOccurrences(
+    expenses,
+    subscriptions,
+    reportRangeStart,
+    reportRangeEnd
+  )
+
   const weeklySummaries: WeeklySummary[] = []
   for (let i = 7; i >= 0; i--) {
     const date = subWeeks(new Date(), i)
-    weeklySummaries.push(getWeeklySummary(date))
+    weeklySummaries.push(getWeeklySummary(date, expensesWithSubsForReports))
   }
 
   const monthlySummaries = []
   for (let i = 5; i >= 0; i--) {
     const date = subMonths(new Date(), i)
-    monthlySummaries.push(getMonthlySummary(date))
+    monthlySummaries.push(getMonthlySummary(date, expensesWithSubsForReports))
   }
 
   const monthlyTrendAsWeeks: WeeklySummary[] = monthlySummaries.map((monthSummary) => ({
@@ -55,8 +126,55 @@ export default function ReportsPage() {
   const sixMonthAverage = Math.round(
     monthlySummaries.reduce((sum, month) => sum + month.total, 0) / Math.max(monthlySummaries.length, 1)
   )
-  const totalMonthlyWithSubs = monthlySummary.total + Math.round(monthlySubCost)
   const activeSubscriptions = subscriptions.filter(s => s.isActive)
+
+  const weeklySubByDate = mergeExpensesWithSubscriptionOccurrences([], subscriptions, weekStart, weekEnd)
+    .reduce<Record<string, { amount: number; count: number }>>((acc, item) => {
+      const key = item.date
+      const current = acc[key] || { amount: 0, count: 0 }
+      acc[key] = { amount: current.amount + item.amount, count: current.count + 1 }
+      return acc
+    }, {})
+
+  const weeklyExpenseByDate = expenses.reduce<Record<string, { amount: number; count: number }>>((acc, item) => {
+    const key = getDateKey(item.date)
+    if (key < format(weekStart, 'yyyy-MM-dd') || key > format(weekEnd, 'yyyy-MM-dd')) {
+      return acc
+    }
+    const current = acc[key] || { amount: 0, count: 0 }
+    acc[key] = { amount: current.amount + item.amount, count: current.count + 1 }
+    return acc
+  }, {})
+  const weeklyIncomeByDate = incomes.reduce<Record<string, { amount: number; count: number }>>((acc, item) => {
+    const key = getDateKey(item.date)
+    if (key < weekStartKey || key > weekEndKey) {
+      return acc
+    }
+    const current = acc[key] || { amount: 0, count: 0 }
+    acc[key] = { amount: current.amount + item.amount, count: current.count + 1 }
+    return acc
+  }, {})
+
+  const weeklyDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
+  const weeklyDetailsByDate = weeklyDays.reduce<Record<string, { expense: number; subscription: number; income: number; count: number }>>((acc, day) => {
+    const key = format(day, 'yyyy-MM-dd')
+    const expenseInfo = weeklyExpenseByDate[key] || { amount: 0, count: 0 }
+    const subInfo = weeklySubByDate[key] || { amount: 0, count: 0 }
+    const incomeInfo = weeklyIncomeByDate[key] || { amount: 0, count: 0 }
+    acc[key] = {
+      expense: expenseInfo.amount,
+      subscription: subInfo.amount,
+      income: incomeInfo.amount,
+      count: expenseInfo.count + subInfo.count + incomeInfo.count,
+    }
+    return acc
+  }, {})
+
+  const highestSpendDay = weeklySummary.dailyBreakdown.reduce((best, day) => {
+    if (!best || day.total > best.total) return day
+    return best
+  }, null as WeeklySummary['dailyBreakdown'][number] | null)
+  const activeSpendDays = weeklySummary.dailyBreakdown.filter(day => day.total > 0).length
 
   return (
     <div className="space-y-7">
@@ -74,38 +192,73 @@ export default function ReportsPage() {
         </TabsList>
 
         <TabsContent value="weekly" className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.totalExpenses')}</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total (incl. subscriptions)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight tabular-nums">
-                  {weeklySummary.total.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">SGD</span>
+                  {weeklyTotalWithSubs.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
                 </div>
-                {monthlySubCost > 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">+ {Math.round(monthlySubCost / 4.33).toLocaleString()} SGD/wk subs</p>
-                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {highestSpendDay ? `Highest day: ${format(new Date(`${highestSpendDay.date}T00:00:00`), 'EEE')} ${highestSpendDay.total.toLocaleString()} ${currency}` : 'Highest day: -'}
+                </p>
               </CardContent>
             </Card>
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.averageDaily')}</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.weeklyIncome')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight tabular-nums">
-                  {weeklyAverage.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">SGD</span>
+                  {Math.round(weeklyIncomeTotal).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">{t('reports.incomeVsExpense')}: {(weeklyIncomeTotal - weeklyExpenseOnlyTotal).toLocaleString()} {currency}</p>
               </CardContent>
             </Card>
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.highestCategory')}</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.netSavings')}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold tracking-tight">
-                  {highestCategory ? CATEGORY_LABELS[highestCategory[0] as Category][language] : '-'}
+                <div className={`text-2xl font-bold tracking-tight tabular-nums ${weeklyNetSavings >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                  {Math.round(weeklyNetSavings).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">{t('reports.savingsRate')}: {weeklySavingsRate.toFixed(1)}%</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.expenseIncomeRatio')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums">
+                  {weeklyExpenseIncomeRatio.toFixed(1)} <span className="text-base font-semibold text-muted-foreground">%</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Active days: {activeSpendDays}/7</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Expense-only</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums">
+                  {Math.round(weeklyExpenseOnlyTotal).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{t('reports.averageDaily')}: {weeklyAverage.toLocaleString()} {currency}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Subscription-only</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums">
+                  {currentWeekSubSpend.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{weeklySubShare.toFixed(1)}% of weekly total</p>
               </CardContent>
             </Card>
           </div>
@@ -118,6 +271,8 @@ export default function ReportsPage() {
             <DailyBarChart
               data={weeklySummary.dailyBreakdown}
               title={t('common.thisWeek')}
+              currency={currency}
+              detailsByDate={weeklyDetailsByDate}
             />
           </div>
 
@@ -128,20 +283,42 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="monthly" className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.totalExpenses')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight tabular-nums">
-                  {totalMonthlyWithSubs.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">SGD</span>
+                  {monthlySummary.total.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
                 </div>
                 {monthlySubCost > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    {monthlySummary.total.toLocaleString()} expenses + {Math.round(monthlySubCost).toLocaleString()} subs
+                    {Math.round(currentMonthExpenseOnly).toLocaleString()} expenses + {currentMonthSubSpend.toLocaleString()} subscriptions
                   </p>
                 )}
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.monthlyIncome')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums">
+                  {Math.round(monthlyIncomeTotal).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{t('reports.expenseIncomeRatio')}: {monthlyExpenseIncomeRatio.toFixed(1)}%</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.netSavings')}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold tracking-tight tabular-nums ${monthlyNetSavings >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                  {Math.round(monthlyNetSavings).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{t('reports.savingsRate')}: {monthlySavingsRate.toFixed(1)}%</p>
               </CardContent>
             </Card>
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
@@ -150,7 +327,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight tabular-nums">
-                  {monthlyAverage.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">SGD</span>
+                  {monthlyAverage.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
                 </div>
               </CardContent>
             </Card>
@@ -182,7 +359,7 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold tracking-tight tabular-nums">
-                {sixMonthAverage.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">SGD</span>
+                {sixMonthAverage.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
               </div>
             </CardContent>
           </Card>
@@ -194,7 +371,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight tabular-nums mb-3">
-                  {Math.round(monthlySubCost).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">SGD / month</span>
+                  {Math.round(monthlySubCost).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency} / month</span>
                 </div>
                 <div className="space-y-2 border-t border-border/40 pt-3">
                   {activeSubscriptions.map(sub => {
@@ -204,7 +381,7 @@ export default function ReportsPage() {
                     return (
                       <div key={sub.id} className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">{sub.name}</span>
-                        <span className="font-semibold tabular-nums">{Math.round(monthlyAmount).toLocaleString()} SGD</span>
+                        <span className="font-semibold tabular-nums">{Math.round(monthlyAmount).toLocaleString()} {currency}</span>
                       </div>
                     )
                   })}

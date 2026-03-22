@@ -11,7 +11,9 @@ import {
   Languages,
   Plane,
   Repeat,
-  CalendarDays
+  CalendarDays,
+  Landmark,
+  PiggyBank
 } from 'lucide-react'
 
 import {
@@ -66,6 +68,14 @@ export function CommandPalette() {
           <CommandItem onSelect={() => runCommand(() => router.push('/history'))}>
             <Calendar className="mr-2 h-4 w-4" />
             <span>{t('nav.history')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/income'))}>
+            <Landmark className="mr-2 h-4 w-4" />
+            <span>{t('nav.income')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/savings'))}>
+            <PiggyBank className="mr-2 h-4 w-4" />
+            <span>{t('nav.savings')}</span>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => router.push('/reports'))}>
             <PieChart className="mr-2 h-4 w-4" />

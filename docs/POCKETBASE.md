@@ -1,58 +1,73 @@
-﻿# PocketBase Backend Setup
+# PocketBase Backend Setup
 
-This document explains how PocketBase is provisioned for this project in both local development and Kubernetes.
+This document describes PocketBase provisioning for local Docker and Kubernetes.
 
-## Current Backend Model
+## Backend Model
 
-Browser -> Next.js API Routes -> PocketBase
+Browser -> Next.js API routes -> PocketBase
 
-- Browser never talks to PocketBase directly for app data writes.
-- Auth and data operations are routed via `src/app/api/*`.
+- Browser does not write directly to PocketBase.
+- Next.js route handlers (`src/app/api/*`) own auth and data access.
 - Auth cookie used by API routes: `pb_auth`.
 
 ## API Surface Used by the App
 
-Auth:
+### Auth
 
 - `/api/auth/login`
 - `/api/auth/logout`
 - `/api/auth/me`
 - `/api/auth/register`
+- `/api/auth/register-policy`
 
-Data:
+### Data
 
 - `/api/transactions`
 - `/api/transactions/[id]`
+- `/api/incomes`
+- `/api/incomes/[id]`
+- `/api/savings-goals`
+- `/api/savings-goals/[id]`
 - `/api/trips`
 - `/api/trips/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
 
-## Collections Managed by Migration
+## Schema and Migrations
 
-Schema is versioned in:
+Migration files:
 
 - `pb_migrations/1774166000_wallet_schema.js`
+- `pb_migrations/1774300000_income_savings_collections.js`
+- `pb_migrations/1774301000_ensure_income_savings_collections.js`
 
-Managed collections:
+Purpose summary:
 
-- `users` (auth collection)
+- `1774166000`: base wallet schema (`users`, `transactions`, `trips`, `subscriptions`)
+- `1774300000`: adds `incomes` and `savings_goals`
+- `1774301000`: repair migration that ensures `incomes`/`savings_goals` exist even when history is inconsistent
+
+Expected collections:
+
+- `users`
 - `transactions`
+- `incomes`
+- `savings_goals`
 - `trips`
 - `subscriptions`
 
 ## Kubernetes Auto Bootstrap
 
-### Files involved
+### Related files
 
 - `k8s/pocketbase-bootstrap.yaml`
-  - ConfigMap: `pocketbase-migrations` (migration JS files)
+  - ConfigMap: `pocketbase-migrations`
 - `k8s/pocketbase-deployment.yaml`
   - initContainer runs:
     - `pocketbase migrate up`
     - `pocketbase superuser upsert`
 
-Superuser credentials are provided by K8s secret `pocketbase-bootstrap`.
+Superuser credentials come from secret `pocketbase-bootstrap`.
 
 ### Deploy order
 
@@ -64,11 +79,11 @@ kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
 ```
 
-### Verify
+### Verify bootstrap
 
 ```bash
 kubectl get pods -n wallet-app
-kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap
+kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=200
 ```
 
 ## Local Bootstrap
@@ -93,50 +108,77 @@ PowerShell:
 docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
 ```
 
-Important:
-- The superuser account is only for PocketBase Admin UI access.
-- App login at `/login` authenticates against the `users` collection, not `_superusers`.
-
-## How to Update Schema
-
-1. Edit or add migration file in `pb_migrations/`.
-2. Test locally:
+Then restart local PocketBase to ensure live process sees current DB state:
 
 ```bash
-docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "mkdir -p /tmp/pbdata && pocketbase --dir=/tmp/pbdata --migrationsDir=/work/pb_migrations migrate up"
+docker restart wallet-pocketbase
 ```
 
-3. Deploy updated `k8s/pocketbase-bootstrap.yaml` (if migration content changed).
-4. Restart PocketBase deployment or roll out new image.
+Important:
 
-## Notes
+- Superuser is for PocketBase Admin UI only.
+- Wallet app login uses normal `users` collection accounts.
 
-- `superuser upsert` is idempotent and safe on restart.
-- Existing PVC data is preserved across pod restarts.
-- For a completely clean environment, delete the PVC/data and run bootstrap again.
-- App self-registration is controlled by Next.js env vars:
-  - `AUTH_REGISTRATION_ENABLED`
-  - `AUTH_ALLOWED_EMAILS`
-  - `AUTH_ALLOWED_DOMAINS`
+## Registration Control (Internal Use)
+
+Registration is controlled by Next.js env vars:
+
+- `AUTH_REGISTRATION_ENABLED`
+- `AUTH_ALLOWED_EMAILS`
+- `AUTH_ALLOWED_DOMAINS`
+
+Recommended internal setup:
+
+```env
+AUTH_REGISTRATION_ENABLED=false
+```
+
+If disabled, create users manually in PocketBase Admin (`users` collection).
 
 ## Troubleshooting
 
-### Migration did not run in K8s
+### "Savings goals collection is missing. Apply latest PocketBase migrations."
 
-- Check init container logs.
-- Confirm `k8s/pocketbase-bootstrap.yaml` was applied before deployment.
+This usually means one of the following:
+
+1. Migration was run against a different PocketBase instance/data directory.
+2. K8s ConfigMap was updated but PocketBase pod was not restarted.
+3. Migration history exists but collection creation was previously inconsistent.
+
+Fix steps:
+
+1. Ensure app points to the expected PocketBase URL (`POCKETBASE_URL`).
+2. Re-run migration against the actual data dir:
+
+```bash
+docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up"
+```
+
+3. Restart PocketBase process/container/pod.
+4. In K8s, re-apply and restart:
+
+```bash
+kubectl apply -f k8s/pocketbase-bootstrap.yaml
+kubectl rollout restart deployment/pocketbase -n wallet-app
+kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=200
+```
+
+5. Confirm collections in PocketBase Admin:
+   - `incomes`
+   - `savings_goals`
+
+### App login works but data save fails
+
+- Confirm expected collections exist.
+- Confirm collection rules are user-scoped (`user = @request.auth.id`).
+- Confirm API routes use authenticated `pb_auth` cookie.
 
 ### Superuser credentials not working
 
-- Update K8s secret values:
+Recreate K8s secret:
 
 ```bash
 kubectl -n wallet-app create secret generic pocketbase-bootstrap --from-literal=PB_SUPERUSER_EMAIL='admin@wallet.local' --from-literal=PB_SUPERUSER_PASSWORD='replace-with-strong-password' --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-- Re-apply and restart PocketBase deployment.
-
-### App can login but cannot save data
-
-- Confirm collections exist (`transactions`, `trips`, `subscriptions`).
-- Confirm user-specific rules are present from migration.
+Then restart PocketBase deployment.

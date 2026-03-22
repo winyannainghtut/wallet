@@ -17,6 +17,17 @@ export const CATEGORIES = [
 
 export type Category = typeof CATEGORIES[number]
 
+export const INCOME_CATEGORIES = [
+  'salary',
+  'bonus',
+  'freelance',
+  'business',
+  'investment',
+  'other'
+] as const
+
+export type IncomeCategory = typeof INCOME_CATEGORIES[number]
+
 // Category labels for i18n
 export const CATEGORY_LABELS: Record<Category, { en: string; my: string }> = {
   groceries: { en: 'Groceries', my: 'စားသောက်ကုန်' },
@@ -34,6 +45,15 @@ export const CATEGORY_LABELS: Record<Category, { en: string; my: string }> = {
   other: { en: 'Other', my: 'အခြား' }
 }
 
+export const INCOME_CATEGORY_LABELS: Record<IncomeCategory, { en: string; my: string }> = {
+  salary: { en: 'Salary', my: 'Salary' },
+  bonus: { en: 'Bonus', my: 'Bonus' },
+  freelance: { en: 'Freelance', my: 'Freelance' },
+  business: { en: 'Business', my: 'Business' },
+  investment: { en: 'Investment', my: 'Investment' },
+  other: { en: 'Other', my: 'Other' }
+}
+
 // Expense interface
 export interface Expense {
   id: string
@@ -44,6 +64,25 @@ export interface Expense {
   createdAt: string // ISO timestamp
   updatedAt?: string
   tripId?: string
+}
+
+export interface Income {
+  id: string
+  amount: number
+  category: IncomeCategory
+  description: string
+  date: string // YYYY-MM-DD
+  createdAt: string // ISO timestamp
+  updatedAt?: string
+}
+
+export interface SavingsGoal {
+  id: string
+  month: string // YYYY-MM
+  targetAmount: number
+  note?: string
+  createdAt: string // ISO timestamp
+  updatedAt?: string
 }
 
 // Trip interface for Travel Mode
@@ -94,39 +133,18 @@ export interface MonthlySummary {
   weeklyBreakdown: WeeklySummary[]
 }
 
-// Filter types
-export interface ExpenseFilter {
-  startDate?: string
-  endDate?: string
-  category?: Category
-  minAmount?: number
-  maxAmount?: number
-  search?: string
-}
+
 
 // Settings
 export interface AppSettings {
   language: 'en' | 'my'
   currency: string
   apiKey?: string
-  monthlyBudget?: number
+  aiProvider?: 'auto' | 'gemini' | 'zai'
+  theme?: 'dark' | 'light' | 'blossom'
 }
 
-// AI Chat
-export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  timestamp: string
-}
 
-// Excel import/export
-export interface ExcelExpense {
-  Date: string
-  Category: string
-  Amount: number
-  Description: string
-}
 
 // User Profile for multi-user support
 export interface UserProfile {

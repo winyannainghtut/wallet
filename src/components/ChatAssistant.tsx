@@ -5,35 +5,60 @@ import { Send, Loader2, Lightbulb } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Expense } from '@/types'
-import { getApiKey } from '@/lib/storage'
+import { Expense, Income, Subscription } from '@/types'
+import { getApiKey, getChatHistory, saveChatHistory } from '@/lib/storage'
 import { streamChatAboutExpenses } from '@/lib/ai'
+import { sanitizeAiOutput } from '@/lib/ai-output'
 import { t, getLanguage } from '@/i18n/config'
+import { cn } from '@/lib/utils'
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
-  timestamp: Date
+  timestamp: Date | string
 }
 
 interface ChatAssistantProps {
   expenses: Expense[]
+  incomes?: Income[]
+  subscriptions?: Subscription[]
+  monthlySavings?: number
+  className?: string
+  messagesClassName?: string
 }
 
-export function ChatAssistant({ expenses }: ChatAssistantProps) {
+export function ChatAssistant({ expenses, incomes = [], subscriptions = [], monthlySavings = 0, className, messagesClassName }: ChatAssistantProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [stickToBottom, setStickToBottom] = useState(true)
+  const [isInitialized, setIsInitialized] = useState(false)
+  
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   const language = getLanguage()
 
+  // Load chat history once
   useEffect(() => {
-    if (stickToBottom) {
-      endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const history = getChatHistory()
+    if (history && history.length > 0) {
+      setMessages(history)
+    }
+    setIsInitialized(true)
+  }, [])
+
+  // Save chat history automatically
+  useEffect(() => {
+    if (isInitialized) {
+      saveChatHistory(messages)
+    }
+  }, [messages, isInitialized])
+
+  useEffect(() => {
+    if (stickToBottom && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight
     }
   }, [messages, stickToBottom])
 
@@ -77,10 +102,11 @@ export function ChatAssistant({ expenses }: ChatAssistantProps) {
     try {
       let fullContent = ''
 
-      for await (const chunk of streamChatAboutExpenses(messageText, expenses, apiKey, language)) {
+      for await (const chunk of streamChatAboutExpenses(messageText, expenses, apiKey, language, incomes, subscriptions, monthlySavings)) {
         fullContent += chunk
+        const cleanContent = sanitizeAiOutput(fullContent)
         setMessages(prev => prev.map(m =>
-          m.id === assistantId ? { ...m, content: fullContent } : m
+          m.id === assistantId ? { ...m, content: cleanContent } : m
         ))
       }
     } catch (error) {
@@ -110,14 +136,24 @@ export function ChatAssistant({ expenses }: ChatAssistantProps) {
       ]
 
   return (
-    <Card className="flex h-[500px] flex-col border-border/40">
-      <CardHeader className="flex-shrink-0 border-b border-border/30 pb-4">
+    <Card className={cn('flex h-[500px] flex-col border-border/40', className)}>
+      <CardHeader className="flex-shrink-0 border-b border-border/30 pb-4 flex flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2.5 text-base">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-accent/20">
             <Lightbulb className="h-4 w-4 text-primary" />
           </span>
           {t('ai.title')}
         </CardTitle>
+        {messages.length > 0 && (
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setMessages([])} 
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Clear
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="flex-1 flex flex-col min-h-0 pt-4">
         {/* Suggestions */}
@@ -143,7 +179,7 @@ export function ChatAssistant({ expenses }: ChatAssistantProps) {
         {/* Messages */}
         <div
           ref={scrollContainerRef}
-          className="flex-1 min-h-0 overflow-y-auto pr-2"
+          className={cn('flex-1 min-h-0 overflow-y-auto pr-2 overscroll-contain', messagesClassName)}
           onScroll={handleScroll}
         >
           <div className="space-y-3">

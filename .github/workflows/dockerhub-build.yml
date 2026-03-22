@@ -3,8 +3,8 @@ name: Build and Push Wallet App Image
 on:
   push:
     branches:
-      - dev
       - main
+      - dev
   workflow_dispatch:
 
 permissions:
@@ -34,8 +34,8 @@ jobs:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/wallet-app
           tags: |
             type=sha,prefix=sha-
-            type=raw,value=dev-latest,enable=${{ github.ref == 'refs/heads/dev' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=dev-latest,enable=${{ github.ref == 'refs/heads/dev' }}
 
       - name: Build and push image
         uses: docker/build-push-action@v6
