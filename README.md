@@ -1,36 +1,85 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# Wallet App
 
-## Getting Started
+Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, authentication, trips, subscriptions, reports, calendar view, and AI insights.
 
-First, run the development server:
+## Key Features
+
+- Email/password authentication via PocketBase (`/login` required by default)
+- Expense tracking with categories and date history
+- Trips and subscriptions persisted in PocketBase
+- Daily/weekly/monthly summaries and reports
+- English/Myanmar language support
+- Kubernetes deployment manifests for frontend + PocketBase
+
+## Architecture
+
+Browser -> Next.js App Router + API routes -> PocketBase
+
+- PocketBase auth is handled through server API routes (`/api/auth/*`)
+- App data APIs:
+  - `/api/transactions`
+  - `/api/trips`
+  - `/api/subscriptions`
+
+## Local Development
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Start PocketBase
+
+```bash
+docker-compose -f docker-compose.pb.yml up -d
+```
+
+### 3. Bootstrap schema + superuser (one-time per fresh `pb_data`)
+
+Bash:
+
+```bash
+docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+```
+
+PowerShell:
+
+```powershell
+docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+```
+
+`superuser` account is for PocketBase Admin UI only.  
+For Wallet App login, create a normal user from the Register tab in `/login`.
+
+### 4. Start app
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Kubernetes Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+PocketBase bootstrap is automated in K8s:
 
-## Learn More
+- migrations from `pb_migrations/1774166000_wallet_schema.js`
+- superuser upsert from `k8s/pocketbase-bootstrap.yaml`
 
-To learn more about Next.js, take a look at the following resources:
+Apply in order:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/pocketbase-bootstrap.yaml
+kubectl apply -f k8s/pocketbase-deployment.yaml
+kubectl apply -f k8s/pocketbase-service.yaml
+kubectl apply -f k8s/deployment.yaml
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Docs
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Setup Guide](docs/SETUP-GUIDE.md)
+- [PocketBase Setup](docs/POCKETBASE.md)
+- [Tech Stack](techstack.md)
+- [Dev Journey](DEVJOURNEY.md)

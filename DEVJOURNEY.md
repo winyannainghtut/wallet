@@ -1,147 +1,55 @@
-# Dev Journey - Wallet App
+﻿# Dev Journey - Wallet App
 
-## 2026-03-22 (Saturday)
+## 2026-03-22
 
-### ✅ Completed Today
+### Completed
 
-#### PocketBase Integration (BFF Pattern)
-- [x] Installed PocketBase SDK
-- [x] Created `docker-compose.pb.yml` for local PocketBase development
-- [x] Created `src/lib/pb.ts` - Server-side PocketBase client
-- [x] Created Auth API routes (`/api/auth/login`, `/api/auth/logout`, `/api/auth/me`, `/api/auth/register`)
-- [x] Created Transactions API routes (`/api/transactions`, `/api/transactions/[id]`)
-- [x] Updated `AuthContext` to use API routes (BFF pattern)
-- [x] Updated `useTransactions` hook
-- [x] Build compiles successfully
+- Migrated app data flow to PocketBase API routes.
+- Implemented authentication-first routing (`/login` required by default).
+- Removed app-level password protection flow.
+- Added API endpoints for trips and subscriptions:
+  - `/api/trips`, `/api/trips/[id]`
+  - `/api/subscriptions`, `/api/subscriptions/[id]`
+- Updated `AppContext` to use API-backed persistence for:
+  - expenses
+  - trips
+  - subscriptions
+- Added PocketBase schema migration:
+  - `pb_migrations/1774166000_wallet_schema.js`
+- Added Kubernetes bootstrap automation:
+  - schema auto-apply via initContainer
+  - superuser auto upsert via secret values
+- Improved `/api/auth/login` error handling:
+  - clearer invalid credential response
+  - explicit message when PocketBase superuser credentials are used in app login
 
-#### Architecture Decision
-**Chosen: BFF (Backend for Frontend) Pattern**
-```
-Browser → Next.js API Routes → PocketBase (internal)
-```
-- PocketBase NOT exposed publicly
-- Only Next.js frontend exposed via Cloudflare Tunnel
-- Auth tokens stored in HTTP-only cookies
+### Infra and Docs
 
----
+- Added `k8s/pocketbase-bootstrap.yaml` (Secret + ConfigMap).
+- Updated `k8s/pocketbase-deployment.yaml` to run bootstrap init container.
+- Updated docs for local and k8s bootstrap flow:
+  - `README.md`
+  - `docs/SETUP-GUIDE.md`
+  - `docs/POCKETBASE.md`
+  - `techstack.md`
+- Reconciled docs with current runtime behavior:
+  - superuser is for PocketBase Admin UI only
+  - app login uses `users` collection accounts
 
-## 2026-03-21 (Friday)
+## Current Architecture
 
-### ✅ Completed
+Browser -> Next.js API routes -> PocketBase
 
-#### 1. Wallet App Foundation
-- [x] Next.js 16.2.1 setup with App Router
-- [x] Tailwind CSS v4 + shadcn/ui components
-- [x] Expense tracking with categories (Groceries, Transport, etc.)
-- [x] Weekly/Monthly reports with charts
-- [x] Excel import/export functionality
-- [x] Multi-language support (English/Myanmar)
-- [x] User switching and password protection
-- [x] Docker and Kubernetes deployment configs
+- Auth in HTTP-only cookie (`pb_auth`)
+- PocketBase collections managed through migration files
+- K8s startup is idempotent (`migrate up` + `superuser upsert`)
 
-#### 2. AI Integration
-- [x] Integrated Google Gemini API for AI insights
-- [x] Chat assistant for expense queries
-- [x] Category suggestions from descriptions
-- [x] Natural language expense parsing
+## Next Practical Tasks
 
-#### 3. Git & Deployment
-- [x] Pushed to GitHub: https://github.com/winyannainghtut/wallet
-- [x] Created `main` and `dev` branches
-- [x] Updated `.gitignore` for sensitive data
-
----
-
-## 🔜 Next Steps
-
-### Priority 1: Test PocketBase Integration
-```bash
-# 1. Start PocketBase locally
-docker-compose -f docker-compose.pb.yml up -d
-
-# 2. Open PocketBase admin UI
-open http://localhost:8090/_/
-
-# 3. Create admin account and collections
-
-# 4. Start Next.js dev server
-npm run dev
-
-# 5. Test login/register at http://localhost:3000/login
-```
-
-### Priority 2: Create PocketBase Collections
-1. **users** (default) - Authentication
-2. **transactions** - Income/Expense records
-
-**transactions collection fields:**
-| Field | Type | Options |
-|-------|------|---------|
-| user | relation | → users, Required |
-| type | select | income, expense |
-| category | text | Required |
-| amount | number | Required |
-| description | text | |
-| date | date | Required |
-
-**API Rules:**
-```
-List/View: user = @request.auth.id
-Create: @request.auth.id != ""
-Update: user = @request.auth.id
-Delete: user = @request.auth.id
-```
-
-### Priority 3: Migrate Existing Features
-- [ ] Update `AppContext` to use PocketBase instead of localStorage
-- [ ] Migrate expense form to use `useTransactions` hook
-- [ ] Update reports page to fetch from PocketBase
-- [ ] Test Excel import/export with PocketBase data
+1. Move bootstrap secret to SealedSecret/ExternalSecret for production.
+2. Add CI check to validate migration applies on a clean PocketBase data dir.
+3. Ignore PocketBase runtime WAL/SHM artifacts in git workflow if needed.
 
 ---
 
-## 📝 Environment Variables
-
-```env
-# .env.local (Development)
-POCKETBASE_URL=http://localhost:8090
-
-# .env.production (K8s)
-POCKETBASE_URL=http://pocketbase-service.wallet-app.svc.cluster.local:8090
-```
-
----
-
-## 📁 New Files Created
-
-| File | Purpose |
-|------|---------|
-| `docker-compose.pb.yml` | Local PocketBase container |
-| `src/lib/pb.ts` | Server-side PB client |
-| `src/app/api/auth/login/route.ts` | Login endpoint |
-| `src/app/api/auth/logout/route.ts` | Logout endpoint |
-| `src/app/api/auth/me/route.ts` | Get current user |
-| `src/app/api/auth/register/route.ts` | Register endpoint |
-| `src/app/api/transactions/route.ts` | Transactions CRUD |
-| `src/app/api/transactions/[id]/route.ts` | Single transaction ops |
-
----
-
-## 🐛 Known Issues
-- [ ] Gemini 2.0 Flash not available to new users (using `gemini-1.5-flash-latest`)
-
----
-
-## 📚 Resources
-- [PocketBase Docs](https://pocketbase.io/docs/)
-- [PocketBase JS SDK](https://github.com/pocketbase/js-sdk)
-
----
-
-## Git Branches
-- `main` - Production ready code
-- `dev` - Development & PocketBase integration
-
----
-
-*Last updated: 2026-03-22*
+Last updated: 2026-03-22

@@ -32,9 +32,52 @@ spec:
         app: pocketbase
         tier: backend
     spec:
+      initContainers:
+        - name: pocketbase-bootstrap
+          image: ghcr.io/muchobien/pocketbase:latest
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              : "${PB_SUPERUSER_EMAIL:?PB_SUPERUSER_EMAIL is required}"
+              : "${PB_SUPERUSER_PASSWORD:?PB_SUPERUSER_PASSWORD is required}"
+              echo "[bootstrap] applying PocketBase migrations..."
+              pocketbase --dir=/pb_data --migrationsDir=/pb_migrations migrate up
+              echo "[bootstrap] ensuring superuser exists..."
+              pocketbase --dir=/pb_data superuser upsert "$PB_SUPERUSER_EMAIL" "$PB_SUPERUSER_PASSWORD"
+          env:
+            - name: PB_SUPERUSER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: pocketbase-bootstrap
+                  key: PB_SUPERUSER_EMAIL
+            - name: PB_SUPERUSER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pocketbase-bootstrap
+                  key: PB_SUPERUSER_PASSWORD
+          volumeMounts:
+            - name: pocketbase-data
+              mountPath: /pb_data
+            - name: pocketbase-migrations
+              mountPath: /pb_migrations
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: pocketbase
           image: ghcr.io/muchobien/pocketbase:latest
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              pocketbase --dir=/pb_data --publicDir=/pb_public --migrationsDir=/pb_migrations serve --http=0.0.0.0:8090
           ports:
             - containerPort: 8090
               name: http
@@ -46,6 +89,9 @@ spec:
               mountPath: /pb_data
             - name: pocketbase-public
               mountPath: /pb_public
+            - name: pocketbase-migrations
+              mountPath: /pb_migrations
+              readOnly: true
           resources:
             requests:
               memory: "128Mi"
@@ -83,4 +129,7 @@ spec:
             claimName: pocketbase-pvc
         - name: pocketbase-public
           emptyDir: {}
+        - name: pocketbase-migrations
+          configMap:
+            name: pocketbase-migrations
       restartPolicy: Always
