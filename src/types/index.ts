@@ -1,4 +1,5 @@
 // Expense Categories
+// Built-in categories
 export const CATEGORIES = [
   'groceries',
   'breakfast',
@@ -15,8 +16,10 @@ export const CATEGORIES = [
   'other'
 ] as const
 
-export type Category = typeof CATEGORIES[number]
+// Changed to string to allow custom categories
+export type Category = string
 
+// Built-in income categories
 export const INCOME_CATEGORIES = [
   'salary',
   'bonus',
@@ -26,10 +29,11 @@ export const INCOME_CATEGORIES = [
   'other'
 ] as const
 
-export type IncomeCategory = typeof INCOME_CATEGORIES[number]
+// Changed to string to allow custom income categories
+export type IncomeCategory = string
 
 // Category labels for i18n
-export const CATEGORY_LABELS: Record<Category, { en: string; my: string }> = {
+export const CATEGORY_LABELS: Record<string, { en: string; my: string }> = {
   groceries: { en: 'Groceries', my: 'စားသောက်ကုန်' },
   breakfast: { en: 'Breakfast', my: 'နံနက်စာ' },
   lunch: { en: 'Lunch', my: 'နေ့လယ်စာ' },
@@ -45,7 +49,7 @@ export const CATEGORY_LABELS: Record<Category, { en: string; my: string }> = {
   other: { en: 'Other', my: 'အခြား' }
 }
 
-export const INCOME_CATEGORY_LABELS: Record<IncomeCategory, { en: string; my: string }> = {
+export const INCOME_CATEGORY_LABELS: Record<string, { en: string; my: string }> = {
   salary: { en: 'Salary', my: 'Salary' },
   bonus: { en: 'Bonus', my: 'Bonus' },
   freelance: { en: 'Freelance', my: 'Freelance' },
@@ -136,6 +140,14 @@ export interface MonthlySummary {
 
 
 // Settings
+export interface CustomCategory {
+  id: string
+  name: string
+  icon?: string
+  type: 'expense' | 'income'
+  color?: string
+}
+
 export interface AppSettings {
   language: 'en' | 'my'
   currency: string

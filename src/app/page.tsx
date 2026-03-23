@@ -1,5 +1,6 @@
 'use client'
 
+
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subDays, eachDayOfInterval } from 'date-fns'
 import { PlusCircle, TrendingUp, Calendar, Wallet, PiggyBank, Scale, Plus } from 'lucide-react'
 import Link from 'next/link'
@@ -27,7 +28,10 @@ function normalizeDateKey(rawDate: string): string {
 }
 
 export default function DashboardPage() {
-  const { expenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, settings, currentUser } = useApp()
+  const { 
+    expenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, 
+    settings, currentUser 
+  } = useApp()
 
   // Monthly subscription cost
   const monthlySubCost = subscriptions
@@ -238,7 +242,11 @@ export default function DashboardPage() {
             <Button variant="link" className="text-primary">{t('dashboard.viewAll')}</Button>
           </Link>
         </div>
-        <TransactionList transactions={recentTransactions} currency={settings.currency} showDate />
+        <TransactionList 
+          transactions={recentTransactions} 
+          currency={settings.currency} 
+          showDate 
+        />
       </div>
     </div>
   )

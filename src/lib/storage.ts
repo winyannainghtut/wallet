@@ -20,6 +20,7 @@ const FIELD = {
   TRIPS: 'trips',
   SUBSCRIPTIONS: 'subscriptions',
   SETTINGS: 'settings',
+  CUSTOM_CATEGORIES: 'custom_categories',
 }
 
 // ==================== Profile Management ====================
@@ -129,6 +130,20 @@ export function getExpenses(): Expense[] {
 
 export function saveExpenses(expenses: Expense[]): void {
   localStorage.setItem(userKey(FIELD.EXPENSES), JSON.stringify(expenses))
+}
+
+// ==================== Custom Categories Operations ====================
+
+import { CustomCategory } from '@/types'
+
+export function getCustomCategories(): CustomCategory[] {
+  if (typeof window === 'undefined') return []
+  const data = localStorage.getItem(userKey(FIELD.CUSTOM_CATEGORIES))
+  return data ? JSON.parse(data) : []
+}
+
+export function saveCustomCategories(categories: CustomCategory[]): void {
+  localStorage.setItem(userKey(FIELD.CUSTOM_CATEGORIES), JSON.stringify(categories))
 }
 
 

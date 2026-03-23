@@ -8,18 +8,24 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { ExpenseList } from '@/components/ExpenseList'
+import { ExpenseForm } from '@/components/ExpenseForm'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useApp } from '@/contexts/AppContext'
-import { CATEGORIES, CATEGORY_LABELS } from '@/types'
+import { CATEGORIES, CATEGORY_LABELS, Expense } from '@/types'
 import { t, getLanguage } from '@/i18n/config'
 
 export default function HistoryPage() {
-  const { expenses, deleteExpense } = useApp()
+  const { expenses, deleteExpense, updateExpense } = useApp()
   const language = getLanguage()
 
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [category, setCategory] = useState<string>('all')
   const [search, setSearch] = useState('')
+  
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
 
   let filteredExpenses = [...expenses]
 
@@ -51,6 +57,26 @@ export default function HistoryPage() {
 
   const hasFilters = !!(startDate || endDate || category !== 'all' || search)
   const filteredTotal = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+
+  const handleEdit = (expense: Expense) => {
+    setEditingExpense(expense)
+    setIsEditDialogOpen(true)
+  }
+
+  const handleSave = async (data: Omit<Expense, 'id' | 'createdAt'>) => {
+    if (!editingExpense) return
+    setIsUpdating(true)
+    try {
+      await updateExpense(editingExpense.id, data)
+      setIsEditDialogOpen(false)
+      setEditingExpense(null)
+    } catch (error) {
+      console.error('Error updating expense:', error)
+      alert(t('common.error'))
+    } finally {
+      setIsUpdating(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -139,8 +165,24 @@ export default function HistoryPage() {
       <ExpenseList
         expenses={filteredExpenses}
         onDelete={deleteExpense}
+        onEdit={handleEdit}
         showDate
       />
+
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] p-0 border-none bg-transparent overflow-hidden">
+          <div className="p-1">
+            {editingExpense && (
+              <ExpenseForm
+                initialData={editingExpense}
+                onSubmit={handleSave}
+                onCancel={() => setIsEditDialogOpen(false)}
+                isSubmitting={isUpdating}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

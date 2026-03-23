@@ -5,27 +5,12 @@ import { format, startOfMonth } from 'date-fns'
 import { Edit2, Landmark, PlusCircle, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApp } from '@/contexts/AppContext'
 import { getLanguage, t } from '@/i18n/config'
-import { INCOME_CATEGORIES, INCOME_CATEGORY_LABELS, Income, IncomeCategory } from '@/types'
-
-type IncomeFormState = {
-  amount: number
-  category: IncomeCategory
-  description: string
-  date: string
-}
-
-const DEFAULT_FORM: IncomeFormState = {
-  amount: 0,
-  category: 'salary',
-  description: '',
-  date: format(new Date(), 'yyyy-MM-dd'),
-}
+import { INCOME_CATEGORY_LABELS, Income } from '@/types'
+import { IncomeForm } from '@/components/IncomeForm'
 
 export default function IncomePage() {
   const language = getLanguage()
@@ -35,7 +20,6 @@ export default function IncomePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [editingIncome, setEditingIncome] = useState<Income | null>(null)
   const [search, setSearch] = useState('')
-  const [form, setForm] = useState<IncomeFormState>(DEFAULT_FORM)
 
   const thisMonthStart = startOfMonth(new Date())
   const thisMonthPrefix = format(thisMonthStart, 'yyyy-MM')
@@ -65,30 +49,21 @@ export default function IncomePage() {
 
   const openCreateDialog = () => {
     setEditingIncome(null)
-    setForm(DEFAULT_FORM)
     setIsDialogOpen(true)
   }
 
   const openEditDialog = (item: Income) => {
     setEditingIncome(item)
-    setForm({
-      amount: item.amount,
-      category: item.category,
-      description: item.description,
-      date: item.date,
-    })
     setIsDialogOpen(true)
   }
 
-  const handleSave = async () => {
-    if (!form.amount || !form.date) return
-
+  const handleSave = async (data: Omit<Income, 'id' | 'createdAt'>) => {
     try {
       setIsSaving(true)
       if (editingIncome) {
-        await updateIncome(editingIncome.id, form)
+        await updateIncome(editingIncome.id, data)
       } else {
-        await addIncome(form)
+        await addIncome(data)
       }
       setIsDialogOpen(false)
     } catch (error) {
@@ -202,62 +177,15 @@ export default function IncomePage() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[460px]">
-          <DialogHeader>
-            <DialogTitle>{editingIncome ? t('income.editIncome') : t('income.addIncome')}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>{t('common.amount')}</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.amount || ''}
-                onChange={(e) => setForm((prev) => ({ ...prev, amount: Number(e.target.value) }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('common.category')}</Label>
-              <Select
-                value={form.category}
-                onValueChange={(value) => setForm((prev) => ({ ...prev, category: value as IncomeCategory }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {INCOME_CATEGORIES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {INCOME_CATEGORY_LABELS[item][language]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>{t('common.date')}</Label>
-              <Input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((prev) => ({ ...prev, date: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('common.description')}</Label>
-              <Input
-                value={form.description}
-                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder={t('income.descriptionPlaceholder')}
-              />
-            </div>
+        <DialogContent className="sm:max-w-[460px] p-0 border-none bg-transparent overflow-hidden">
+          <div className="p-1">
+            <IncomeForm
+              initialData={editingIncome || undefined}
+              onSubmit={handleSave}
+              onCancel={() => setIsDialogOpen(false)}
+              isSubmitting={isSaving}
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{t('common.cancel')}</Button>
-            <Button onClick={() => void handleSave()} disabled={isSaving}>
-              {isSaving ? `${t('common.save')}...` : t('common.save')}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

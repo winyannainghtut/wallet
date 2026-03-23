@@ -61,7 +61,7 @@ async function postAi<T>(
 function toCategoryOrOther(raw: unknown): Category {
   if (typeof raw !== 'string') return 'other'
   const normalized = raw.trim().toLowerCase()
-  if (CATEGORIES.includes(normalized as Category)) return normalized as Category
+  if ((CATEGORIES as readonly string[]).includes(normalized)) return normalized
   return 'other'
 }
 

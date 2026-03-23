@@ -1099,3 +1099,43 @@ data:
     }, (app) => {
       return null
     })
+
+  1774400000_update_income_category.js: |
+    migrate((db) => {
+      const collection = db.findCollectionByNameOrId("incomes");
+      
+      const categoryField = collection.schema.getFieldByName("category");
+      
+      if (categoryField && categoryField.type === "select") {
+        categoryField.type = "text";
+        categoryField.options = { min: null, max: null, pattern: "" };
+        
+        collection.schema.addField(categoryField);
+        return db.saveCollection(collection);
+      }
+      
+      return null;
+    }, (db) => {
+      const collection = db.findCollectionByNameOrId("incomes");
+      const categoryField = collection.schema.getFieldByName("category");
+      
+      if (categoryField && categoryField.type === "text") {
+        categoryField.type = "select";
+        categoryField.options = {
+          maxSelect: 1,
+          values: [
+            "salary",
+            "bonus",
+            "freelance",
+            "business",
+            "investment",
+            "other"
+          ]
+        };
+        
+        collection.schema.addField(categoryField);
+        return db.saveCollection(collection);
+      }
+      
+      return null;
+    });

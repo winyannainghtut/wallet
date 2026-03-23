@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Expense, Income, CATEGORY_LABELS, INCOME_CATEGORY_LABELS } from '@/types'
 import { format } from 'date-fns'
-import { ArrowDownRight, ArrowUpRight } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Edit, Trash2 } from 'lucide-react'
 import { getLanguage } from '@/i18n/config'
 
 export type TransactionItem = (Expense & { type: 'expense' }) | (Income & { type: 'income' })
@@ -14,9 +14,17 @@ interface TransactionListProps {
   transactions: TransactionItem[]
   showDate?: boolean
   currency: string
+  onEdit?: (item: TransactionItem) => void
+  onDelete?: (item: TransactionItem) => void
 }
 
-export function TransactionList({ transactions, showDate = true, currency }: TransactionListProps) {
+export function TransactionList({ 
+  transactions, 
+  showDate = true, 
+  currency,
+  onEdit,
+  onDelete
+}: TransactionListProps) {
   const language = getLanguage()
 
   if (transactions.length === 0) {
@@ -72,6 +80,26 @@ export function TransactionList({ transactions, showDate = true, currency }: Tra
                   <span className={`text-base font-bold tabular-nums sm:text-lg ${isIncome ? 'text-emerald-600' : 'text-foreground'}`}>
                     {isIncome ? '+' : '-'}{tx.amount.toLocaleString()} <span className="text-xs font-medium text-muted-foreground">{currency}</span>
                   </span>
+                  {(onEdit || onDelete) && (
+                    <div className="flex gap-1 opacity-60 transition-opacity group-hover:opacity-100">
+                      {onEdit && (
+                        <button
+                          onClick={() => onEdit(tx)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      {onDelete && (
+                        <button
+                          onClick={() => onDelete(tx)}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-destructive/10 text-destructive transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>

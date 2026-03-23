@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, User, Palette } from 'lucide-react'
+import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, User, Palette, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
 import { useApp } from '@/contexts/AppContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { clearAllData, getExpenses, saveExpenses } from '@/lib/storage'
@@ -16,13 +17,15 @@ type NoticeType = 'success' | 'error'
 type AiModel = 'glm-4.7' | 'glm-5-turbo' | 'glm-5'
 
 export default function SettingsPage() {
-  const { settings, updateSettings, setLanguage, refreshExpenses, currentUser, expenses } = useApp()
+  const { settings, updateSettings, setLanguage, refreshExpenses, currentUser, expenses, customCategories, addCustomCategory, deleteCustomCategory } = useApp()
   const { logout } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [aiModel, setAiModel] = useState<AiModel>((settings.aiModel as AiModel) || 'glm-4.7')
   const [notice, setNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [newCatType, setNewCatType] = useState<'expense' | 'income'>('expense')
 
   useEffect(() => {
     setAiModel((settings.aiModel as AiModel) || 'glm-4.7')
@@ -79,6 +82,13 @@ export default function SettingsPage() {
       clearAllData()
       window.location.reload()
     }
+  }
+
+  const handleAddCategory = () => {
+    if (!newCatName.trim()) return
+    addCustomCategory({ name: newCatName.trim(), type: newCatType })
+    setNewCatName('')
+    showNotice('success', 'Custom category added.')
   }
 
   const sectionIconClass = "flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-accent/20"
@@ -175,6 +185,63 @@ export default function SettingsPage() {
               <SelectItem value="blossom">🌸 Blossom (Unique)</SelectItem>
             </SelectContent>
           </Select>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className={sectionIconClass}>
+              <Plus className="h-3.5 w-3.5 text-primary" />
+            </span>
+            Custom Categories
+          </CardTitle>
+          <CardDescription>Manage your own categories for expenses and incomes.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Input
+              value={newCatName}
+              onChange={e => setNewCatName(e.target.value)}
+              placeholder="Category name"
+              className="rounded-xl flex-1 bg-muted/20 focus-visible:bg-background"
+            />
+            <Select value={newCatType} onValueChange={(v: any) => setNewCatType(v)}>
+              <SelectTrigger className="w-[110px] sm:w-[130px] rounded-xl bg-muted/20 focus:bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="expense">Expense</SelectItem>
+                <SelectItem value="income">Income</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={handleAddCategory} className="rounded-xl min-w-[70px]">Add</Button>
+          </div>
+          
+          <div className="space-y-2 pt-2">
+            {customCategories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No custom categories added yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {customCategories.map(cat => (
+                  <div key={cat.id} className="flex items-center justify-between gap-2 bg-muted/30 px-3 py-2.5 rounded-xl border border-border/40">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{cat.name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{cat.type}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0 rounded-lg"
+                      onClick={() => deleteCustomCategory(cat.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

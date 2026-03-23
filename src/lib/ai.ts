@@ -272,7 +272,7 @@ async function* streamChatCompletion(
 
 function toCategoryOrOther(raw: string): Category {
   const normalized = raw.trim().toLowerCase()
-  if (CATEGORIES.includes(normalized as Category)) return normalized as Category
+  if ((CATEGORIES as readonly string[]).includes(normalized)) return normalized
 
   for (const category of CATEGORIES) {
     if (normalized.includes(category) || category.includes(normalized)) {

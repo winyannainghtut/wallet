@@ -12,7 +12,8 @@ import {
   DailySummary,
   WeeklySummary,
   MonthlySummary,
-  Category
+  Category,
+  CustomCategory
 } from '@/types'
 import {
   getSettings,
@@ -26,6 +27,8 @@ import {
   deleteProfile as storageDeleteProfile,
   setActiveUserId,
   getActiveProfile,
+  getCustomCategories,
+  saveCustomCategories,
 } from '@/lib/storage'
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
@@ -189,6 +192,11 @@ interface AppContextType {
   updateSettings: (settings: Partial<AppSettings>) => void
   setLanguage: (lang: 'en' | 'my') => void
 
+  // Custom Categories
+  customCategories: CustomCategory[]
+  addCustomCategory: (category: Omit<CustomCategory, 'id'>) => CustomCategory
+  deleteCustomCategory: (id: string) => boolean
+
   // Loading
   isLoading: boolean
 
@@ -212,6 +220,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD', aiModel: 'glm-4.7' })
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // Current PocketBase user
@@ -316,6 +325,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const loadedSettings = getSettings()
     setI18nLanguage(loadedSettings.language)
     setSettings(loadedSettings)
+    setCustomCategories(getCustomCategories())
 
     await Promise.all([
       refreshExpenses(),
@@ -337,6 +347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setProfiles([])
         setActiveProfile(null)
         setSettings({ language: 'en', currency: 'SGD', aiModel: 'glm-4.7' })
+        setCustomCategories([])
         setI18nLanguage('en')
         setIsLoading(false)
         return
@@ -712,6 +723,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     updateSettings({ language: lang })
   }, [updateSettings])
 
+  // Custom Categories
+  const addCustomCategory = useCallback((category: Omit<CustomCategory, 'id'>) => {
+    const newCategory: CustomCategory = {
+      ...category,
+      id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
+    }
+    const updated = [...getCustomCategories(), newCategory]
+    saveCustomCategories(updated)
+    setCustomCategories(updated)
+    return newCategory
+  }, [])
+
+  const deleteCustomCategory = useCallback((id: string) => {
+    const current = getCustomCategories()
+    const updated = current.filter(c => c.id !== id)
+    if (current.length === updated.length) return false
+    
+    saveCustomCategories(updated)
+    setCustomCategories(updated)
+    return true
+  }, [])
+
   // Sync Theme to DOM
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -759,6 +792,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         settings,
         updateSettings,
         setLanguage,
+        customCategories,
+        addCustomCategory,
+        deleteCustomCategory,
         isLoading,
         currentUser,
       }}

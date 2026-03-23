@@ -22,7 +22,8 @@ interface ExpenseFormProps {
 }
 
 export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = false }: ExpenseFormProps) {
-  const { trips, settings } = useApp()
+  const { trips, settings, customCategories } = useApp()
+  const expenseCustomCategories = customCategories.filter(c => c.type === 'expense')
   const [mode, setMode] = useState<'manual' | 'magic'>('manual')
   const [magicText, setMagicText] = useState('')
   const [isParsing, setIsParsing] = useState(false)
@@ -211,9 +212,19 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 <SelectContent>
                   {CATEGORIES.map((cat) => (
                     <SelectItem key={cat} value={cat}>
-                      {CATEGORY_LABELS[cat][language]}
+                      {CATEGORY_LABELS[cat]?.[language] ?? cat}
                     </SelectItem>
                   ))}
+                  {expenseCustomCategories.length > 0 && (
+                    <>
+                      <div className="h-px bg-border/40 my-1 mx-2" />
+                      {expenseCustomCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.name}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

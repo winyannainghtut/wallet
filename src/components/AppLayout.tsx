@@ -262,6 +262,35 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <LanguageSwitcher />
         </div>
+
+        {/* Mobile Scrollable Tab Bar */}
+        <nav className="relative border-t border-border/20">
+          <div
+            className="flex gap-1 overflow-x-auto px-3 py-2"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+          >
+            <style>{`.mobile-tab-bar::-webkit-scrollbar { display: none; }`}</style>
+            {navItems.map((item) => {
+              const Icon = item.icon
+              const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={[
+                    'flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 shrink-0',
+                    isActive
+                      ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
+                      : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground',
+                  ].join(' ')}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{t(item.labelKey)}</span>
+                </Link>
+              )
+            })}
+          </div>
+        </nav>
       </header>
 
       {/* Main Content */}
