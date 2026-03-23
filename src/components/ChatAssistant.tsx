@@ -5,9 +5,9 @@ import { Send, Loader2, Lightbulb } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Expense, Income, Subscription } from '@/types'
+import { AiSavingsContext, Expense, Income, Subscription } from '@/types'
 import { getChatHistory, saveChatHistory } from '@/lib/storage'
-import { streamChatAboutExpenses } from '@/lib/ai-client'
+import { isAiKeyNotConfiguredError, streamChatAboutExpenses } from '@/lib/ai-client'
 import { sanitizeAiOutput } from '@/lib/ai-output'
 import { t, getLanguage } from '@/i18n/config'
 import { cn } from '@/lib/utils'
@@ -25,11 +25,20 @@ interface ChatAssistantProps {
   incomes?: Income[]
   subscriptions?: Subscription[]
   monthlySavings?: number
+  savingsContext?: AiSavingsContext
   className?: string
   messagesClassName?: string
 }
 
-export function ChatAssistant({ expenses, incomes = [], subscriptions = [], monthlySavings = 0, className, messagesClassName }: ChatAssistantProps) {
+export function ChatAssistant({
+  expenses,
+  incomes = [],
+  subscriptions = [],
+  monthlySavings = 0,
+  savingsContext,
+  className,
+  messagesClassName,
+}: ChatAssistantProps) {
   const { settings } = useApp()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
@@ -105,7 +114,8 @@ export function ChatAssistant({ expenses, incomes = [], subscriptions = [], mont
         incomes,
         subscriptions,
         monthlySavings,
-        settings.aiModel
+        settings.aiModel,
+        savingsContext
       )) {
         fullContent += chunk
         const cleanContent = sanitizeAiOutput(fullContent)
@@ -114,9 +124,12 @@ export function ChatAssistant({ expenses, incomes = [], subscriptions = [], mont
         ))
       }
     } catch (error) {
-      console.error('Chat error:', error)
+      const fallbackText = isAiKeyNotConfiguredError(error) ? t('ai.noApiKey') : t('common.error')
+      if (!isAiKeyNotConfiguredError(error)) {
+        console.error('Chat error:', error)
+      }
       setMessages(prev => prev.map(m =>
-        m.id === assistantId ? { ...m, content: t('common.error') } : m
+        m.id === assistantId ? { ...m, content: fallbackText } : m
       ))
     } finally {
       setIsLoading(false)

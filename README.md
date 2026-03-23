@@ -8,7 +8,12 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
 - Expense tracking (categories, history, reports)
 - Income tracking
 - Savings page with monthly savings goal CRUD
+- Savings assets (insurance, crypto, stocks) with live crypto market price feed
+- Crypto assets support quantity input and live conversion to app currency (for example SGD)
 - Trips and subscriptions persisted in PocketBase
+- AI-assisted category suggestion for expenses with optional auto-create custom category flow
+- Excel import with validation and duplicate detection for expenses and incomes
+- Excel export with unified workbook for expenses, incomes, savings assets, trips, and category references
 - Dashboard/Reports/Calendar cross comparison for:
   - expense
   - income
@@ -45,11 +50,43 @@ Data:
 - `/api/incomes/[id]`
 - `/api/savings-goals`
 - `/api/savings-goals/[id]`
+- `/api/savings-assets`
+- `/api/savings-assets/[id]`
+- `/api/market/fx`
 - `/api/trips`
 - `/api/trips/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
 - `/api/ai`
+
+### Excel Data Tools
+
+Import:
+- Supports `Expenses` sheet (also accepts `Expense`, `Template`, or first sheet fallback)
+- Supports optional `Incomes` sheet
+- Accepted headers:
+  - `Date`
+  - `Amount`
+  - `Category Key` (or `Category`)
+  - `Description`
+  - `Trip ID` (expenses only)
+- Invalid rows are skipped with issue reporting
+- Duplicate rows inside the same file are skipped automatically
+- Data is imported via API-backed context actions (no direct localStorage write for transactions)
+
+Export:
+- Generates `wallet_data_YYYY-MM-DD.xlsx`
+- Includes sheets:
+  - `Summary`
+  - `Expenses`
+  - `Incomes`
+  - `Savings Assets`
+  - `Trips`
+  - `Trip Summary`
+  - `Expense Categories`
+  - `Income Categories`
+- Export includes built-in categories plus custom categories detected from settings and data
+- Template download filename: `wallet_import_template.xlsx`
 
 ## Local Development
 
@@ -126,6 +163,8 @@ Managed migration files:
 - `pb_migrations/1774166000_wallet_schema.js`
 - `pb_migrations/1774300000_income_savings_collections.js`
 - `pb_migrations/1774301000_ensure_income_savings_collections.js` (repair migration)
+- `pb_migrations/1774500000_savings_assets_collection.js`
+- `pb_migrations/1774600000_add_symbol_to_savings_assets.js` (adds optional `symbol` for live crypto ticker)
 
 Expected collections:
 
@@ -133,6 +172,7 @@ Expected collections:
 - `transactions`
 - `incomes`
 - `savings_goals`
+- `savings_assets`
 - `trips`
 - `subscriptions`
 

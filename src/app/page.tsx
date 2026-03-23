@@ -1,7 +1,7 @@
 'use client'
 
 
-import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek, subDays, eachDayOfInterval } from 'date-fns'
+import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
 import { PlusCircle, TrendingUp, Calendar, Wallet, PiggyBank, Scale, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,9 @@ import { TransactionList, TransactionItem } from '@/components/TransactionList'
 import { UpcomingSubscriptions } from '@/components/UpcomingSubscriptions'
 import { SavingsGoalWidget } from '@/components/SavingsGoalWidget'
 import { useApp } from '@/contexts/AppContext'
+import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t } from '@/i18n/config'
+import type { AiSavingsContext } from '@/types'
 
 function normalizeDateKey(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -32,16 +34,17 @@ export default function DashboardPage() {
     expenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, 
     settings, currentUser 
   } = useApp()
-
-  // Monthly subscription cost
-  const monthlySubCost = subscriptions
-    .filter(s => s.isActive)
-    .reduce((sum, s) => {
-      if (s.billingCycle === 'monthly') return sum + s.amount
-      if (s.billingCycle === 'yearly') return sum + s.amount / 12
-      if (s.billingCycle === 'weekly') return sum + s.amount * 4.33
-      return sum
-    }, 0)
+  const {
+    totalAssetValue,
+    insuranceValue,
+    cryptoValue,
+    stocksValue,
+    sortedPortfolioAssets,
+    cryptoSocketState,
+    cryptoSocketError,
+    usdToCurrencyRate,
+    fxError,
+  } = useSavingsAssetsPortfolio(settings.currency)
 
   const monthStart = startOfMonth(new Date())
   const monthEnd = endOfMonth(new Date())
@@ -69,9 +72,33 @@ export default function DashboardPage() {
   }, 0)
 
   const monthlySavings = monthlyIncome - monthlySummary.total
+  const monthlySavingsWithAssets = monthlySavings + totalAssetValue
   const weeklySavings = weeklyIncome - weeklySummary.total
   const expenseIncomeRatio = monthlyIncome > 0 ? (monthlySummary.total / monthlyIncome) * 100 : 0
   const averageDailyExpense = monthlySummary.total / 30
+  const aiSavingsContext: AiSavingsContext = {
+    currency: settings.currency,
+    totalAssetValue,
+    insuranceValue,
+    cryptoValue,
+    stocksValue,
+    usdToCurrencyRate,
+    fxError,
+    cryptoSocketState,
+    cryptoSocketError,
+    assets: sortedPortfolioAssets.slice(0, 25).map((item) => ({
+      id: item.asset.id,
+      type: item.asset.type,
+      name: item.asset.name,
+      symbol: item.symbol ?? item.asset.symbol,
+      quantity: item.quantity,
+      currentValue: item.currentValue,
+      valueSource: item.valueSource,
+      productId: item.productId,
+      unitPriceUsd: item.unitPriceUsd,
+      quoteUpdatedAt: item.quoteUpdatedAt,
+    })),
+  }
 
   // Combine Income and Expenses for Recent Transactions
   const recentTransactions: TransactionItem[] = [
@@ -80,15 +107,6 @@ export default function DashboardPage() {
   ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5)
-
-  // Chart Data: Income vs Expense last 7 days
-  const last7Days = eachDayOfInterval({ start: subDays(new Date(), 6), end: new Date() })
-  const trendData = last7Days.map(day => {
-    const dayKey = format(day, 'yyyy-MM-dd')
-    const dayIncome = incomes.filter(i => i.date === dayKey).reduce((s, i) => s + i.amount, 0)
-    const dayExpense = expenses.filter(e => e.date === dayKey).reduce((s, e) => s + e.amount, 0)
-    return { date: dayKey, income: dayIncome, expense: dayExpense }
-  })
 
   // Time-based Greeting
   const currentHour = new Date().getHours()
@@ -122,6 +140,9 @@ export default function DashboardPage() {
               <span className={`rounded-full px-3 py-1.5 font-medium ${weeklySavings >= 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-rose-500/10 text-rose-700'}`}>
                 Weekly Net: {Math.round(weeklySavings).toLocaleString()} {settings.currency}
               </span>
+              <span className="rounded-full bg-primary/10 px-3 py-1.5 font-medium text-primary">
+                Savings + Assets: {Math.round(monthlySavingsWithAssets).toLocaleString()} {settings.currency}
+              </span>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
@@ -154,6 +175,7 @@ export default function DashboardPage() {
           incomes={incomes}
           subscriptions={subscriptions}
           monthlySavings={monthlySavings}
+          savingsContext={aiSavingsContext}
         />
       )}
 
@@ -163,46 +185,57 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
-        <SummaryCard
-          title={t('dashboard.todayExpenses')}
-          amount={todaySummary.total}
-          icon={Calendar}
-          subtitle={`${todaySummary.count} items`}
-          currency={settings.currency}
-        />
-        <SummaryCard
-          title={t('dashboard.weeklyExpenses')}
-          amount={weeklySummary.total}
-          icon={TrendingUp}
-          currency={settings.currency}
-        />
-        <SummaryCard
-          title={t('dashboard.monthlyExpenses')}
-          amount={monthlySummary.total}
-          icon={Wallet}
-          currency={settings.currency}
-        />
-        <SummaryCard
-          title={t('dashboard.monthlyIncome')}
-          amount={monthlyIncome}
-          icon={TrendingUp}
-          currency={settings.currency}
-        />
-        <SummaryCard
-          title={t('dashboard.monthlyNetSavings')}
-          amount={monthlySavings}
-          icon={PiggyBank}
-          subtitle={monthlyIncome > 0 ? `${((monthlySavings / monthlyIncome) * 100).toFixed(1)}% savings rate` : 'No income records this month'}
-          currency={settings.currency}
-        />
-        <SummaryCard
-          title={t('dashboard.expenseIncomeRatio')}
-          amount={Math.round(expenseIncomeRatio)}
-          icon={Scale}
-          subtitle={`${Math.round(averageDailyExpense).toLocaleString()} ${settings.currency} avg/day`}
-          currency="%"
-        />
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-5">
+          <SummaryCard
+            title={t('dashboard.todayExpenses')}
+            amount={todaySummary.total}
+            icon={Calendar}
+            subtitle={`${todaySummary.count} items`}
+            currency={settings.currency}
+          />
+          <SummaryCard
+            title={t('dashboard.weeklyExpenses')}
+            amount={weeklySummary.total}
+            icon={TrendingUp}
+            currency={settings.currency}
+          />
+          <SummaryCard
+            title={t('dashboard.monthlyExpenses')}
+            amount={monthlySummary.total}
+            icon={Wallet}
+            currency={settings.currency}
+          />
+          <SummaryCard
+            title={t('dashboard.monthlyIncome')}
+            amount={monthlyIncome}
+            icon={TrendingUp}
+            currency={settings.currency}
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
+          <SummaryCard
+            title={t('dashboard.monthlyNetSavings')}
+            amount={monthlySavings}
+            icon={PiggyBank}
+            subtitle={monthlyIncome > 0 ? `${((monthlySavings / monthlyIncome) * 100).toFixed(1)}% savings rate` : 'No income records this month'}
+            currency={settings.currency}
+          />
+          <SummaryCard
+            title="Savings + Assets"
+            amount={monthlySavingsWithAssets}
+            icon={PiggyBank}
+            subtitle={`Assets: ${Math.round(totalAssetValue).toLocaleString()} ${settings.currency}`}
+            currency={settings.currency}
+          />
+          <SummaryCard
+            title={t('dashboard.expenseIncomeRatio')}
+            amount={Math.round(expenseIncomeRatio)}
+            icon={Scale}
+            subtitle={`${Math.round(averageDailyExpense).toLocaleString()} ${settings.currency} avg/day`}
+            currency="%"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
@@ -230,6 +263,7 @@ export default function DashboardPage() {
           incomes={incomes}
           subscriptions={subscriptions}
           monthlySavings={monthlySavings}
+          savingsContext={aiSavingsContext}
           className="h-[620px]"
         />
       </div>

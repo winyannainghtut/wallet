@@ -1,4 +1,4 @@
-import { Category, CATEGORIES, CATEGORY_LABELS, Expense, Income, Subscription } from '@/types'
+import { AiSavingsContext, Category, CATEGORIES, Expense, Income, Subscription, getCategoryLabel } from '@/types'
 
 type ChatRole = 'system' | 'user' | 'assistant'
 
@@ -19,6 +19,12 @@ type ParsedExpense = {
   category: Category
   date: string
   description: string
+}
+
+export type CategorySuggestion = {
+  category: Category
+  shouldCreateCustomCategory: boolean
+  customCategoryName?: string
 }
 
 const ZAI_ALLOWED_MODELS = ['glm-4.7', 'glm-5-turbo', 'glm-5'] as const
@@ -283,6 +289,31 @@ function toCategoryOrOther(raw: string): Category {
   return 'other'
 }
 
+function toKnownCategory(raw: string): Category | null {
+  const normalized = raw.trim().toLowerCase()
+  if ((CATEGORIES as readonly string[]).includes(normalized)) return normalized
+
+  for (const category of CATEGORIES) {
+    if (normalized.includes(category) || category.includes(normalized)) {
+      return category
+    }
+  }
+
+  return null
+}
+
+function sanitizeCustomCategoryName(raw: string): string {
+  const cleaned = raw
+    .trim()
+    .replace(/^['"`]+|['"`]+$/g, '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[=+\-@]+/, '')
+    .trim()
+
+  return cleaned.slice(0, 40).trim()
+}
+
 function stripCodeFence(text: string): string {
   const trimmed = text.trim()
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
@@ -352,6 +383,69 @@ function tryParseExpenseJson(raw: string): Partial<ParsedExpense> | null {
       return JSON.parse(sanitized) as Partial<ParsedExpense>
     } catch {
       // Try next candidate.
+    }
+  }
+
+  return null
+}
+
+function parseCategorySuggestion(raw: string): CategorySuggestion | null {
+  const cleaned = stripCodeFence(raw)
+  const candidates = [cleaned]
+  const extracted = extractBalancedJsonObject(cleaned)
+  if (extracted && extracted !== cleaned) {
+    candidates.push(extracted)
+  }
+
+  for (const candidate of candidates) {
+    const sanitized = candidate
+      .trim()
+      .replace(/,\s*([}\]])/g, '$1')
+
+    if (!sanitized) continue
+
+    try {
+      const parsed = JSON.parse(sanitized) as { mode?: unknown; category?: unknown }
+      const mode = typeof parsed.mode === 'string' ? parsed.mode.trim().toLowerCase() : ''
+      const categoryText = typeof parsed.category === 'string' ? parsed.category.trim() : ''
+      if (!categoryText) continue
+
+      const knownCategory = toKnownCategory(categoryText)
+      if (knownCategory) {
+        return {
+          category: knownCategory,
+          shouldCreateCustomCategory: false,
+        }
+      }
+
+      if (mode === 'custom') {
+        const customName = sanitizeCustomCategoryName(categoryText)
+        if (!customName) continue
+        return {
+          category: customName,
+          shouldCreateCustomCategory: true,
+          customCategoryName: customName,
+        }
+      }
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  const knownFromPlainText = toKnownCategory(cleaned)
+  if (knownFromPlainText) {
+    return {
+      category: knownFromPlainText,
+      shouldCreateCustomCategory: false,
+    }
+  }
+
+  const customName = sanitizeCustomCategoryName(cleaned)
+  if (customName && customName.toLowerCase() !== 'other') {
+    return {
+      category: customName,
+      shouldCreateCustomCategory: true,
+      customCategoryName: customName,
     }
   }
 
@@ -447,18 +541,29 @@ function parseExpenseTextHeuristic(text: string, fallbackDate: string): ParsedEx
   }
 }
 
-export async function suggestCategory(description: string, apiKey: string, model?: string): Promise<Category> {
+export async function suggestCategory(description: string, apiKey: string, model?: string): Promise<CategorySuggestion> {
   if (!apiKey) throw new Error('API key required')
-  if (!description.trim()) return 'other'
+  if (!description.trim()) {
+    return {
+      category: 'other',
+      shouldCreateCustomCategory: false,
+    }
+  }
 
-  const prompt = `You categorize expenses.
-Return exactly one category from this list:
+  const prompt = `You are categorizing an expense description.
+Built-in categories:
 ${CATEGORIES.join(', ')}
 
 Description: "${description}"
 Output rules:
-- Return only the category name in lowercase.
-- No extra words or punctuation.`
+- Return JSON only with this exact shape:
+  {"mode":"builtin","category":"groceries"}
+  OR
+  {"mode":"custom","category":"pet care"}
+- Use "builtin" if one of the built-in categories reasonably fits.
+- Use "custom" only when none of the built-in categories fit well.
+- For custom category, keep it short (1-3 words), lowercase, and expense-related.
+- Do not include markdown or explanation.`
 
   try {
     const response = await requestChatCompletion(
@@ -467,11 +572,98 @@ Output rules:
       { temperature: 0, model }
     )
 
-    return toCategoryOrOther(response || 'other')
+    const parsed = parseCategorySuggestion(response || '')
+    if (parsed) {
+      return parsed
+    }
+
+    return {
+      category: toCategoryOrOther(response || 'other'),
+      shouldCreateCustomCategory: false,
+    }
   } catch (error) {
     console.error('Error suggesting category:', error)
-    return 'other'
+    return {
+      category: 'other',
+      shouldCreateCustomCategory: false,
+    }
   }
+}
+
+function normalizeAmount(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+function formatAmount(value: number, currency: string): string {
+  return `${Math.round(normalizeAmount(value)).toLocaleString()} ${currency}`
+}
+
+function formatQuantity(value: number): string {
+  const maxDigits = Math.abs(value) >= 1 ? 4 : 8
+  return value.toLocaleString(undefined, { maximumFractionDigits: maxDigits })
+}
+
+function getValueSourceLabel(source: string): string {
+  if (source === 'live') return 'live market'
+  if (source === 'pending') return 'pending quote'
+  return 'manual'
+}
+
+function buildSavingsContextSection(
+  savingsContext: AiSavingsContext | undefined,
+  monthlySavings: number,
+  currency: string
+): string {
+  if (!savingsContext) {
+    return `Savings & Assets:
+- Savings assets data: not available`
+  }
+
+  const contextCurrency = savingsContext.currency.trim() || currency
+  const totalAssetValue = normalizeAmount(savingsContext.totalAssetValue)
+  const insuranceValue = normalizeAmount(savingsContext.insuranceValue)
+  const cryptoValue = normalizeAmount(savingsContext.cryptoValue)
+  const stocksValue = normalizeAmount(savingsContext.stocksValue)
+  const netWithAssets = monthlySavings + totalAssetValue
+
+  const fxLine = typeof savingsContext.usdToCurrencyRate === 'number' && Number.isFinite(savingsContext.usdToCurrencyRate) && savingsContext.usdToCurrencyRate > 0
+    ? `- USD/${contextCurrency} FX rate: ${savingsContext.usdToCurrencyRate.toFixed(6)}`
+    : `- USD/${contextCurrency} FX rate: unavailable`
+
+  const liveFeedLine = savingsContext.cryptoSocketState
+    ? `- Crypto live feed: ${savingsContext.cryptoSocketState}${savingsContext.cryptoSocketError ? ` (${savingsContext.cryptoSocketError})` : ''}`
+    : '- Crypto live feed: unavailable'
+
+  const assets = [...savingsContext.assets]
+    .sort((a, b) => normalizeAmount(b.currentValue) - normalizeAmount(a.currentValue))
+    .slice(0, 12)
+
+  const assetLines = assets.map((asset) => {
+    const symbolOrName = asset.symbol || asset.productId || asset.name
+    const valueText = formatAmount(normalizeAmount(asset.currentValue), contextCurrency)
+    const quantityText = typeof asset.quantity === 'number' && Number.isFinite(asset.quantity)
+      ? `qty ${formatQuantity(asset.quantity)}`
+      : null
+    const unitPriceText = typeof asset.unitPriceUsd === 'number' && Number.isFinite(asset.unitPriceUsd)
+      ? `unit ${asset.unitPriceUsd.toLocaleString()} USD`
+      : null
+    const meta = [quantityText, unitPriceText].filter((item): item is string => Boolean(item)).join(', ')
+    const sourceText = getValueSourceLabel(asset.valueSource)
+    const quoteText = asset.quoteUpdatedAt ? `, quote ${asset.quoteUpdatedAt}` : ''
+    return `- ${asset.type}: ${symbolOrName}${meta ? ` (${meta})` : ''} -> ${valueText} [${sourceText}${quoteText}]`
+  })
+
+  return `Savings & Assets:
+- Total savings assets: ${formatAmount(totalAssetValue, contextCurrency)}
+- Net monthly savings + assets: ${formatAmount(netWithAssets, contextCurrency)}
+- Insurance value: ${formatAmount(insuranceValue, contextCurrency)}
+- Crypto value: ${formatAmount(cryptoValue, contextCurrency)}
+- Stocks value: ${formatAmount(stocksValue, contextCurrency)}
+${fxLine}
+${liveFeedLine}
+${savingsContext.fxError ? `- FX error: ${savingsContext.fxError}` : ''}
+- Assets snapshot:
+${assetLines.length > 0 ? assetLines.join('\n') : '- None'}`
 }
 
 export async function getSpendingInsights(
@@ -482,7 +674,8 @@ export async function getSpendingInsights(
   apiKey: string,
   language: 'en' | 'my' = 'en',
   currency = 'SGD',
-  model?: string
+  model?: string,
+  savingsContext?: AiSavingsContext
 ): Promise<string> {
   if (!apiKey) throw new Error('API key required')
   if (expenses.length === 0 && incomes.length === 0) return 'No financial data yet'
@@ -495,15 +688,16 @@ export async function getSpendingInsights(
   const currencyCode = currency.trim() || 'SGD'
 
   const expenseSummary = Object.entries(totalByCategory)
-    .map(([category, total]) => `${CATEGORY_LABELS[category as Category][language]}: ${total.toLocaleString()} ${currencyCode}`)
+    .map(([category, total]) => `${getCategoryLabel(category, language)}: ${total.toLocaleString()} ${currencyCode}`)
     .join('\n')
 
   const totalExpense = expenses.reduce((sum, expense) => sum + expense.amount, 0)
   const totalIncome = incomes.reduce((sum, inc) => sum + inc.amount, 0)
   const activeSubs = subscriptions.filter(s => s.isActive).map(s => `${s.name}: ${s.amount}/${s.billingCycle}`).join(', ')
+  const savingsContextSection = buildSavingsContextSection(savingsContext, monthlySavings, currencyCode)
 
   const prompt = `You are a practical financial advisor for an expense tracking app in Myanmar.
-Analyze the user's financial summary and provide concise, actionable advice focusing on cash flow, savings, and expense categories.
+Analyze the user's financial summary and provide concise, actionable advice focusing on cash flow, savings, expense categories, and savings assets (insurance, crypto, stocks).
 
 CRITICAL RULE:
 - You MUST respond in Myanmar (Burmese) language ONLY. Do not use English.
@@ -521,7 +715,9 @@ Financial Summary:
 - Active Subscriptions: ${activeSubs || 'None'}
 
 Expenses by Category:
-${expenseSummary || 'None'}`
+${expenseSummary || 'None'}
+
+${savingsContextSection}`
 
   try {
     const response = await requestChatCompletion(
@@ -545,13 +741,14 @@ export async function* streamChatAboutExpenses(
   incomes: import('@/types').Income[] = [],
   subscriptions: import('@/types').Subscription[] = [],
   monthlySavings: number = 0,
-  model?: string
+  model?: string,
+  savingsContext?: AiSavingsContext
 ): AsyncGenerator<string> {
   if (!apiKey) throw new Error('API key required')
 
   const recentExpenses = expenses
     .slice(0, 20)
-    .map((expense) => `${expense.date}: ${CATEGORY_LABELS[expense.category][language]} - ${expense.amount} (${expense.description || 'n/a'})`)
+    .map((expense) => `${expense.date}: ${getCategoryLabel(expense.category, language)} - ${expense.amount} (${expense.description || 'n/a'})`)
     .join('\n')
 
   const recentIncomes = incomes
@@ -565,12 +762,14 @@ export async function* streamChatAboutExpenses(
   })
 
   const categorySummary = Object.entries(totalByCategory)
-    .map(([category, total]) => `${CATEGORY_LABELS[category as Category][language]}: ${total}`)
+    .map(([category, total]) => `${getCategoryLabel(category, language)}: ${total}`)
     .join(', ')
 
   const totalSpent = expenses.reduce((sum, expense) => sum + expense.amount, 0)
   const totalIncome = incomes.reduce((sum, inc) => sum + inc.amount, 0)
   const activeSubs = subscriptions.filter(s => s.isActive).map(s => `${s.name}: ${s.amount}/${s.billingCycle}`).join(', ')
+  const contextCurrency = savingsContext?.currency?.trim() || 'SGD'
+  const savingsContextSection = buildSavingsContextSection(savingsContext, monthlySavings, contextCurrency)
 
   const messages: ChatMessage[] = [
     {
@@ -591,6 +790,8 @@ Rules:
 - Current Monthly Savings: ${monthlySavings}
 - Active Subscriptions: ${activeSubs || 'None'}
 - Expenses by category: ${categorySummary || 'No expenses yet'}
+
+${savingsContextSection}
 
 Recent expenses:
 ${recentExpenses || 'No expenses yet'}

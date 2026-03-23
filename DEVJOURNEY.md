@@ -1,5 +1,26 @@
 # Dev Journey - Wallet App
 
+## 2026-03-24
+
+### Completed
+
+- **Settings + Data consistency updates:**
+  - Strengthened Excel import path to use API-backed context actions for expenses/incomes.
+  - Added import issue reporting, row-level validation, and duplicate skip behavior.
+- **Savings assets and reporting updates:**
+  - Extended savings assets support for `insurance`, `crypto`, and `stocks`.
+  - Added live crypto valuation (quantity-based) with Coinbase ticker + USD to app-currency conversion.
+  - Reflected Savings + Assets values across dashboard/reporting and AI financial context.
+- **Excel export coverage upgrade:**
+  - Added `Savings Assets`, `Trips`, and `Trip Summary` sheets.
+  - Included custom categories from both settings and transaction data in export reference sheets.
+- **AI category suggestion upgrade:**
+  - Suggest Category now supports custom category proposals.
+  - Auto-creates missing custom expense category from AI suggestion and pre-selects it in the form.
+- **Localization and stability fixes:**
+  - Fixed undefined-category label crashes by hardening category label lookups.
+  - Fixed malformed Myanmar locale JSON entries causing build/runtime issues.
+
 ## 2026-03-23 (Part 2)
 
 ### Completed
@@ -92,4 +113,4 @@ Browser -> Next.js API routes -> PocketBase
 
 ---
 
-Last updated: 2026-03-23
+Last updated: 2026-03-24

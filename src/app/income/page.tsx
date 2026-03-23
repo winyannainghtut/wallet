@@ -9,7 +9,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/contexts/AppContext'
 import { getLanguage, t } from '@/i18n/config'
-import { INCOME_CATEGORY_LABELS, Income } from '@/types'
+import { Income, getIncomeCategoryLabel } from '@/types'
 import { IncomeForm } from '@/components/IncomeForm'
 
 export default function IncomePage() {
@@ -39,7 +39,7 @@ export default function IncomePage() {
     }
 
     return list.filter((item) => {
-      const categoryLabel = INCOME_CATEGORY_LABELS[item.category][language].toLowerCase()
+      const categoryLabel = getIncomeCategoryLabel(item.category, language).toLowerCase()
       return (
         item.description.toLowerCase().includes(searchText) ||
         categoryLabel.includes(searchText)
@@ -149,7 +149,7 @@ export default function IncomePage() {
               >
                 <div className="space-y-1">
                   <p className="font-semibold">
-                    {INCOME_CATEGORY_LABELS[item.category][language]}
+                    {getIncomeCategoryLabel(item.category, language)}
                   </p>
                   <p className="text-sm text-muted-foreground">{item.description || '-'}</p>
                   <p className="text-xs text-muted-foreground">{item.date}</p>

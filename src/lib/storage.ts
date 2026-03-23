@@ -1,4 +1,4 @@
-import { Expense, Trip, Subscription, AppSettings, UserProfile, Category, DailySummary, WeeklySummary, MonthlySummary } from '@/types'
+import { Expense, AppSettings, UserProfile, Category, DailySummary, WeeklySummary, MonthlySummary, CustomCategory } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from 'date-fns'
 
@@ -122,19 +122,13 @@ export function getActiveProfile(): UserProfile | null {
 
 // ==================== Expense Operations ====================
 
-export function getExpenses(): Expense[] {
+function getExpenses(): Expense[] {
   if (typeof window === 'undefined') return []
   const data = localStorage.getItem(userKey(FIELD.EXPENSES))
   return data ? JSON.parse(data) : []
 }
 
-export function saveExpenses(expenses: Expense[]): void {
-  localStorage.setItem(userKey(FIELD.EXPENSES), JSON.stringify(expenses))
-}
-
 // ==================== Custom Categories Operations ====================
-
-import { CustomCategory } from '@/types'
 
 export function getCustomCategories(): CustomCategory[] {
   if (typeof window === 'undefined') return []
@@ -256,13 +250,39 @@ export function saveSettings(settings: Partial<AppSettings>): AppSettings {
 
 // ==================== Data Operations ====================
 
-export function getChatHistory(): any[] {
-  if (typeof window === 'undefined') return []
-  const data = localStorage.getItem(userKey('chat_history'))
-  return data ? JSON.parse(data) : []
+export type ChatHistoryMessage = {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string | Date
 }
 
-export function saveChatHistory(messages: any[]): void {
+function isChatHistoryMessage(value: unknown): value is ChatHistoryMessage {
+  if (typeof value !== 'object' || value === null) return false
+  const item = value as Partial<ChatHistoryMessage>
+  return (
+    typeof item.id === 'string' &&
+    (item.role === 'user' || item.role === 'assistant') &&
+    typeof item.content === 'string' &&
+    (typeof item.timestamp === 'string' || item.timestamp instanceof Date)
+  )
+}
+
+export function getChatHistory(): ChatHistoryMessage[] {
+  if (typeof window === 'undefined') return []
+  const data = localStorage.getItem(userKey('chat_history'))
+  if (!data) return []
+
+  try {
+    const parsed = JSON.parse(data)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isChatHistoryMessage)
+  } catch {
+    return []
+  }
+}
+
+export function saveChatHistory(messages: ChatHistoryMessage[]): void {
   localStorage.setItem(userKey('chat_history'), JSON.stringify(messages))
 }
 
@@ -271,6 +291,7 @@ export function clearAllData(): void {
   localStorage.removeItem(userKey(FIELD.TRIPS))
   localStorage.removeItem(userKey(FIELD.SUBSCRIPTIONS))
   localStorage.removeItem(userKey(FIELD.SETTINGS))
+  localStorage.removeItem(userKey(FIELD.CUSTOM_CATEGORIES))
   localStorage.removeItem(userKey('chat_history'))
 }
 

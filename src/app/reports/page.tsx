@@ -5,8 +5,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CategoryPieChart, DailyBarChart, WeeklyTrendChart } from '@/components/Charts'
 import { useApp } from '@/contexts/AppContext'
+import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { getWeeklySummary, getMonthlySummary } from '@/lib/storage'
-import { CATEGORY_LABELS, Category, WeeklySummary } from '@/types'
+import { WeeklySummary, getCategoryLabel } from '@/types'
 import { t, getLanguage } from '@/i18n/config'
 import { getSubscriptionSpendForRange, mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-expenses'
 
@@ -25,6 +26,7 @@ export default function ReportsPage() {
   const language = getLanguage()
   const { weeklySummary, monthlySummary, subscriptions, expenses, incomes, settings } = useApp()
   const currency = settings.currency
+  const { totalAssetValue } = useSavingsAssetsPortfolio(currency)
 
   // Monthly subscription cost
   const monthlySubCost = subscriptions
@@ -79,9 +81,11 @@ export default function ReportsPage() {
   const weeklyTotalWithSubs = weeklySummary.total
   const weeklySubShare = weeklyTotalWithSubs > 0 ? (currentWeekSubSpend / weeklyTotalWithSubs) * 100 : 0
   const weeklyNetSavings = weeklyIncomeTotal - weeklyTotalWithSubs
+  const weeklyNetSavingsWithAssets = weeklyNetSavings + totalAssetValue
   const weeklySavingsRate = weeklyIncomeTotal > 0 ? (weeklyNetSavings / weeklyIncomeTotal) * 100 : 0
   const weeklyExpenseIncomeRatio = weeklyIncomeTotal > 0 ? (weeklyTotalWithSubs / weeklyIncomeTotal) * 100 : 0
   const monthlyNetSavings = monthlyIncomeTotal - monthlySummary.total
+  const monthlyNetSavingsWithAssets = monthlyNetSavings + totalAssetValue
   const monthlySavingsRate = monthlyIncomeTotal > 0 ? (monthlyNetSavings / monthlyIncomeTotal) * 100 : 0
   const monthlyExpenseIncomeRatio = monthlyIncomeTotal > 0 ? (monthlySummary.total / monthlyIncomeTotal) * 100 : 0
 
@@ -192,7 +196,7 @@ export default function ReportsPage() {
         </TabsList>
 
         <TabsContent value="weekly" className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total (incl. subscriptions)</CardTitle>
@@ -261,6 +265,17 @@ export default function ReportsPage() {
                 <p className="text-xs text-muted-foreground mt-1">{weeklySubShare.toFixed(1)}% of weekly total</p>
               </CardContent>
             </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Savings + Assets</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold tracking-tight tabular-nums ${weeklyNetSavingsWithAssets >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                  {Math.round(weeklyNetSavingsWithAssets).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Assets snapshot: {Math.round(totalAssetValue).toLocaleString()} {currency}</p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -283,7 +298,7 @@ export default function ReportsPage() {
         </TabsContent>
 
         <TabsContent value="monthly" className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.totalExpenses')}</CardTitle>
@@ -323,6 +338,17 @@ export default function ReportsPage() {
             </Card>
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Savings + Assets</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold tracking-tight tabular-nums ${monthlyNetSavingsWithAssets >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                  {Math.round(monthlyNetSavingsWithAssets).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Assets snapshot: {Math.round(totalAssetValue).toLocaleString()} {currency}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t('reports.averageDaily')}</CardTitle>
               </CardHeader>
               <CardContent>
@@ -337,7 +363,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight">
-                  {highestCategory ? CATEGORY_LABELS[highestCategory[0] as Category][language] : '-'}
+                  {highestCategory ? getCategoryLabel(highestCategory[0], language) : '-'}
                 </div>
               </CardContent>
             </Card>
@@ -347,7 +373,7 @@ export default function ReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold tracking-tight">
-                  {lowestCategory ? CATEGORY_LABELS[lowestCategory[0] as Category][language] : '-'}
+                  {lowestCategory ? getCategoryLabel(lowestCategory[0], language) : '-'}
                 </div>
               </CardContent>
             </Card>

@@ -3,7 +3,7 @@
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Expense, Income, CATEGORY_LABELS, INCOME_CATEGORY_LABELS } from '@/types'
+import { Expense, Income, getCategoryLabel, getIncomeCategoryLabel } from '@/types'
 import { format } from 'date-fns'
 import { ArrowDownRight, ArrowUpRight, Edit, Trash2 } from 'lucide-react'
 import { getLanguage } from '@/i18n/config'
@@ -43,9 +43,9 @@ export function TransactionList({
         const isIncome = tx.type === 'income'
         let label: string = tx.category
         if (isIncome) {
-           label = (INCOME_CATEGORY_LABELS as Record<string, { en: string; my: string }>)[tx.category]?.[language] || tx.category
+           label = getIncomeCategoryLabel(tx.category, language)
         } else {
-           label = (CATEGORY_LABELS as Record<string, { en: string; my: string }>)[tx.category]?.[language] || tx.category
+           label = getCategoryLabel(tx.category, language)
         }
 
         return (

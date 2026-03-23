@@ -608,6 +608,6 @@ migrate((app) => {
 ];
 
   return app.importCollections(snapshot, false);
-}, (app) => {
+}, () => {
   return null;
 })

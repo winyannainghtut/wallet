@@ -107,7 +107,7 @@ Settings page is model-only (no browser API key field).
 2. Confirm redirect to `/login`.
 3. Login with a valid app user.
 
-### 3.2 Data
+### 3.2 Core data
 
 1. Add expense from `/add`.
 2. Add income from `/income`.
@@ -117,7 +117,44 @@ Settings page is model-only (no browser API key field).
    - Dashboard/Reports show expense vs income vs net savings.
    - Calendar shows expense and income day-level breakdown.
 
-### 3.3 Collection bootstrap check
+### 3.3 Savings assets + live crypto
+
+1. Open `/savings`.
+2. Add one insurance asset and one stocks asset with manual value.
+3. Add one crypto asset using quantity input and a symbol (for example `BTC` or `BTC-USD`).
+4. Verify:
+   - Crypto value updates from live Coinbase ticker feed.
+   - USD market price is converted to app currency via `/api/market/fx` (for example USD->SGD).
+   - Savings + Assets values appear in dashboard/reporting summaries.
+
+### 3.4 AI suggest category (auto custom category create)
+
+1. Open `/add` and enter a description that does not fit built-in categories.
+2. Click `Suggest Category`.
+3. Verify:
+   - AI returns either a built-in category or a custom category candidate.
+   - When custom is returned, app auto-creates expense custom category and selects it.
+
+### 3.5 Excel import/export
+
+1. Open `/settings` -> `Excel`.
+2. Download template (`wallet_import_template.xlsx`) and inspect `Expenses` + `Incomes` sheets.
+3. Import an Excel file with mixed valid/invalid rows.
+4. Verify:
+   - Valid rows are imported through API-backed actions.
+   - Duplicate rows in the same file are skipped.
+   - Settings page shows top import warnings.
+5. Export data and verify workbook contains:
+   - `Summary`
+   - `Expenses`
+   - `Incomes`
+   - `Savings Assets`
+   - `Trips`
+   - `Trip Summary`
+   - `Expense Categories`
+   - `Income Categories`
+
+### 3.6 Collection bootstrap check
 
 Expected collections:
 
@@ -125,6 +162,7 @@ Expected collections:
 - `transactions`
 - `incomes`
 - `savings_goals`
+- `savings_assets`
 - `trips`
 - `subscriptions`
 
@@ -133,6 +171,8 @@ Migration files:
 - `pb_migrations/1774166000_wallet_schema.js`
 - `pb_migrations/1774300000_income_savings_collections.js`
 - `pb_migrations/1774301000_ensure_income_savings_collections.js`
+- `pb_migrations/1774500000_savings_assets_collection.js`
+- `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
 
 ## 4) Kubernetes Setup
 
@@ -179,7 +219,7 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
 ```
 
 2. Confirm app `POCKETBASE_URL` points to that same PocketBase instance.
-3. Confirm `incomes` and `savings_goals` exist in PocketBase Admin.
+3. Confirm `incomes`, `savings_goals`, and `savings_assets` exist in PocketBase Admin.
 
 ### App API unauthorized
 

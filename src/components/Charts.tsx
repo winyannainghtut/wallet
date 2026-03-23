@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { CATEGORY_LABELS, Category, DailySummary, WeeklySummary, Expense, Income } from '@/types'
-import { format, parseISO, startOfWeek, endOfWeek, subDays, subWeeks, subMonths, isWithinInterval, startOfMonth, endOfMonth, endOfDay, isValid } from 'date-fns'
+import { Category, DailySummary, WeeklySummary, Expense, Income, getCategoryLabel } from '@/types'
+import { format, parseISO, startOfWeek, endOfWeek, subDays, subWeeks, subMonths, isWithinInterval, startOfMonth, endOfMonth, isValid } from 'date-fns'
 import { getLanguage, t } from '@/i18n/config'
 
 // Refined color palette — harmonious and modern
@@ -34,7 +34,7 @@ export function CategoryPieChart({ data, title }: CategoryPieChartProps) {
   const chartData = Object.entries(data)
     .filter(([, value]) => value > 0)
     .map(([category, amount]) => ({
-      name: CATEGORY_LABELS[category as Category][language],
+      name: getCategoryLabel(category, language),
       value: amount,
       color: COLORS[category] || '#94a3b8',
       percentage: 0
@@ -339,7 +339,7 @@ export function IncomeExpenseBarChart({ expenses, incomes, title, currency = 'SG
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription className="text-xs mt-1">Income vs Expense trends</CardDescription>
+            <CardDescription className="text-xs mt-1">Income vs Expense trends ({currency})</CardDescription>
           </div>
           
           <div className="flex bg-muted/50 rounded-lg p-1">

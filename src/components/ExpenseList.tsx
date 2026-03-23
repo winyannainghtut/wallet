@@ -5,7 +5,7 @@ import { Trash2, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Expense, CATEGORY_LABELS } from '@/types'
+import { Expense, getCategoryLabel } from '@/types'
 import { format } from 'date-fns'
 import { t, getLanguage } from '@/i18n/config'
 
@@ -42,7 +42,7 @@ export function ExpenseList({ expenses, onEdit, onDelete, showDate = true }: Exp
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary" className="rounded-lg font-medium">
-                    {CATEGORY_LABELS[expense.category][language]}
+                    {getCategoryLabel(expense.category, language)}
                   </Badge>
                   {showDate && (
                     <span className="text-xs text-muted-foreground/80">

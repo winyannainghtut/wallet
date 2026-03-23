@@ -226,12 +226,12 @@ migrate((app) => {
   try {
     const incomes = app.findCollectionByNameOrId("incomes");
     app.delete(incomes);
-  } catch (_) {}
+  } catch {}
 
   try {
     const savingsGoals = app.findCollectionByNameOrId("savings_goals");
     app.delete(savingsGoals);
-  } catch (_) {}
+  } catch {}
 
   return null;
 })

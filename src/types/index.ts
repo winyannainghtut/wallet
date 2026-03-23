@@ -58,6 +58,20 @@ export const INCOME_CATEGORY_LABELS: Record<string, { en: string; my: string }> 
   other: { en: 'Other', my: 'Other' }
 }
 
+export type AppLanguage = 'en' | 'my'
+
+export function getCategoryLabel(category: string, language: AppLanguage): string {
+  const known = CATEGORY_LABELS[category]
+  if (!known) return category
+  return known[language] ?? known.en ?? category
+}
+
+export function getIncomeCategoryLabel(category: string, language: AppLanguage): string {
+  const known = INCOME_CATEGORY_LABELS[category]
+  if (!known) return category
+  return known[language] ?? known.en ?? category
+}
+
 // Expense interface
 export interface Expense {
   id: string
@@ -87,6 +101,49 @@ export interface SavingsGoal {
   note?: string
   createdAt: string // ISO timestamp
   updatedAt?: string
+}
+
+export type SavingsAssetType = 'insurance' | 'crypto' | 'stocks'
+
+export interface SavingsAsset {
+  id: string
+  type: SavingsAssetType
+  name: string
+  amount: number
+  symbol?: string
+  note?: string
+  createdAt: string // ISO timestamp
+  updatedAt?: string
+}
+
+export type SavingsAssetValueSource = 'manual' | 'live' | 'pending'
+
+export type CryptoSocketState = 'idle' | 'connecting' | 'connected' | 'error'
+
+export interface AiSavingsAssetContext {
+  id: string
+  type: SavingsAssetType
+  name: string
+  symbol?: string
+  quantity?: number
+  currentValue: number
+  valueSource: SavingsAssetValueSource
+  productId?: string
+  unitPriceUsd?: number
+  quoteUpdatedAt?: string
+}
+
+export interface AiSavingsContext {
+  currency: string
+  totalAssetValue: number
+  insuranceValue: number
+  cryptoValue: number
+  stocksValue: number
+  usdToCurrencyRate?: number
+  fxError?: string | null
+  cryptoSocketState?: CryptoSocketState
+  cryptoSocketError?: string | null
+  assets: AiSavingsAssetContext[]
 }
 
 // Trip interface for Travel Mode

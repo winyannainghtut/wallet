@@ -9,9 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { CATEGORIES, CATEGORY_LABELS, Category, Expense } from '@/types'
+import { CATEGORIES, Category, Expense, getCategoryLabel } from '@/types'
 import { useApp } from '@/contexts/AppContext'
-import { suggestCategory, parseExpenseText } from '@/lib/ai-client'
+import { isAiKeyNotConfiguredError, parseExpenseText, suggestCategory } from '@/lib/ai-client'
 import { t, getLanguage } from '@/i18n/config'
 
 interface ExpenseFormProps {
@@ -22,7 +22,7 @@ interface ExpenseFormProps {
 }
 
 export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = false }: ExpenseFormProps) {
-  const { trips, settings, customCategories } = useApp()
+  const { trips, settings, customCategories, addCustomCategory } = useApp()
   const expenseCustomCategories = customCategories.filter(c => c.type === 'expense')
   const [mode, setMode] = useState<'manual' | 'magic'>('manual')
   const [magicText, setMagicText] = useState('')
@@ -51,14 +51,28 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
   }
 
   const handleSuggestCategory = async () => {
-    if (!description.trim()) return
+    if (!description.trim()) {
+      alert(t('ai.suggestCategoryNeedDescription'))
+      return
+    }
 
     setIsSuggesting(true)
     try {
       const suggested = await suggestCategory(description, settings.aiModel)
-      setCategory(suggested)
+
+      if (suggested.shouldCreateCustomCategory && suggested.customCategoryName) {
+        const created = addCustomCategory({
+          name: suggested.customCategoryName,
+          type: 'expense',
+        })
+        setCategory(created.name)
+        alert(`${t('ai.customCategoryCreated')}: ${created.name}`)
+      } else {
+        setCategory(suggested.category)
+      }
     } catch (error) {
       console.error('Error suggesting category:', error)
+      alert(isAiKeyNotConfiguredError(error) ? t('ai.noApiKey') : t('ai.suggestCategoryFailed'))
     } finally {
       setIsSuggesting(false)
     }
@@ -195,14 +209,14 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 <Label htmlFor="category" className="text-sm font-medium">{t('common.category')} *</Label>
                 <Button
                   type="button"
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={handleSuggestCategory}
-                  disabled={isSuggesting || !description.trim()}
-                  className="gap-1.5 text-primary transition-all hover:bg-primary/10"
+                  disabled={isSuggesting}
+                  className="h-8 gap-1.5 rounded-lg border-primary/30 text-primary transition-all hover:bg-primary/10 disabled:border-border/40 disabled:text-muted-foreground disabled:opacity-80"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  {isSuggesting ? 'AI...' : t('ai.suggestCategory')}
+                  {isSuggesting ? t('ai.categorizing') : t('ai.suggestCategory')}
                 </Button>
               </div>
               <Select value={category} onValueChange={(v) => v && setCategory(v as Category)} required>
@@ -212,7 +226,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 <SelectContent>
                   {CATEGORIES.map((cat) => (
                     <SelectItem key={cat} value={cat}>
-                      {CATEGORY_LABELS[cat]?.[language] ?? cat}
+                      {getCategoryLabel(cat, language)}
                     </SelectItem>
                   ))}
                   {expenseCustomCategories.length > 0 && (
@@ -227,6 +241,9 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                   )}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                {description.trim() ? t('ai.suggestCategoryHint') : t('ai.suggestCategoryNeedDescription')}
+              </p>
             </div>
 
             {/* Description */}

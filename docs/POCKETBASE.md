@@ -28,11 +28,22 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/incomes/[id]`
 - `/api/savings-goals`
 - `/api/savings-goals/[id]`
+- `/api/savings-assets`
+- `/api/savings-assets/[id]`
+- `/api/market/fx` (Coinbase exchange rate proxy for currency conversion, e.g., USD->SGD)
 - `/api/trips`
 - `/api/trips/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
 - `/api/ai` (server-side Z.AI calls; does not expose keys to browser)
+
+### Market data integration for savings assets
+
+- Live crypto quote stream uses Coinbase Advanced Trade WebSocket (`wss://advanced-trade-ws.coinbase.com`) directly from browser.
+- FX conversion (USD -> app currency such as SGD) is fetched via `/api/market/fx`.
+- Savings asset values are resolved client-side as:
+  - insurance/stocks: manual value (`amount`)
+  - crypto: `quantity * live USD quote * FX rate`
 
 ## Schema and Migrations
 
@@ -41,12 +52,16 @@ Migration files:
 - `pb_migrations/1774166000_wallet_schema.js`
 - `pb_migrations/1774300000_income_savings_collections.js`
 - `pb_migrations/1774301000_ensure_income_savings_collections.js`
+- `pb_migrations/1774500000_savings_assets_collection.js`
+- `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
 
 Purpose summary:
 
 - `1774166000`: base wallet schema (`users`, `transactions`, `trips`, `subscriptions`)
 - `1774300000`: adds `incomes` and `savings_goals`
 - `1774301000`: repair migration that ensures `incomes`/`savings_goals` exist even when history is inconsistent
+- `1774500000`: adds `savings_assets` (`insurance`, `crypto`, `stocks`)
+- `1774600000`: adds optional `symbol` field in `savings_assets` for live crypto ticker mapping
 
 Expected collections:
 
@@ -54,6 +69,7 @@ Expected collections:
 - `transactions`
 - `incomes`
 - `savings_goals`
+- `savings_assets`
 - `trips`
 - `subscriptions`
 
@@ -168,6 +184,7 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
 5. Confirm collections in PocketBase Admin:
    - `incomes`
    - `savings_goals`
+   - `savings_assets`
 
 ### App login works but data save fails
 

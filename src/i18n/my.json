@@ -137,7 +137,11 @@
       "ယခုအပတ် စားသောက်မှုအတွက် ဘယ်လောက်သုံးခဲ့လဲ။",
       "သုံးစွဲမှု အမြင့်မားဆုံး အမျိုးအစားက ဘာလဲ။",
       "돈을အလဟာသျမှု အကြံပြုချက်များ ပေးပါ"
-    ]
+    ],
+    "suggestCategoryHint": "AI uses description text to predict the category.",
+    "suggestCategoryNeedDescription": "Please enter a short description first.",
+    "suggestCategoryFailed": "Could not suggest a category right now.",
+    "customCategoryCreated": "New custom category created"
   },
   "excel": {
     "exportSuccess": "ဒေတာ အောင်မြင်စွာ ထုတ်ပြီးပါပြီ",
@@ -185,4 +189,3 @@
     "selectDay": "အသေးစိတ် ကြည့်ရန် ရက်ကို နှိပ်ပါ"
   }
 }
-

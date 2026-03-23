@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Expense, Income, Subscription } from '@/types'
+import type { AiSavingsContext, Expense, Income, Subscription } from '@/types'
 import { createPbServer } from '@/lib/pb'
 import { getSpendingInsights, isSupportedZaiModel, parseExpenseText, resolveZaiModel, streamChatAboutExpenses, suggestCategory } from '@/lib/ai'
 import { resolveUserZaiApiKey } from '@/lib/ai-secrets'
@@ -25,6 +25,7 @@ type AiRequestBody = {
   incomes?: Income[]
   subscriptions?: Subscription[]
   monthlySavings?: number
+  savingsContext?: AiSavingsContext
   language?: 'en' | 'my'
   currency?: string
 }
@@ -71,7 +72,10 @@ export async function POST(request: NextRequest) {
     const apiKey = resolveUserZaiApiKey(auth.userId, auth.email)
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'AI key is not configured for this user. Contact administrator.' },
+        {
+          error: 'AI key is not configured for this user. Contact administrator.',
+          code: 'AI_KEY_NOT_CONFIGURED',
+        },
         { status: 503 }
       )
     }
@@ -88,8 +92,8 @@ export async function POST(request: NextRequest) {
       if (!body.description || typeof body.description !== 'string') {
         return NextResponse.json({ error: 'description is required' }, { status: 400 })
       }
-      const category = await suggestCategory(body.description, apiKey, model)
-      return NextResponse.json({ category })
+      const suggestion = await suggestCategory(body.description, apiKey, model)
+      return NextResponse.json(suggestion)
     }
 
     if (action === 'parseExpenseText') {
@@ -105,6 +109,9 @@ export async function POST(request: NextRequest) {
       const incomes = Array.isArray(body.incomes) ? body.incomes : []
       const subscriptions = Array.isArray(body.subscriptions) ? body.subscriptions : []
       const monthlySavings = typeof body.monthlySavings === 'number' ? body.monthlySavings : 0
+      const savingsContext = body.savingsContext && typeof body.savingsContext === 'object'
+        ? body.savingsContext
+        : undefined
       const language = body.language === 'my' ? 'my' : 'en'
       const currency = typeof body.currency === 'string' && body.currency.trim() ? body.currency.trim() : 'SGD'
 
@@ -116,7 +123,8 @@ export async function POST(request: NextRequest) {
         apiKey,
         language,
         currency,
-        model
+        model,
+        savingsContext
       )
       return NextResponse.json({ insight })
     }
@@ -130,6 +138,9 @@ export async function POST(request: NextRequest) {
       const incomes = Array.isArray(body.incomes) ? body.incomes : []
       const subscriptions = Array.isArray(body.subscriptions) ? body.subscriptions : []
       const monthlySavings = typeof body.monthlySavings === 'number' ? body.monthlySavings : 0
+      const savingsContext = body.savingsContext && typeof body.savingsContext === 'object'
+        ? body.savingsContext
+        : undefined
       const language = body.language === 'my' ? 'my' : 'en'
 
       let message = ''
@@ -141,7 +152,8 @@ export async function POST(request: NextRequest) {
         incomes,
         subscriptions,
         monthlySavings,
-        model
+        model,
+        savingsContext
       )) {
         message += chunk
       }

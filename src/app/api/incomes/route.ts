@@ -30,10 +30,6 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
-function isNotFoundError(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'status' in error && (error as PocketBaseLikeError).status === 404
-}
-
 function isMissingCollectionContext(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false
   const status = 'status' in error ? (error as PocketBaseLikeError).status : undefined

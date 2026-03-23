@@ -3,7 +3,7 @@ migrate((app) => {
 
   try {
     app.findCollectionByNameOrId("incomes")
-  } catch (_) {
+  } catch {
     missing.push({
       "createRule": "@request.auth.id != \"\"",
       "deleteRule": "user = @request.auth.id",
@@ -124,7 +124,7 @@ migrate((app) => {
 
   try {
     app.findCollectionByNameOrId("savings_goals")
-  } catch (_) {
+  } catch {
     missing.push({
       "createRule": "@request.auth.id != \"\"",
       "deleteRule": "user = @request.auth.id",
@@ -235,6 +235,6 @@ migrate((app) => {
   }
 
   return app.importCollections(missing, false)
-}, (app) => {
+}, () => {
   return null
 })

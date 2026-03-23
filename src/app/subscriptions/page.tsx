@@ -1,17 +1,15 @@
-'use client'
+﻿'use client'
 
-import React, { useState } from 'react'
-import { PlusCircle, Repeat, CalendarIcon, Trash2, Edit2, CheckCircle2, PauseCircle } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { useState } from 'react'
+import { PlusCircle, Repeat, Trash2, Edit2, CheckCircle2, PauseCircle } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog'
-import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
-import { CATEGORIES, Subscription, BillingCycle, Category } from '@/types'
+import { CATEGORIES, Subscription, BillingCycle, Category, getCategoryLabel } from '@/types'
 import { useApp } from '@/contexts/AppContext'
 import { t, getLanguage } from '@/i18n/config'
 import { format } from 'date-fns'
@@ -143,7 +141,7 @@ export default function SubscriptionsPage() {
                       <div>
                         <h3 className="font-semibold text-base">{sub.name}</h3>
                         <p className="text-sm text-muted-foreground capitalize flex items-center gap-1.5">
-                          {t(`subscriptions.${sub.billingCycle}`)} • Next: {sub.startDate}
+                          {t(`subscriptions.${sub.billingCycle}`)} | Next: {sub.startDate}
                         </p>
                       </div>
                     </div>
@@ -227,7 +225,7 @@ export default function SubscriptionsPage() {
                   <SelectContent>
                     {CATEGORIES.map(cat => (
                       <SelectItem key={cat} value={cat}>
-                        {cat /* Ideally use CATEGORY_LABELS[cat][language] but simple for now */}
+                        {getCategoryLabel(cat, language)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -266,3 +264,4 @@ export default function SubscriptionsPage() {
     </div>
   )
 }
+

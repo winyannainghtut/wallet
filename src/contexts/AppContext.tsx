@@ -725,11 +725,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Custom Categories
   const addCustomCategory = useCallback((category: Omit<CustomCategory, 'id'>) => {
+    const name = category.name.trim()
+    if (!name) {
+      throw new Error('Category name is required')
+    }
+
+    const existingCategories = getCustomCategories()
+    const normalizedName = name.toLowerCase()
+    const existing = existingCategories.find(
+      (item) => item.type === category.type && item.name.trim().toLowerCase() === normalizedName
+    )
+
+    if (existing) {
+      setCustomCategories(existingCategories)
+      return existing
+    }
+
     const newCategory: CustomCategory = {
       ...category,
+      name,
       id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`
     }
-    const updated = [...getCustomCategories(), newCategory]
+    const updated = [...existingCategories, newCategory]
     saveCustomCategories(updated)
     setCustomCategories(updated)
     return newCategory

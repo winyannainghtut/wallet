@@ -9,9 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { ExpenseList } from '@/components/ExpenseList'
 import { ExpenseForm } from '@/components/ExpenseForm'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useApp } from '@/contexts/AppContext'
-import { CATEGORIES, CATEGORY_LABELS, Expense } from '@/types'
+import { CATEGORIES, Expense, getCategoryLabel } from '@/types'
 import { t, getLanguage } from '@/i18n/config'
 
 export default function HistoryPage() {
@@ -135,7 +135,7 @@ export default function HistoryPage() {
                   <SelectItem value="all">All categories</SelectItem>
                   {CATEGORIES.map((cat) => (
                     <SelectItem key={cat} value={cat}>
-                      {CATEGORY_LABELS[cat][language]}
+                      {getCategoryLabel(cat, language)}
                     </SelectItem>
                   ))}
                 </SelectContent>

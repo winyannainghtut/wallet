@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
 
+type PocketBaseLikeError = {
+  message?: string
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as PocketBaseLikeError).message
+    if (typeof message === 'string' && message.length > 0) {
+      return message
+    }
+  }
+  return fallback
+}
+
 // GET - List transactions
 export async function GET(request: NextRequest) {
   try {
@@ -32,10 +46,10 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json(result)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get transactions error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch transactions' },
+      { error: getErrorMessage(error, 'Failed to fetch transactions') },
       { status: 500 }
     )
   }
@@ -59,10 +73,10 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(record)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Create transaction error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to create transaction' },
+      { error: getErrorMessage(error, 'Failed to create transaction') },
       { status: 500 }
     )
   }

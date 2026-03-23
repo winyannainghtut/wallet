@@ -16,11 +16,14 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1774166000_wallet_schema.js`
   - `pb_migrations/1774300000_income_savings_collections.js`
   - `pb_migrations/1774301000_ensure_income_savings_collections.js`
+  - `pb_migrations/1774500000_savings_assets_collection.js`
+  - `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
 - **Main collections:**
   - `users`
   - `transactions`
   - `incomes`
   - `savings_goals`
+  - `savings_assets`
   - `trips`
   - `subscriptions`
 
@@ -29,6 +32,7 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Expenses**
 - **Income**
 - **Savings goals**
+- **Savings assets (`insurance`, `crypto`, `stocks`)**
 - **Trips**
 - **Subscriptions (recurring cost modeled into reports/calendar)**
 
@@ -46,6 +50,7 @@ This document summarizes the current technologies used in the Wallet App codebas
 
 - **date-fns** for date calculations and formatting.
 - **xlsx** for Excel import/export.
+- **WebSocket API** for live Coinbase crypto ticker stream.
 - **uuid** for local identifier generation where needed.
 
 ## AI

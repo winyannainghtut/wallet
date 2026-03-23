@@ -9,7 +9,6 @@ import {
   History,
   BarChart3,
   Settings,
-  Menu,
   X,
   LogOut,
   Wallet,
@@ -134,7 +133,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen" data-lang={settings.language}>
       {/* Desktop Sidebar */}
       <aside className={`hidden transition-all duration-300 md:fixed md:inset-y-0 md:left-0 md:z-50 md:flex md:flex-col ${isCollapsed ? 'md:w-[80px]' : 'md:w-[272px]'}`}>
-        <div className="flex h-full flex-col border-r border-border/50 bg-card/80 backdrop-blur-xl">
+        <div className="flex h-full min-h-0 flex-col border-r border-border/50 bg-card/80 backdrop-blur-xl">
           {/* Brand + Collapse Toggle */}
           <div className="border-b border-border/40 px-4 pb-4 pt-5">
             <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
@@ -184,7 +183,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 px-3 py-5">
+          <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
             {renderDesktopNavLinks()}
           </nav>
 
@@ -207,11 +206,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-border/40 bg-card/85 backdrop-blur-xl md:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger className="rounded-xl border border-border/60 p-2 transition-all hover:bg-accent/70 hover:shadow-sm">
-              <Menu className="h-5 w-5" />
+            <SheetTrigger
+              aria-label={open ? 'Close menu' : 'Open menu'}
+              className="rounded-xl border border-border/60 p-2 transition-all hover:bg-accent/70 hover:shadow-sm"
+            >
+              {open ? <PanelLeftClose className="h-5 w-5" /> : <PanelLeftOpen className="h-5 w-5" />}
             </SheetTrigger>
             <SheetContent side="left" className="w-72 p-0">
-              <div className="flex h-full flex-col">
+              <div className="flex h-full min-h-0 flex-col">
                 <div className="flex items-center justify-between border-b border-border/40 p-4">
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary/70">
@@ -235,7 +237,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </div>
                   </div>
                 )}
-                <nav className="flex-1 space-y-1 p-3">
+                <nav className="flex-1 space-y-1 overflow-y-auto p-3">
                   {renderMobileNavLinks(() => setOpen(false))}
                 </nav>
                 <div className="border-t border-border/40 p-3">
@@ -263,34 +265,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <LanguageSwitcher />
         </div>
 
-        {/* Mobile Scrollable Tab Bar */}
-        <nav className="relative border-t border-border/20">
-          <div
-            className="flex gap-1 overflow-x-auto px-3 py-2"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
-          >
-            <style>{`.mobile-tab-bar::-webkit-scrollbar { display: none; }`}</style>
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={[
-                    'flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 shrink-0',
-                    isActive
-                      ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/20'
-                      : 'text-muted-foreground hover:bg-accent/70 hover:text-foreground',
-                  ].join(' ')}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span>{t(item.labelKey)}</span>
-                </Link>
-              )
-            })}
-          </div>
-        </nav>
       </header>
 
       {/* Main Content */}

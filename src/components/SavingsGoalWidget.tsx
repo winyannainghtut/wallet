@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { SavingsGoal } from '@/types'
 import { format } from 'date-fns'
@@ -12,6 +12,21 @@ interface SavingsGoalWidgetProps {
   title?: string
 }
 
+type SavingsGoalsApiResponse = {
+  items?: unknown[]
+}
+
+function isSavingsGoal(value: unknown): value is SavingsGoal {
+  if (typeof value !== 'object' || value === null) return false
+  const record = value as Partial<SavingsGoal>
+  return (
+    typeof record.id === 'string' &&
+    typeof record.month === 'string' &&
+    typeof record.targetAmount === 'number' &&
+    typeof record.createdAt === 'string'
+  )
+}
+
 export function SavingsGoalWidget({ currentSavings, currency, title = 'Savings Goal' }: SavingsGoalWidgetProps) {
   const [goal, setGoal] = useState<SavingsGoal | null>(null)
   
@@ -20,14 +35,16 @@ export function SavingsGoalWidget({ currentSavings, currency, title = 'Savings G
       try {
         const res = await fetch('/api/savings-goals')
         if (res.ok) {
-          const data = await res.json()
+          const data = (await res.json()) as SavingsGoalsApiResponse
           const currentMonth = format(new Date(), 'yyyy-MM')
-          const found = data.items.find((g: any) => g.month === currentMonth)
+          const found = (data.items || []).find(
+            (item): item is SavingsGoal => isSavingsGoal(item) && item.month === currentMonth
+          )
           if (found) {
             setGoal(found)
           }
         }
-      } catch (e) {
+      } catch {
         // silently ignore
       }
     }

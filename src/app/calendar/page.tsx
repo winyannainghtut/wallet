@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useApp } from '@/contexts/AppContext'
 import { t, getLanguage } from '@/i18n/config'
-import { CATEGORY_LABELS, Category, Subscription } from '@/types'
+import { Category, Subscription, getCategoryLabel } from '@/types'
 
 const CATEGORY_COLORS: Record<Category, string> = {
   groceries: 'bg-green-500',
@@ -199,7 +199,10 @@ export default function CalendarPage() {
   const monthlyNetSavings = monthlyIncomeTotal - monthlyExpenseTotal
 
   // Selected day expenses
-  const selectedEntries = selectedDate ? (entriesByDate[selectedDate] || []) : []
+  const selectedEntries = useMemo(
+    () => (selectedDate ? (entriesByDate[selectedDate] || []) : []),
+    [entriesByDate, selectedDate]
+  )
   const selectedExpenseTotal = selectedEntries
     .filter((entry) => entry.kind === 'expense' || entry.kind === 'subscription')
     .reduce((sum, entry) => sum + entry.amount, 0)
@@ -339,8 +342,8 @@ export default function CalendarPage() {
                             {uniqueCategories.map(cat => (
                               <span
                                 key={cat}
-                                className={`h-1.5 w-1.5 rounded-full ${CATEGORY_COLORS[cat]}`}
-                                title={CATEGORY_LABELS[cat][language]}
+                                className={`h-1.5 w-1.5 rounded-full ${CATEGORY_COLORS[cat] || CATEGORY_COLORS.other}`}
+                                title={getCategoryLabel(cat, language)}
                               />
                             ))}
                             {hasTrip && (
@@ -436,9 +439,9 @@ export default function CalendarPage() {
                       {selectedByCategory.map(([cat, amount]) => (
                         <div key={cat} className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className={`h-2.5 w-2.5 rounded-full ${CATEGORY_COLORS[cat as Category]}`} />
+                            <span className={`h-2.5 w-2.5 rounded-full ${CATEGORY_COLORS[cat as Category] || CATEGORY_COLORS.other}`} />
                             <span className="text-sm capitalize">
-                              {CATEGORY_LABELS[cat as Category][language]}
+                              {getCategoryLabel(cat, language)}
                             </span>
                           </div>
                           <span className="text-sm font-semibold tabular-nums">
@@ -461,7 +464,7 @@ export default function CalendarPage() {
                                 ? `${exp.description || t('reports.monthlyIncome')} (${t('reports.monthlyIncome')})`
                                 : exp.kind === 'subscription'
                                 ? `${exp.description} (${t('nav.subscriptions')})`
-                                : (exp.description || CATEGORY_LABELS[exp.category || 'other'][language])}
+                                : (exp.description || getCategoryLabel(exp.category || 'other', language))}
                             </span>
                           </div>
                           {exp.kind === 'trip' ? (

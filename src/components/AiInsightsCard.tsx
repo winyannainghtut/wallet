@@ -4,8 +4,8 @@ import React, { useState } from 'react'
 import { Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Expense, Income, Subscription } from '@/types'
-import { getSpendingInsights } from '@/lib/ai-client'
+import { AiSavingsContext, Expense, Income, Subscription } from '@/types'
+import { getSpendingInsights, isAiKeyNotConfiguredError } from '@/lib/ai-client'
 import { sanitizeAiOutput } from '@/lib/ai-output'
 import { useApp } from '@/contexts/AppContext'
 import { getLanguage, t } from '@/i18n/config'
@@ -14,12 +14,14 @@ export function AiInsightsCard({
   expenses, 
   incomes, 
   subscriptions, 
-  monthlySavings 
+  monthlySavings,
+  savingsContext,
 }: { 
   expenses: Expense[]
   incomes: Income[]
   subscriptions: Subscription[]
   monthlySavings: number
+  savingsContext?: AiSavingsContext
 }) {
   const [insight, setInsight] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -38,11 +40,17 @@ export function AiInsightsCard({
         monthlySavings,
         language,
         settings.currency,
-        settings.aiModel
+        settings.aiModel,
+        savingsContext
       )
       setInsight(sanitizeAiOutput(result))
     } catch (error) {
+      if (isAiKeyNotConfiguredError(error)) {
+        setInsight(t('ai.noApiKey'))
+        return
+      }
       console.error('Failed to get insights', error)
+      setInsight(t('common.error'))
     } finally {
       setLoading(false)
     }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { endOfMonth, format, startOfMonth } from 'date-fns'
 import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, User, Palette, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -9,23 +10,82 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { useApp } from '@/contexts/AppContext'
 import { useAuth } from '@/contexts/AuthContext'
-import { clearAllData, getExpenses, saveExpenses } from '@/lib/storage'
+import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
+import { clearAllData } from '@/lib/storage'
 import { exportToExcel, importFromExcel, downloadTemplate } from '@/lib/excel'
 import { t, Language } from '@/i18n/config'
+import { Expense, Income } from '@/types'
 
 type NoticeType = 'success' | 'error'
 type AiModel = 'glm-4.7' | 'glm-5-turbo' | 'glm-5'
 
+function normalizeDateKey(rawDate: string): string {
+  const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (datePartMatch?.[1]) return datePartMatch[1]
+
+  const parsed = new Date(rawDate)
+  if (!Number.isNaN(parsed.getTime())) {
+    return format(parsed, 'yyyy-MM-dd')
+  }
+
+  return rawDate
+}
+
 export default function SettingsPage() {
-  const { settings, updateSettings, setLanguage, refreshExpenses, currentUser, expenses, customCategories, addCustomCategory, deleteCustomCategory } = useApp()
+  const {
+    settings,
+    updateSettings,
+    setLanguage,
+    currentUser,
+    expenses,
+    incomes,
+    trips,
+    monthlySummary,
+    customCategories,
+    addCustomCategory,
+    deleteCustomCategory,
+    addExpense,
+    addIncome,
+  } = useApp()
+  const {
+    totalAssetValue,
+    insuranceValue,
+    cryptoValue,
+    stocksValue,
+    sortedPortfolioAssets,
+    cryptoSocketState,
+  } = useSavingsAssetsPortfolio(settings.currency)
   const { logout } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [aiModel, setAiModel] = useState<AiModel>((settings.aiModel as AiModel) || 'glm-4.7')
   const [notice, setNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [isImporting, setIsImporting] = useState(false)
+  const [latestImportIssues, setLatestImportIssues] = useState<string[]>([])
   const [newCatName, setNewCatName] = useState('')
   const [newCatType, setNewCatType] = useState<'expense' | 'income'>('expense')
+
+  const isThemeValue = (value: string): value is 'dark' | 'light' | 'blossom' =>
+    value === 'dark' || value === 'light' || value === 'blossom'
+
+  const isCategoryTypeValue = (value: string): value is 'expense' | 'income' =>
+    value === 'expense' || value === 'income'
+
+  const monthStart = startOfMonth(new Date())
+  const monthEnd = endOfMonth(new Date())
+  const monthStartKey = format(monthStart, 'yyyy-MM-dd')
+  const monthEndKey = format(monthEnd, 'yyyy-MM-dd')
+
+  const monthlyIncome = incomes.reduce((sum, income) => {
+    const key = normalizeDateKey(income.date)
+    if (key < monthStartKey || key > monthEndKey) {
+      return sum
+    }
+    return sum + income.amount
+  }, 0)
+
+  const monthlySavings = monthlyIncome - monthlySummary.total
+  const savingsPlusAssets = monthlySavings + totalAssetValue
 
   useEffect(() => {
     setAiModel((settings.aiModel as AiModel) || 'glm-4.7')
@@ -33,6 +93,98 @@ export default function SettingsPage() {
 
   const showNotice = (type: NoticeType, message: string) => {
     setNotice({ type, message })
+  }
+
+  const buildRowFingerprint = (date: string, amount: number, category: string, description: string) =>
+    `${date}|${amount.toFixed(4)}|${category.trim().toLowerCase()}|${description.trim().toLowerCase()}`
+
+  const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
+    const chunks: T[][] = []
+    for (let index = 0; index < items.length; index += chunkSize) {
+      chunks.push(items.slice(index, index + chunkSize))
+    }
+    return chunks
+  }
+
+  const importExpenses = async (items: Expense[]): Promise<{ success: number; failed: number }> => {
+    let success = 0
+    let failed = 0
+
+    const existing = new Set(
+      expenses.map((item) =>
+        buildRowFingerprint(item.date, item.amount, item.category, item.description || '')
+      )
+    )
+
+    const uniqueItems = items.filter((item) => {
+      const fingerprint = buildRowFingerprint(item.date, item.amount, item.category, item.description || '')
+      if (existing.has(fingerprint)) {
+        return false
+      }
+      existing.add(fingerprint)
+      return true
+    })
+
+    for (const chunk of chunkArray(uniqueItems, 10)) {
+      const chunkResult = await Promise.allSettled(
+        chunk.map((item) =>
+          addExpense({
+            amount: item.amount,
+            category: item.category,
+            description: item.description,
+            date: item.date,
+            tripId: item.tripId,
+          })
+        )
+      )
+
+      for (const result of chunkResult) {
+        if (result.status === 'fulfilled') success++
+        else failed++
+      }
+    }
+
+    return { success, failed }
+  }
+
+  const importIncomes = async (items: Income[]): Promise<{ success: number; failed: number }> => {
+    let success = 0
+    let failed = 0
+
+    const existing = new Set(
+      incomes.map((item) =>
+        buildRowFingerprint(item.date, item.amount, item.category, item.description || '')
+      )
+    )
+
+    const uniqueItems = items.filter((item) => {
+      const fingerprint = buildRowFingerprint(item.date, item.amount, item.category, item.description || '')
+      if (existing.has(fingerprint)) {
+        return false
+      }
+      existing.add(fingerprint)
+      return true
+    })
+
+    for (const chunk of chunkArray(uniqueItems, 10)) {
+      const chunkResult = await Promise.allSettled(
+        chunk.map((item) =>
+          addIncome({
+            amount: item.amount,
+            category: item.category,
+            description: item.description,
+            date: item.date,
+          })
+        )
+      )
+
+      for (const result of chunkResult) {
+        if (result.status === 'fulfilled') success++
+        else failed++
+      }
+    }
+
+    return { success, failed }
   }
 
   const handleLanguageChange = (lang: Language) => {
@@ -47,12 +199,38 @@ export default function SettingsPage() {
   }
 
   const handleExport = () => {
-    if (expenses.length === 0) {
+    if (expenses.length === 0 && incomes.length === 0) {
       showNotice('error', t('common.noData'))
       return
     }
 
-    exportToExcel(expenses)
+    exportToExcel(
+      expenses,
+      incomes,
+      'wallet_data',
+      customCategories,
+      {
+        currency: settings.currency,
+        monthlySavings,
+        savingsPlusAssets,
+        totalAssetValue,
+        insuranceValue,
+        cryptoValue,
+        stocksValue,
+        cryptoSocketState,
+        assets: sortedPortfolioAssets.map((item) => ({
+          type: item.asset.type,
+          name: item.asset.name,
+          symbol: item.symbol ?? item.asset.symbol,
+          quantity: item.quantity,
+          unitPriceUsd: item.unitPriceUsd,
+          currentValue: item.currentValue,
+          valueSource: item.valueSource,
+          quoteUpdatedAt: item.quoteUpdatedAt,
+        })),
+      },
+      trips
+    )
     showNotice('success', t('excel.exportSuccess'))
   }
 
@@ -60,14 +238,47 @@ export default function SettingsPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    setLatestImportIssues([])
     setIsImporting(true)
     try {
-      const importedExpenses = await importFromExcel(file)
-      const currentExpenses = getExpenses()
-      saveExpenses([...currentExpenses, ...importedExpenses])
-      refreshExpenses()
-      showNotice('success', t('excel.importSuccess'))
+      const parsed = await importFromExcel(file)
+      setLatestImportIssues(
+        parsed.issues.slice(0, 8).map((issue) =>
+          issue.row ? `Row ${issue.row}: ${issue.message}` : issue.message
+        )
+      )
+
+      if (parsed.expenses.length === 0 && parsed.incomes.length === 0) {
+        showNotice('error', parsed.issues[0]?.message || t('common.noData'))
+        return
+      }
+
+      const [expenseResult, incomeResult] = await Promise.all([
+        importExpenses(parsed.expenses),
+        importIncomes(parsed.incomes),
+      ])
+
+      const importedCount = expenseResult.success + incomeResult.success
+      const failedCount = expenseResult.failed + incomeResult.failed
+      const skippedCount = parsed.skippedRows
+
+      if (importedCount === 0) {
+        const errorMessage = parsed.issues.find((issue) => issue.level === 'error')?.message
+        showNotice('error', errorMessage || t('excel.importError'))
+        return
+      }
+
+      const details = [
+        `Imported ${importedCount} rows`,
+        expenseResult.success > 0 ? `${expenseResult.success} expense` : '',
+        incomeResult.success > 0 ? `${incomeResult.success} income` : '',
+        skippedCount > 0 ? `skipped ${skippedCount}` : '',
+        failedCount > 0 ? `failed ${failedCount}` : '',
+      ].filter(Boolean)
+
+      showNotice('success', `${t('excel.importSuccess')}. ${details.join(' | ')}`)
     } catch {
+      setLatestImportIssues([])
       showNotice('error', t('excel.importError'))
     } finally {
       setIsImporting(false)
@@ -175,7 +386,14 @@ export default function SettingsPage() {
           <CardDescription>Choose how the app looks like.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Select value={settings.theme || 'dark'} onValueChange={(v) => v && updateSettings({ theme: v as any })}>
+          <Select
+            value={settings.theme || 'dark'}
+            onValueChange={(v) => {
+              if (v && isThemeValue(v)) {
+                updateSettings({ theme: v })
+              }
+            }}
+          >
             <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20 sm:w-56 transition-all focus:bg-background">
               <SelectValue />
             </SelectTrigger>
@@ -206,7 +424,14 @@ export default function SettingsPage() {
               placeholder="Category name"
               className="rounded-xl flex-1 bg-muted/20 focus-visible:bg-background"
             />
-            <Select value={newCatType} onValueChange={(v: any) => setNewCatType(v)}>
+            <Select
+              value={newCatType}
+              onValueChange={(v) => {
+                if (v && isCategoryTypeValue(v)) {
+                  setNewCatType(v)
+                }
+              }}
+            >
               <SelectTrigger className="w-[110px] sm:w-[130px] rounded-xl bg-muted/20 focus:bg-background">
                 <SelectValue />
               </SelectTrigger>
@@ -283,7 +508,7 @@ export default function SettingsPage() {
             </span>
             Excel
           </CardTitle>
-          <CardDescription>Import and export your expense data.</CardDescription>
+          <CardDescription>Import and export expenses, incomes, savings assets, and trips data.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2">
@@ -311,6 +536,20 @@ export default function SettingsPage() {
               className="hidden"
             />
           </div>
+          <div className="rounded-xl border border-border/40 bg-muted/30 p-3 text-xs text-muted-foreground">
+            Supports expense and income import. Headers supported: `Date`, `Amount`, `Type`, `Category`, `Description`, `Trip ID`.
+            Duplicate rows in the same file are skipped automatically.
+          </div>
+          {latestImportIssues.length > 0 && (
+            <div className="rounded-xl border border-border/40 bg-card/70 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Import Warnings</p>
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {latestImportIssues.map((issue, index) => (
+                  <p key={`${issue}-${index}`}>{issue}</p>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
