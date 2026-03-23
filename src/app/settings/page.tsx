@@ -17,7 +17,7 @@ import { t, Language } from '@/i18n/config'
 import { Expense, Income } from '@/types'
 
 type NoticeType = 'success' | 'error'
-type AiModel = 'glm-4.7' | 'glm-5-turbo' | 'glm-5'
+type AiModel = 'glm-4.7' | 'glm-5'
 
 function normalizeDateKey(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -52,21 +52,22 @@ export default function SettingsPage() {
     insuranceValue,
     cryptoValue,
     stocksValue,
+    personalFundsValue,
     sortedPortfolioAssets,
     cryptoSocketState,
   } = useSavingsAssetsPortfolio(settings.currency)
   const { logout } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [aiModel, setAiModel] = useState<AiModel>((settings.aiModel as AiModel) || 'glm-4.7')
+  const [aiModel, setAiModel] = useState<AiModel>((settings.aiModel as AiModel) || 'glm-5')
   const [notice, setNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [latestImportIssues, setLatestImportIssues] = useState<string[]>([])
   const [newCatName, setNewCatName] = useState('')
   const [newCatType, setNewCatType] = useState<'expense' | 'income'>('expense')
 
-  const isThemeValue = (value: string): value is 'dark' | 'light' | 'blossom' =>
-    value === 'dark' || value === 'light' || value === 'blossom'
+  const isThemeValue = (value: string): value is 'dark' | 'light' | 'blossom' | 'glowing-horizon' =>
+    value === 'dark' || value === 'light' || value === 'blossom' || value === 'glowing-horizon'
 
   const isCategoryTypeValue = (value: string): value is 'expense' | 'income' =>
     value === 'expense' || value === 'income'
@@ -88,7 +89,7 @@ export default function SettingsPage() {
   const savingsPlusAssets = monthlySavings + totalAssetValue
 
   useEffect(() => {
-    setAiModel((settings.aiModel as AiModel) || 'glm-4.7')
+    setAiModel((settings.aiModel as AiModel) || 'glm-5')
   }, [settings.aiModel])
 
   const showNotice = (type: NoticeType, message: string) => {
@@ -217,6 +218,7 @@ export default function SettingsPage() {
         insuranceValue,
         cryptoValue,
         stocksValue,
+        personalFundsValue,
         cryptoSocketState,
         assets: sortedPortfolioAssets.map((item) => ({
           type: item.asset.type,
@@ -400,7 +402,8 @@ export default function SettingsPage() {
             <SelectContent>
               <SelectItem value="dark">Dark Theme</SelectItem>
               <SelectItem value="light">Light Theme</SelectItem>
-              <SelectItem value="blossom">🌸 Blossom (Unique)</SelectItem>
+              <SelectItem value="blossom">Blossom Theme</SelectItem>
+              <SelectItem value="glowing-horizon">Glowing Horizon</SelectItem>
             </SelectContent>
           </Select>
         </CardContent>
@@ -488,9 +491,8 @@ export default function SettingsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="glm-4.7">GLM-4.7</SelectItem>
-                <SelectItem value="glm-5-turbo">GLM-5-Turbo</SelectItem>
                 <SelectItem value="glm-5">GLM-5</SelectItem>
+                <SelectItem value="glm-4.7">GLM-4.7</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -572,3 +574,4 @@ export default function SettingsPage() {
     </div>
   )
 }
+

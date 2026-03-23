@@ -2,7 +2,7 @@
 
 import { type ComponentType, useEffect, useMemo, useState } from 'react'
 import { endOfMonth, format, startOfMonth } from 'date-fns'
-import { ArrowDownRight, ArrowUpRight, Coins, Edit2, PiggyBank, PlusCircle, Repeat, Shield, Target, Trash2, TrendingUp, Wifi, WifiOff } from 'lucide-react'
+import { ArrowDownRight, ArrowUpRight, Coins, Edit2, PiggyBank, PlusCircle, Repeat, Shield, Target, Trash2, TrendingUp, Wallet, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -83,6 +83,7 @@ const ASSET_TYPE_META: Record<SavingsAssetType, { label: string; icon: Component
   insurance: { label: 'Insurance', icon: Shield },
   crypto: { label: 'Crypto', icon: Coins },
   stocks: { label: 'Stocks', icon: TrendingUp },
+  personal_funds: { label: 'Personal Saving Funds', icon: Wallet },
 }
 
 export default function SavingsPage() {
@@ -118,6 +119,7 @@ export default function SavingsPage() {
     insuranceValue,
     cryptoValue,
     stocksValue,
+    personalFundsValue,
     trackedCryptoProducts,
     cryptoSocketState,
     cryptoSocketError,
@@ -556,7 +558,7 @@ export default function SavingsPage() {
               Financial Assets
             </CardTitle>
             <CardDescription>
-              Track your insurance value, crypto holdings, and stocks inside savings.
+              Track insurance, crypto holdings, stocks, and personal saving funds inside savings.
             </CardDescription>
           </div>
           <Button onClick={openCreateAssetDialog} className="rounded-xl">
@@ -602,7 +604,7 @@ export default function SavingsPage() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">Total Assets</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
@@ -627,11 +629,17 @@ export default function SavingsPage() {
                     {Math.round(stocksValue).toLocaleString()} {settings.currency}
                   </p>
                 </div>
+                <div className="rounded-xl border border-border/50 px-4 py-3">
+                  <p className="text-xs uppercase text-muted-foreground">Personal Saving Funds</p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums">
+                    {Math.round(personalFundsValue).toLocaleString()} {settings.currency}
+                  </p>
+                </div>
               </div>
 
               {sortedPortfolioAssets.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-                  No assets yet. Add insurance, crypto, or stocks to track your full savings position.
+                  No assets yet. Add insurance, crypto, stocks, or personal saving funds to track your full savings position.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -849,7 +857,7 @@ export default function SavingsPage() {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label>Asset Type</Label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {(Object.keys(ASSET_TYPE_META) as SavingsAssetType[]).map((assetType) => {
                   const Icon = ASSET_TYPE_META[assetType].icon
                   const active = assetForm.type === assetType
@@ -881,7 +889,7 @@ export default function SavingsPage() {
               <Input
                 value={assetForm.name}
                 onChange={(e) => setAssetForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="AIA policy, BTC wallet, Apple shares..."
+                placeholder="AIA policy, BTC wallet, emergency fund..."
               />
             </div>
             {assetForm.type === 'crypto' && (

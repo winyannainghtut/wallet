@@ -57,7 +57,7 @@ This document summarizes the current technologies used in the Wallet App codebas
 
 - **Z.AI GLM** via OpenAI-compatible HTTP endpoint.
 - **Server-side API key mapping** (per-user keys from env/Kubernetes secrets).
-- **Client setting:** model selection only (`glm-4.7`, `glm-5-turbo`, `glm-5`).
+- **Client setting:** model selection only (`glm-5`, `glm-4.7`).
 
 ## State and i18n
 

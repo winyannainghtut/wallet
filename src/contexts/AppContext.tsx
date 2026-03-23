@@ -219,7 +219,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
-  const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD', aiModel: 'glm-4.7' })
+  const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' })
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -346,7 +346,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSubscriptions([])
         setProfiles([])
         setActiveProfile(null)
-        setSettings({ language: 'en', currency: 'SGD', aiModel: 'glm-4.7' })
+        setSettings({ language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' })
         setCustomCategories([])
         setI18nLanguage('en')
         setIsLoading(false)
@@ -766,11 +766,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof document !== 'undefined') {
       const root = document.documentElement
-      root.classList.remove('dark', 'theme-blossom')
+      root.classList.remove('dark', 'theme-blossom', 'theme-glowing-horizon')
       if (settings.theme === 'dark') {
         root.classList.add('dark')
       } else if (settings.theme === 'blossom') {
         root.classList.add('theme-blossom')
+      } else if (settings.theme === 'glowing-horizon') {
+        root.classList.add('theme-glowing-horizon')
       }
     }
   }, [settings.theme])

@@ -51,6 +51,7 @@ export type ExcelSavingsSummary = {
   insuranceValue?: number
   cryptoValue?: number
   stocksValue?: number
+  personalFundsValue?: number
   cryptoSocketState?: string
   assets?: ExcelSavingsAssetSnapshot[]
 }
@@ -371,6 +372,7 @@ export function exportToExcel(
       { Metric: 'Insurance Assets', Value: savingsSummary.insuranceValue ?? 0 },
       { Metric: 'Crypto Assets', Value: savingsSummary.cryptoValue ?? 0 },
       { Metric: 'Stocks Assets', Value: savingsSummary.stocksValue ?? 0 },
+      { Metric: 'Personal Saving Funds', Value: savingsSummary.personalFundsValue ?? 0 },
       { Metric: 'Crypto Feed State', Value: savingsSummary.cryptoSocketState || 'n/a' }
     )
   }

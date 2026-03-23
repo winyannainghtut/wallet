@@ -46,6 +46,7 @@ export default function RootLayout({
                 }
                 if (theme === 'dark') document.documentElement.classList.add('dark');
                 if (theme === 'blossom') document.documentElement.classList.add('theme-blossom');
+                if (theme === 'glowing-horizon') document.documentElement.classList.add('theme-glowing-horizon');
               } catch (e) {}
             `,
           }}

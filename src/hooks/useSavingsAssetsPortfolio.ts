@@ -56,6 +56,7 @@ type UseSavingsAssetsPortfolioResult = {
   insuranceValue: number
   cryptoValue: number
   stocksValue: number
+  personalFundsValue: number
   trackedCryptoProducts: Array<{ symbol: string; productId: string }>
   cryptoSocketState: CryptoSocketState
   cryptoSocketError: string | null
@@ -150,7 +151,7 @@ function normalizeAssetRecord(raw: SavingsAssetApiRecord): SavingsAsset | null {
   if (
     !raw.id ||
     !raw.type ||
-    !['insurance', 'crypto', 'stocks'].includes(raw.type) ||
+    !['insurance', 'crypto', 'stocks', 'personal_funds'].includes(raw.type) ||
     !raw.name ||
     typeof raw.amount !== 'number'
   ) {
@@ -444,6 +445,11 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
     [portfolioAssets]
   )
 
+  const personalFundsValue = useMemo(
+    () => portfolioAssets.filter((item) => item.asset.type === 'personal_funds').reduce((sum, item) => sum + item.currentValue, 0),
+    [portfolioAssets]
+  )
+
   return {
     assets,
     isAssetsLoading,
@@ -455,6 +461,7 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
     insuranceValue,
     cryptoValue,
     stocksValue,
+    personalFundsValue,
     trackedCryptoProducts,
     cryptoSocketState,
     cryptoSocketError,

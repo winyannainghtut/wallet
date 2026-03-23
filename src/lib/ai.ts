@@ -27,8 +27,11 @@ export type CategorySuggestion = {
   customCategoryName?: string
 }
 
-const ZAI_ALLOWED_MODELS = ['glm-4.7', 'glm-5-turbo', 'glm-5'] as const
-const ZAI_DEFAULT_MODEL = 'glm-4.7'
+const ZAI_ALLOWED_MODELS = ['glm-4.7', 'glm-5'] as const
+const LEGACY_ZAI_MODEL_ALIASES: Record<string, (typeof ZAI_ALLOWED_MODELS)[number]> = {
+  'glm-5-turbo': 'glm-5',
+}
+const ZAI_DEFAULT_MODEL = 'glm-5'
 const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4'
 const ZAI_BASE_URL = (process.env.ZAI_OPENAI_BASE_URL || process.env.NEXT_PUBLIC_ZAI_OPENAI_BASE_URL || ZAI_DEFAULT_BASE_URL).replace(/\/+$/, '')
 
@@ -38,11 +41,19 @@ export function isSupportedZaiModel(model: string): model is (typeof ZAI_ALLOWED
 
 export function resolveZaiModel(model?: string): string {
   const requested = model?.trim()
+  const requestedAlias = requested ? LEGACY_ZAI_MODEL_ALIASES[requested] : undefined
+  if (requestedAlias) {
+    return requestedAlias
+  }
   if (requested && isSupportedZaiModel(requested)) {
     return requested
   }
 
   const envDefault = (process.env.AI_DEFAULT_MODEL || process.env.ZAI_MODEL || process.env.NEXT_PUBLIC_ZAI_MODEL || ZAI_DEFAULT_MODEL).trim()
+  const envAlias = LEGACY_ZAI_MODEL_ALIASES[envDefault]
+  if (envAlias) {
+    return envAlias
+  }
   if (isSupportedZaiModel(envDefault)) {
     return envDefault
   }
@@ -624,6 +635,7 @@ function buildSavingsContextSection(
   const insuranceValue = normalizeAmount(savingsContext.insuranceValue)
   const cryptoValue = normalizeAmount(savingsContext.cryptoValue)
   const stocksValue = normalizeAmount(savingsContext.stocksValue)
+  const personalFundsValue = normalizeAmount(savingsContext.personalFundsValue)
   const netWithAssets = monthlySavings + totalAssetValue
 
   const fxLine = typeof savingsContext.usdToCurrencyRate === 'number' && Number.isFinite(savingsContext.usdToCurrencyRate) && savingsContext.usdToCurrencyRate > 0
@@ -659,6 +671,7 @@ function buildSavingsContextSection(
 - Insurance value: ${formatAmount(insuranceValue, contextCurrency)}
 - Crypto value: ${formatAmount(cryptoValue, contextCurrency)}
 - Stocks value: ${formatAmount(stocksValue, contextCurrency)}
+- Personal saving funds: ${formatAmount(personalFundsValue, contextCurrency)}
 ${fxLine}
 ${liveFeedLine}
 ${savingsContext.fxError ? `- FX error: ${savingsContext.fxError}` : ''}
@@ -697,7 +710,7 @@ export async function getSpendingInsights(
   const savingsContextSection = buildSavingsContextSection(savingsContext, monthlySavings, currencyCode)
 
   const prompt = `You are a practical financial advisor for an expense tracking app in Myanmar.
-Analyze the user's financial summary and provide concise, actionable advice focusing on cash flow, savings, expense categories, and savings assets (insurance, crypto, stocks).
+Analyze the user's financial summary and provide concise, actionable advice focusing on cash flow, savings, expense categories, and savings assets (insurance, crypto, stocks, personal saving funds).
 
 CRITICAL RULE:
 - You MUST respond in Myanmar (Burmese) language ONLY. Do not use English.

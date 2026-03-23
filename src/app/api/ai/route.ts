@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { AiSavingsContext, Expense, Income, Subscription } from '@/types'
 import { createPbServer } from '@/lib/pb'
-import { getSpendingInsights, isSupportedZaiModel, parseExpenseText, resolveZaiModel, streamChatAboutExpenses, suggestCategory } from '@/lib/ai'
+import { getSpendingInsights, parseExpenseText, resolveZaiModel, streamChatAboutExpenses, suggestCategory } from '@/lib/ai'
 import { resolveUserZaiApiKey } from '@/lib/ai-secrets'
 
 type AiAction = 'suggestCategory' | 'parseExpenseText' | 'insights' | 'chat'
@@ -55,11 +55,7 @@ function getAuthenticatedUser(request: NextRequest):
 }
 
 function normalizeModel(model?: string): string {
-  const requested = model?.trim()
-  if (requested && isSupportedZaiModel(requested)) {
-    return requested
-  }
-  return resolveZaiModel()
+  return resolveZaiModel(model)
 }
 
 export async function POST(request: NextRequest) {

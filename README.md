@@ -131,14 +131,14 @@ Open `http://localhost:3000`.
 Set keys in `.env.local` for local dev:
 
 ```env
-AI_DEFAULT_MODEL=glm-4.7
+AI_DEFAULT_MODEL=glm-5
 ZAI_OPENAI_BASE_URL=https://api.z.ai/api/coding/paas/v4
 ZAI_API_KEYS_JSON={"admin@wallet.local":"sk-xxx","user2@wallet.local":"sk-yyy"}
 # optional fallback:
 # ZAI_API_KEY=sk-fallback
 ```
 
-Settings page now allows **model selection only** (`glm-4.7`, `glm-5-turbo`, `glm-5`).
+Settings page now allows **model selection only** (`glm-5`, `glm-4.7`).
 API keys are never stored in browser/localStorage.
 
 ### 6) Control registration (internal use)

@@ -90,7 +90,7 @@ If registration is disabled, create users manually from PocketBase Admin (`users
 In `.env.local`:
 
 ```env
-AI_DEFAULT_MODEL=glm-4.7
+AI_DEFAULT_MODEL=glm-5
 ZAI_OPENAI_BASE_URL=https://api.z.ai/api/coding/paas/v4
 ZAI_API_KEYS_JSON={"admin@wallet.local":"sk-xxx","finance@wallet.local":"sk-yyy"}
 # optional fallback:

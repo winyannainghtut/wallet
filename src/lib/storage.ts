@@ -223,17 +223,20 @@ export function getMonthlySummary(date: Date = new Date(), expensesArr?: Expense
 
 export function getSettings(): AppSettings {
   if (typeof window === 'undefined') {
-    return { language: 'en', currency: 'SGD', aiModel: 'glm-4.7', theme: 'dark' }
+    return { language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' }
   }
   const data = localStorage.getItem(userKey(FIELD.SETTINGS))
-  if (!data) return { language: 'en', currency: 'SGD', aiModel: 'glm-4.7', theme: 'dark' }
+  if (!data) return { language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' }
   const parsed = JSON.parse(data)
   // Force-fix any legacy MMK currency
   if (parsed.currency === 'MMK') parsed.currency = 'SGD'
-  if (!parsed.aiModel || !['glm-4.7', 'glm-5-turbo', 'glm-5'].includes(parsed.aiModel)) {
-    parsed.aiModel = 'glm-4.7'
+  if (parsed.aiModel === 'glm-5-turbo') {
+    parsed.aiModel = 'glm-5'
   }
-  if (!parsed.theme || !['dark', 'light', 'blossom'].includes(parsed.theme)) {
+  if (!parsed.aiModel || !['glm-4.7', 'glm-5'].includes(parsed.aiModel)) {
+    parsed.aiModel = 'glm-5'
+  }
+  if (!parsed.theme || !['dark', 'light', 'blossom', 'glowing-horizon'].includes(parsed.theme)) {
     parsed.theme = 'dark'
   }
   delete parsed.apiKey

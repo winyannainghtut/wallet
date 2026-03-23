@@ -22,7 +22,7 @@ type SavingsAssetRecord = {
   symbol?: string
 }
 
-const SAVINGS_ASSET_TYPES: SavingsAssetType[] = ['insurance', 'crypto', 'stocks']
+const SAVINGS_ASSET_TYPES: SavingsAssetType[] = ['insurance', 'crypto', 'stocks', 'personal_funds']
 
 function isSavingsAssetType(value: string): value is SavingsAssetType {
   return SAVINGS_ASSET_TYPES.includes(value as SavingsAssetType)
@@ -153,7 +153,7 @@ export async function PUT(
 
     if (normalized.type && !isSavingsAssetType(normalized.type)) {
       return NextResponse.json(
-        { error: 'type must be one of insurance, crypto, stocks' },
+        { error: 'type must be one of insurance, crypto, stocks, personal_funds' },
         { status: 400 }
       )
     }

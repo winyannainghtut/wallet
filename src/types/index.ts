@@ -103,7 +103,7 @@ export interface SavingsGoal {
   updatedAt?: string
 }
 
-export type SavingsAssetType = 'insurance' | 'crypto' | 'stocks'
+export type SavingsAssetType = 'insurance' | 'crypto' | 'stocks' | 'personal_funds'
 
 export interface SavingsAsset {
   id: string
@@ -139,6 +139,7 @@ export interface AiSavingsContext {
   insuranceValue: number
   cryptoValue: number
   stocksValue: number
+  personalFundsValue: number
   usdToCurrencyRate?: number
   fxError?: string | null
   cryptoSocketState?: CryptoSocketState
@@ -208,8 +209,8 @@ export interface CustomCategory {
 export interface AppSettings {
   language: 'en' | 'my'
   currency: string
-  aiModel?: 'glm-4.7' | 'glm-5-turbo' | 'glm-5'
-  theme?: 'dark' | 'light' | 'blossom'
+  aiModel?: 'glm-4.7' | 'glm-5'
+  theme?: 'dark' | 'light' | 'blossom' | 'glowing-horizon'
 }
 
 

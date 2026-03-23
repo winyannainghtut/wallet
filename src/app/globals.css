@@ -153,6 +153,40 @@
   --sidebar-border: oklch(0.92 0.03 350);
   --sidebar-ring: oklch(0.65 0.20 350);
 }
+
+.theme-glowing-horizon {
+  --background: #081426;
+  --foreground: #f7fbff;
+  --card: #0f1f38;
+  --card-foreground: #f7fbff;
+  --popover: #112443;
+  --popover-foreground: #f7fbff;
+  --primary: #ffb343;
+  --primary-foreground: #0f172a;
+  --secondary: #143058;
+  --secondary-foreground: #dffcff;
+  --muted: #11213d;
+  --muted-foreground: #93a8c8;
+  --accent: #42eaff;
+  --accent-foreground: #081426;
+  --destructive: #ff7e42;
+  --border: color-mix(in oklab, #4272ff 34%, transparent);
+  --input: color-mix(in oklab, #4272ff 24%, #0f1f38);
+  --ring: #42eaff;
+  --chart-1: #ffb343;
+  --chart-2: #42eaff;
+  --chart-3: #4272ff;
+  --chart-4: #ff7e42;
+  --chart-5: #ffd37a;
+  --sidebar: #09172d;
+  --sidebar-foreground: #f7fbff;
+  --sidebar-primary: #ffb343;
+  --sidebar-primary-foreground: #0f172a;
+  --sidebar-accent: #15335e;
+  --sidebar-accent-foreground: #dffcff;
+  --sidebar-border: color-mix(in oklab, #4272ff 30%, transparent);
+  --sidebar-ring: #42eaff;
+}
 /* ─── Micro-animation Keyframes ─── */
 @keyframes fadeInUp {
   from {
@@ -212,6 +246,14 @@
   ::-webkit-scrollbar-thumb:hover {
     background: color-mix(in oklab, var(--foreground) 30%, transparent);
   }
+}
+
+.theme-glowing-horizon body {
+  background-image:
+    radial-gradient(900px circle at 18% 12%, color-mix(in oklab, #42eaff 24%, transparent), transparent 48%),
+    radial-gradient(1000px circle at 82% 8%, color-mix(in oklab, #4272ff 26%, transparent), transparent 44%),
+    radial-gradient(1100px circle at 50% 118%, color-mix(in oklab, #ff7e42 28%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in oklab, #4272ff 10%, #081426) 0%, #081426 42%, color-mix(in oklab, #ff7e42 8%, #081426) 100%);
 }
 
 /* ─── Component Layer ─── */
