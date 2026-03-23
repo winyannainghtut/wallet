@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { AiSavingsContext, Expense, Income, Subscription } from '@/types'
 import { getChatHistory, saveChatHistory } from '@/lib/storage'
+import { fetchUserPreferences, updateUserPreferences } from '@/lib/preferences-client'
 import { isAiKeyNotConfiguredError, streamChatAboutExpenses } from '@/lib/ai-client'
 import { sanitizeAiOutput } from '@/lib/ai-output'
 import { t, getLanguage } from '@/i18n/config'
@@ -39,7 +40,7 @@ export function ChatAssistant({
   className,
   messagesClassName,
 }: ChatAssistantProps) {
-  const { settings } = useApp()
+  const { settings, currentUser } = useApp()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -53,19 +54,61 @@ export function ChatAssistant({
 
   // Load chat history once
   useEffect(() => {
-    const history = getChatHistory()
-    if (history && history.length > 0) {
-      setMessages(history)
+    let cancelled = false
+    const cachedHistory = getChatHistory()
+
+    if (cachedHistory.length > 0) {
+      setMessages(cachedHistory)
     }
-    setIsInitialized(true)
-  }, [])
+
+    const loadHistory = async () => {
+      if (!currentUser) {
+        if (!cancelled) {
+          setIsInitialized(true)
+        }
+        return
+      }
+
+      try {
+        const preferences = await fetchUserPreferences()
+        if (cancelled) return
+
+        if (preferences.chatHistory.length > 0 || cachedHistory.length === 0) {
+          setMessages(preferences.chatHistory)
+        }
+        saveChatHistory(preferences.chatHistory)
+      } catch (error) {
+        console.error('Failed to load chat history:', error)
+      } finally {
+        if (!cancelled) {
+          setIsInitialized(true)
+        }
+      }
+    }
+
+    void loadHistory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentUser])
 
   // Save chat history automatically
   useEffect(() => {
-    if (isInitialized) {
-      saveChatHistory(messages)
+    if (!isInitialized || isLoading) {
+      return
     }
-  }, [messages, isInitialized])
+
+    const timer = setTimeout(() => {
+      saveChatHistory(messages)
+
+      if (currentUser) {
+        void updateUserPreferences({ chatHistory: messages })
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [currentUser, isInitialized, isLoading, messages])
 
   useEffect(() => {
     if (stickToBottom && scrollContainerRef.current) {

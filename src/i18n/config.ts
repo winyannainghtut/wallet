@@ -12,18 +12,9 @@ let currentLanguage: Language = 'en'
 
 export function setLanguage(lang: Language) {
   currentLanguage = lang
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('language', lang)
-  }
 }
 
 export function getLanguage(): Language {
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('language') as Language
-    if (stored === 'en' || stored === 'my') {
-      currentLanguage = stored
-    }
-  }
   return currentLanguage
 }
 

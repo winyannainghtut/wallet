@@ -1,6 +1,7 @@
 import { Expense, AppSettings, UserProfile, Category, DailySummary, WeeklySummary, MonthlySummary, CustomCategory } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, isWithinInterval, parseISO } from 'date-fns'
+import { DEFAULT_APP_SETTINGS, normalizeAppSettings } from '@/lib/settings'
 
 // ==================== Multi-User Profile System ====================
 
@@ -223,30 +224,24 @@ export function getMonthlySummary(date: Date = new Date(), expensesArr?: Expense
 
 export function getSettings(): AppSettings {
   if (typeof window === 'undefined') {
-    return { language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' }
+    return DEFAULT_APP_SETTINGS
   }
   const data = localStorage.getItem(userKey(FIELD.SETTINGS))
-  if (!data) return { language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' }
-  const parsed = JSON.parse(data)
-  // Force-fix any legacy MMK currency
-  if (parsed.currency === 'MMK') parsed.currency = 'SGD'
-  if (parsed.aiModel === 'glm-5-turbo') {
-    parsed.aiModel = 'glm-5'
+  if (!data) return DEFAULT_APP_SETTINGS
+
+  try {
+    const parsed = JSON.parse(data)
+    delete parsed.apiKey
+    delete parsed.aiProvider
+    return normalizeAppSettings(parsed)
+  } catch {
+    return DEFAULT_APP_SETTINGS
   }
-  if (!parsed.aiModel || !['glm-4.7', 'glm-5'].includes(parsed.aiModel)) {
-    parsed.aiModel = 'glm-5'
-  }
-  if (!parsed.theme || !['dark', 'light', 'blossom', 'glowing-horizon'].includes(parsed.theme)) {
-    parsed.theme = 'dark'
-  }
-  delete parsed.apiKey
-  delete parsed.aiProvider
-  return parsed
 }
 
 export function saveSettings(settings: Partial<AppSettings>): AppSettings {
   const current = getSettings()
-  const updated = { ...current, ...settings }
+  const updated = normalizeAppSettings({ ...current, ...settings })
   localStorage.setItem(userKey(FIELD.SETTINGS), JSON.stringify(updated))
   return updated
 }

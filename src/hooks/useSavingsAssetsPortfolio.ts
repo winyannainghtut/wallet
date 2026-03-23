@@ -235,6 +235,9 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
       return
     }
 
+    setUsdToCurrencyRate(Number.NaN)
+    setFxError(null)
+
     let cancelled = false
 
     const loadFx = async () => {
@@ -251,6 +254,7 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
       } catch (error) {
         if (cancelled) return
         const message = error instanceof Error ? error.message : `Failed to fetch USD to ${quoteCurrency} rate`
+        setUsdToCurrencyRate(Number.NaN)
         setFxError(message)
       }
     }
@@ -383,6 +387,10 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
   }, [trackedCryptoProducts, socketRetryToken])
 
   const portfolioAssets = useMemo(() => {
+    const quoteCurrency = currency.trim().toUpperCase() || 'USD'
+    const requiresFxRate = quoteCurrency !== 'USD'
+    const hasFxRate = Number.isFinite(usdToCurrencyRate) && usdToCurrencyRate > 0
+
     return assets.map((asset): PortfolioAsset => {
       if (asset.type !== 'crypto') {
         return {
@@ -396,7 +404,7 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
       const productId = symbol ? toCoinbaseProductId(symbol) : undefined
       const quote = productId ? cryptoQuotes[productId] : undefined
 
-      if (!quote) {
+      if (!quote || (requiresFxRate && !hasFxRate)) {
         return {
           asset,
           symbol,
@@ -418,7 +426,7 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
         valueSource: 'live',
       }
     })
-  }, [assets, cryptoQuotes, usdToCurrencyRate])
+  }, [assets, cryptoQuotes, currency, usdToCurrencyRate])
 
   const sortedPortfolioAssets = useMemo(
     () => [...portfolioAssets].sort((a, b) => b.currentValue - a.currentValue),

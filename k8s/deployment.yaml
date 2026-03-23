@@ -36,7 +36,7 @@ spec:
             - name: AUTH_ALLOWED_DOMAINS
               value: ""
             - name: AI_DEFAULT_MODEL
-              value: "glm-4.7"
+              value: "glm-5"
             - name: ZAI_OPENAI_BASE_URL
               value: "https://api.z.ai/api/coding/paas/v4"
             - name: ZAI_API_KEYS_JSON

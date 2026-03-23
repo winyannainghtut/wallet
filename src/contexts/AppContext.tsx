@@ -29,11 +29,15 @@ import {
   getActiveProfile,
   getCustomCategories,
   saveCustomCategories,
+  getChatHistory,
+  saveChatHistory,
 } from '@/lib/storage'
 import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
 import { useAuth } from '@/contexts/AuthContext'
 import { mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-expenses'
+import { DEFAULT_APP_SETTINGS, hasCustomAppSettings, normalizeAppSettings } from '@/lib/settings'
+import { fetchUserPreferences, updateUserPreferences } from '@/lib/preferences-client'
 
 function normalizeExpenseDate(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -219,7 +223,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [activeProfile, setActiveProfile] = useState<UserProfile | null>(null)
-  const [settings, setSettings] = useState<AppSettings>({ language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' })
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS)
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -229,6 +233,87 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     email: user.email,
     name: user.name,
   } : null
+
+  const applyPreferenceSnapshot = useCallback((nextSettings: AppSettings, nextCustomCategories: CustomCategory[], nextChatHistory?: ReturnType<typeof getChatHistory>) => {
+    const normalizedSettings = normalizeAppSettings(nextSettings)
+    const storedSettings = saveSettings(normalizedSettings)
+    saveCustomCategories(nextCustomCategories)
+    setI18nLanguage(storedSettings.language)
+    setSettings(storedSettings)
+    setCustomCategories(nextCustomCategories)
+
+    if (nextChatHistory) {
+      saveChatHistory(nextChatHistory)
+    }
+  }, [])
+
+  const refreshPreferences = useCallback(async () => {
+    const cachedSettings = getSettings()
+    const cachedCategories = getCustomCategories()
+    setI18nLanguage(cachedSettings.language)
+    setSettings(cachedSettings)
+    setCustomCategories(cachedCategories)
+
+    if (!isAuthenticated || !user) {
+      return
+    }
+
+    try {
+      const remotePreferences = await fetchUserPreferences()
+      const legacyHistory = getChatHistory()
+      const shouldMigrateLegacyState =
+        !remotePreferences.exists &&
+        (
+          hasCustomAppSettings(cachedSettings) ||
+          cachedCategories.length > 0 ||
+          legacyHistory.length > 0
+        )
+
+      if (shouldMigrateLegacyState) {
+        const migratedPreferences = await updateUserPreferences({
+          settings: cachedSettings,
+          customCategories: cachedCategories,
+          chatHistory: legacyHistory,
+        })
+
+        applyPreferenceSnapshot(
+          migratedPreferences.settings,
+          migratedPreferences.customCategories,
+          migratedPreferences.chatHistory
+        )
+        return
+      }
+
+      applyPreferenceSnapshot(
+        remotePreferences.settings,
+        remotePreferences.customCategories,
+        remotePreferences.chatHistory
+      )
+    } catch (error) {
+      console.error('Failed to load user preferences:', error)
+    }
+  }, [applyPreferenceSnapshot, isAuthenticated, user])
+
+  const persistPreferences = useCallback(async (patch: {
+    settings?: Partial<AppSettings>
+    customCategories?: CustomCategory[]
+    chatHistory?: ReturnType<typeof getChatHistory>
+  }) => {
+    if (!isAuthenticated || !user) {
+      return
+    }
+
+    try {
+      const updatedPreferences = await updateUserPreferences(patch)
+      applyPreferenceSnapshot(
+        updatedPreferences.settings,
+        updatedPreferences.customCategories,
+        updatedPreferences.chatHistory
+      )
+    } catch (error) {
+      console.error('Failed to persist user preferences:', error)
+    }
+  }, [applyPreferenceSnapshot, isAuthenticated, user])
 
   // Load expenses from PocketBase
   const refreshExpenses = useCallback(async () => {
@@ -322,9 +407,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Load all user data
   const loadUserData = useCallback(async () => {
-    const loadedSettings = getSettings()
-    setI18nLanguage(loadedSettings.language)
-    setSettings(loadedSettings)
+    const cachedSettings = getSettings()
+    setI18nLanguage(cachedSettings.language)
+    setSettings(cachedSettings)
     setCustomCategories(getCustomCategories())
 
     await Promise.all([
@@ -332,10 +417,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refreshIncomes(),
       refreshTrips(),
       refreshSubscriptions(),
+      refreshPreferences(),
     ])
 
     setActiveProfile(getActiveProfile())
-  }, [refreshExpenses, refreshIncomes, refreshTrips, refreshSubscriptions])
+  }, [refreshExpenses, refreshIncomes, refreshTrips, refreshSubscriptions, refreshPreferences])
 
   useEffect(() => {
     const loadData = async () => {
@@ -346,9 +432,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setSubscriptions([])
         setProfiles([])
         setActiveProfile(null)
-        setSettings({ language: 'en', currency: 'SGD', aiModel: 'glm-5', theme: 'dark' })
+        setSettings(DEFAULT_APP_SETTINGS)
         setCustomCategories([])
-        setI18nLanguage('en')
+        setI18nLanguage(DEFAULT_APP_SETTINGS.language)
         setIsLoading(false)
         return
       }
@@ -716,7 +802,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
     const updated = saveSettings(newSettings)
     setSettings(updated)
-  }, [])
+    setI18nLanguage(updated.language)
+    void persistPreferences({ settings: updated })
+  }, [persistPreferences])
 
   const setLanguage = useCallback((lang: 'en' | 'my') => {
     setI18nLanguage(lang)
@@ -749,8 +837,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const updated = [...existingCategories, newCategory]
     saveCustomCategories(updated)
     setCustomCategories(updated)
+    void persistPreferences({ customCategories: updated })
     return newCategory
-  }, [])
+  }, [persistPreferences])
 
   const deleteCustomCategory = useCallback((id: string) => {
     const current = getCustomCategories()
@@ -759,8 +848,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     saveCustomCategories(updated)
     setCustomCategories(updated)
+    void persistPreferences({ customCategories: updated })
     return true
-  }, [])
+  }, [persistPreferences])
 
   // Sync Theme to DOM
   useEffect(() => {

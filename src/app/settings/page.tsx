@@ -200,7 +200,7 @@ export default function SettingsPage() {
   }
 
   const handleExport = () => {
-    if (expenses.length === 0 && incomes.length === 0) {
+    if (expenses.length === 0 && incomes.length === 0 && trips.length === 0 && sortedPortfolioAssets.length === 0) {
       showNotice('error', t('common.noData'))
       return
     }

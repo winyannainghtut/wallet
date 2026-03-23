@@ -30,6 +30,7 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/savings-goals/[id]`
 - `/api/savings-assets`
 - `/api/savings-assets/[id]`
+- `/api/preferences`
 - `/api/market/fx` (Coinbase exchange rate proxy for currency conversion, e.g., USD->SGD)
 - `/api/trips`
 - `/api/trips/[id]`
@@ -42,8 +43,9 @@ Browser -> Next.js API routes -> PocketBase
 - Live crypto quote stream uses Coinbase Advanced Trade WebSocket (`wss://advanced-trade-ws.coinbase.com`) directly from browser.
 - FX conversion (USD -> app currency such as SGD) is fetched via `/api/market/fx`.
 - Savings asset values are resolved client-side as:
-  - insurance/stocks: manual value (`amount`)
+  - insurance/stocks/personal funds: manual value (`amount`)
   - crypto: `quantity * live USD quote * FX rate`
+- Per-user settings, custom categories, and AI chat history are stored in `user_preferences` via `/api/preferences`.
 
 ## Schema and Migrations
 
@@ -54,6 +56,7 @@ Migration files:
 - `pb_migrations/1774301000_ensure_income_savings_collections.js`
 - `pb_migrations/1774500000_savings_assets_collection.js`
 - `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
+- `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
 
 Purpose summary:
 
@@ -62,6 +65,7 @@ Purpose summary:
 - `1774301000`: repair migration that ensures `incomes`/`savings_goals` exist even when history is inconsistent
 - `1774500000`: adds `savings_assets` (`insurance`, `crypto`, `stocks`)
 - `1774600000`: adds optional `symbol` field in `savings_assets` for live crypto ticker mapping
+- `1774700000`: adds `user_preferences` and extends `savings_assets.type` with `personal_funds`
 
 Expected collections:
 
@@ -70,6 +74,7 @@ Expected collections:
 - `incomes`
 - `savings_goals`
 - `savings_assets`
+- `user_preferences`
 - `trips`
 - `subscriptions`
 
@@ -185,6 +190,7 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - `incomes`
    - `savings_goals`
    - `savings_assets`
+   - `user_preferences`
 
 ### App login works but data save fails
 

@@ -64,6 +64,9 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **React Context:**
   - `AuthContext`
   - `AppContext`
+- **PocketBase-backed user preferences:**
+  - `user_preferences` stores app settings, custom categories, and AI chat history per authenticated user
+  - client keeps a local cache only for fast bootstrap/theme hydration
 - **Custom i18n layer:**
   - `src/i18n/config.ts`
   - `src/i18n/en.json`
