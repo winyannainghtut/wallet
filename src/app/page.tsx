@@ -16,6 +16,7 @@ import { useApp } from '@/contexts/AppContext'
 import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t } from '@/i18n/config'
 import type { AiSavingsContext } from '@/types'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 function normalizeDateKey(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -34,6 +35,7 @@ export default function DashboardPage() {
     expenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, 
     settings, currentUser 
   } = useApp()
+  const displayCurrency = getCurrencyDisplayLabel(settings)
   const {
     totalAssetValue,
     insuranceValue,
@@ -137,13 +139,13 @@ export default function DashboardPage() {
                 {todaySummary.count} items today
               </span>
               <span className="rounded-full bg-secondary px-3 py-1.5 font-medium text-secondary-foreground">
-                Week: {weeklySummary.total.toLocaleString()} {settings.currency}
+                Week: {weeklySummary.total.toLocaleString()} {displayCurrency}
               </span>
               <span className={`rounded-full px-3 py-1.5 font-medium ${weeklySavings >= 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-rose-500/10 text-rose-700'}`}>
-                Weekly Net: {Math.round(weeklySavings).toLocaleString()} {settings.currency}
+                Weekly Net: {Math.round(weeklySavings).toLocaleString()} {displayCurrency}
               </span>
               <span className="rounded-full bg-primary/10 px-3 py-1.5 font-medium text-primary">
-                Savings + Assets: {Math.round(monthlySavingsWithAssets).toLocaleString()} {settings.currency}
+                Savings + Assets: {Math.round(monthlySavingsWithAssets).toLocaleString()} {displayCurrency}
               </span>
             </div>
           </div>
@@ -182,8 +184,8 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4">
-        <SavingsGoalWidget currentSavings={monthlySavings} currency={settings.currency} />
-        <UpcomingSubscriptions subscriptions={subscriptions} currency={settings.currency} />
+        <SavingsGoalWidget currentSavings={monthlySavings} currency={displayCurrency} />
+        <UpcomingSubscriptions subscriptions={subscriptions} currency={displayCurrency} />
       </div>
 
       {/* Summary Cards */}
@@ -194,25 +196,25 @@ export default function DashboardPage() {
             amount={todaySummary.total}
             icon={Calendar}
             subtitle={`${todaySummary.count} items`}
-            currency={settings.currency}
+            currency={displayCurrency}
           />
           <SummaryCard
             title={t('dashboard.weeklyExpenses')}
             amount={weeklySummary.total}
             icon={TrendingUp}
-            currency={settings.currency}
+            currency={displayCurrency}
           />
           <SummaryCard
             title={t('dashboard.monthlyExpenses')}
             amount={monthlySummary.total}
             icon={Wallet}
-            currency={settings.currency}
+            currency={displayCurrency}
           />
           <SummaryCard
             title={t('dashboard.monthlyIncome')}
             amount={monthlyIncome}
             icon={TrendingUp}
-            currency={settings.currency}
+            currency={displayCurrency}
           />
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 xl:gap-5">
@@ -221,20 +223,20 @@ export default function DashboardPage() {
             amount={monthlySavings}
             icon={PiggyBank}
             subtitle={monthlyIncome > 0 ? `${((monthlySavings / monthlyIncome) * 100).toFixed(1)}% savings rate` : 'No income records this month'}
-            currency={settings.currency}
+            currency={displayCurrency}
           />
           <SummaryCard
             title="Savings + Assets"
             amount={monthlySavingsWithAssets}
             icon={PiggyBank}
-            subtitle={`Assets: ${Math.round(totalAssetValue).toLocaleString()} ${settings.currency}`}
-            currency={settings.currency}
+            subtitle={`Assets: ${Math.round(totalAssetValue).toLocaleString()} ${displayCurrency}`}
+            currency={displayCurrency}
           />
           <SummaryCard
             title={t('dashboard.expenseIncomeRatio')}
             amount={Math.round(expenseIncomeRatio)}
             icon={Scale}
-            subtitle={`${Math.round(averageDailyExpense).toLocaleString()} ${settings.currency} avg/day`}
+            subtitle={`${Math.round(averageDailyExpense).toLocaleString()} ${displayCurrency} avg/day`}
             currency="%"
           />
         </div>
@@ -247,7 +249,7 @@ export default function DashboardPage() {
             expenses={expenses}
             incomes={incomes}
             title="Trend"
-            currency={settings.currency}
+            currency={displayCurrency}
           />
         </div>
         <div className="lg:col-span-3">
@@ -280,7 +282,7 @@ export default function DashboardPage() {
         </div>
         <TransactionList 
           transactions={recentTransactions} 
-          currency={settings.currency} 
+          currency={displayCurrency} 
           showDate 
         />
       </div>

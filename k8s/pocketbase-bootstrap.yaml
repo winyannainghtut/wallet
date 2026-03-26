@@ -1545,3 +1545,163 @@ data:
       } catch {}
     });
 
+
+  1774800000_trip_group_fund_fields.js: |
+    migrate((app) => {
+      var _a;
+    
+      try {
+        const collection = app.findCollectionByNameOrId("trips");
+        const json = JSON.parse(JSON.stringify(collection));
+        const fields = json.fields || ((_a = json.schema) !== null && _a !== void 0 ? _a : []);
+    
+        const ensureField = (name, definition) => {
+          if (!fields.some((field) => field && field.name === name)) {
+            fields.push(definition);
+          }
+        };
+    
+        ensureField("groupName", {
+          "autogeneratePattern": "",
+          "hidden": false,
+          "id": "text1774800101",
+          "max": 255,
+          "min": 0,
+          "name": "groupName",
+          "pattern": "",
+          "presentable": false,
+          "primaryKey": false,
+          "required": false,
+          "system": false,
+          "type": "text"
+        });
+    
+        ensureField("groupSize", {
+          "hidden": false,
+          "id": "number1774800102",
+          "max": null,
+          "min": 2,
+          "name": "groupSize",
+          "onlyInt": true,
+          "presentable": false,
+          "required": false,
+          "system": false,
+          "type": "number"
+        });
+    
+        ensureField("groupFund", {
+          "hidden": false,
+          "id": "number1774800103",
+          "max": null,
+          "min": 0,
+          "name": "groupFund",
+          "onlyInt": false,
+          "presentable": false,
+          "required": false,
+          "system": false,
+          "type": "number"
+        });
+    
+        app.importCollections([json], false);
+      } catch (err) {
+        console.error("Trip group fund migration error:", err);
+      }
+    }, (app) => {
+      var _a;
+    
+      try {
+        const collection = app.findCollectionByNameOrId("trips");
+        const json = JSON.parse(JSON.stringify(collection));
+        const fields = json.fields || ((_a = json.schema) !== null && _a !== void 0 ? _a : []);
+    
+        json.fields = fields.filter((field) => field && !["groupName", "groupSize", "groupFund"].includes(field.name));
+        app.importCollections([json], false);
+      } catch (err) {
+        console.error("Trip group fund rollback error:", err);
+      }
+    });
+
+
+  1774900000_add_currency_sign_to_preferences.js: |
+    migrate((app) => {
+      var _a;
+    
+      try {
+        const collection = app.findCollectionByNameOrId("user_preferences");
+        const json = JSON.parse(JSON.stringify(collection));
+        const fields = json.fields || ((_a = json.schema) !== null && _a !== void 0 ? _a : []);
+    
+        if (!fields.some((field) => field && field.name === "currencySign")) {
+          fields.push({
+            "autogeneratePattern": "",
+            "hidden": false,
+            "id": "text1774900101",
+            "max": 8,
+            "min": 0,
+            "name": "currencySign",
+            "pattern": "",
+            "presentable": false,
+            "primaryKey": false,
+            "required": false,
+            "system": false,
+            "type": "text"
+          });
+          app.importCollections([json], false);
+        }
+      } catch (err) {
+        console.error("Currency sign migration error:", err);
+      }
+    }, (app) => {
+      var _a;
+    
+      try {
+        const collection = app.findCollectionByNameOrId("user_preferences");
+        const json = JSON.parse(JSON.stringify(collection));
+        const fields = json.fields || ((_a = json.schema) !== null && _a !== void 0 ? _a : []);
+    
+        json.fields = fields.filter((field) => field && field.name !== "currencySign");
+        app.importCollections([json], false);
+      } catch (err) {
+        console.error("Currency sign rollback error:", err);
+      }
+    });
+
+
+  1775000000_add_shared_group_expense_to_transactions.js: |
+    migrate((app) => {
+      var _a;
+    
+      try {
+        const collection = app.findCollectionByNameOrId("transactions");
+        const json = JSON.parse(JSON.stringify(collection));
+        const fields = json.fields || ((_a = json.schema) !== null && _a !== void 0 ? _a : []);
+    
+        if (!fields.some((field) => field && field.name === "sharedGroupExpense")) {
+          fields.push({
+            "hidden": false,
+            "id": "bool1775000101",
+            "name": "sharedGroupExpense",
+            "presentable": false,
+            "required": false,
+            "system": false,
+            "type": "bool"
+          });
+          app.importCollections([json], false);
+        }
+      } catch (err) {
+        console.error("Shared group expense migration error:", err);
+      }
+    }, (app) => {
+      var _a;
+    
+      try {
+        const collection = app.findCollectionByNameOrId("transactions");
+        const json = JSON.parse(JSON.stringify(collection));
+        const fields = json.fields || ((_a = json.schema) !== null && _a !== void 0 ? _a : []);
+    
+        json.fields = fields.filter((field) => field && field.name !== "sharedGroupExpense");
+        app.importCollections([json], false);
+      } catch (err) {
+        console.error("Shared group expense rollback error:", err);
+      }
+    });

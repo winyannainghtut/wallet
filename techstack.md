@@ -18,12 +18,17 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1774301000_ensure_income_savings_collections.js`
   - `pb_migrations/1774500000_savings_assets_collection.js`
   - `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
+  - `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
+  - `pb_migrations/1774800000_trip_group_fund_fields.js`
+  - `pb_migrations/1774900000_add_currency_sign_to_preferences.js`
+  - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
 - **Main collections:**
   - `users`
   - `transactions`
   - `incomes`
   - `savings_goals`
   - `savings_assets`
+  - `user_preferences`
   - `trips`
   - `subscriptions`
 
@@ -32,8 +37,8 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Expenses**
 - **Income**
 - **Savings goals**
-- **Savings assets (`insurance`, `crypto`, `stocks`)**
-- **Trips**
+- **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)**
+- **Trips** with optional shared friend-group pooled spend metadata
 - **Subscriptions (recurring cost modeled into reports/calendar)**
 
 ## UI and Styling
@@ -57,7 +62,7 @@ This document summarizes the current technologies used in the Wallet App codebas
 
 - **Z.AI GLM** via OpenAI-compatible HTTP endpoint.
 - **Server-side API key mapping** (per-user keys from env/Kubernetes secrets).
-- **Client setting:** model selection only (`glm-5`, `glm-4.7`).
+- **Client setting:** model selection only (`glm-5`, `glm-5-turbo`, `glm-4.7`).
 
 ## State and i18n
 
@@ -65,7 +70,7 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `AuthContext`
   - `AppContext`
 - **PocketBase-backed user preferences:**
-  - `user_preferences` stores app settings, custom categories, and AI chat history per authenticated user
+  - `user_preferences` stores app settings, including `currencySign`, theme, AI model, custom categories, and AI chat history per authenticated user
   - client keeps a local cache only for fast bootstrap/theme hydration
 - **Custom i18n layer:**
   - `src/i18n/config.ts`

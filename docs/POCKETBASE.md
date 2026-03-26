@@ -46,6 +46,8 @@ Browser -> Next.js API routes -> PocketBase
   - insurance/stocks/personal funds: manual value (`amount`)
   - crypto: `quantity * live USD quote * FX rate`
 - Per-user settings, custom categories, and AI chat history are stored in `user_preferences` via `/api/preferences`.
+- `user_preferences` now carries settings such as `language`, `currency`, `currencySign`, `aiModel`, `theme`, `customCategories`, and `chatHistory`.
+- `transactions` can carry `tripId` plus `sharedGroupExpense` for trip-linked pooled friend-group spend.
 
 ## Schema and Migrations
 
@@ -57,6 +59,9 @@ Migration files:
 - `pb_migrations/1774500000_savings_assets_collection.js`
 - `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
 - `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
+- `pb_migrations/1774800000_trip_group_fund_fields.js`
+- `pb_migrations/1774900000_add_currency_sign_to_preferences.js`
+- `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
 
 Purpose summary:
 
@@ -66,6 +71,9 @@ Purpose summary:
 - `1774500000`: adds `savings_assets` (`insurance`, `crypto`, `stocks`)
 - `1774600000`: adds optional `symbol` field in `savings_assets` for live crypto ticker mapping
 - `1774700000`: adds `user_preferences` and extends `savings_assets.type` with `personal_funds`
+- `1774800000`: adds `trips.groupName`, `trips.groupSize`, and `trips.groupFund`
+- `1774900000`: adds `user_preferences.currencySign`
+- `1775000000`: adds `transactions.sharedGroupExpense`
 
 Expected collections:
 
@@ -191,6 +199,18 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - `savings_goals`
    - `savings_assets`
    - `user_preferences`
+
+### Settings or shared trip metadata not persisting
+
+1. Confirm latest migrations are applied:
+   - `1774800000_trip_group_fund_fields.js`
+   - `1774900000_add_currency_sign_to_preferences.js`
+   - `1775000000_add_shared_group_expense_to_transactions.js`
+2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase if running in Kubernetes.
+3. In PocketBase Admin, verify:
+   - `trips` has `groupName`, `groupSize`, `groupFund`
+   - `user_preferences` has `currencySign`
+   - `transactions` has `sharedGroupExpense`
 
 ### App login works but data save fails
 

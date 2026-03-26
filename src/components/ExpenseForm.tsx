@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { format } from 'date-fns'
-import { Sparkles, Wand2, Plane } from 'lucide-react'
+import { Sparkles, Wand2, Plane, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,20 +33,25 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
   const [description, setDescription] = useState(initialData?.description || '')
   const [date, setDate] = useState(initialData?.date || format(new Date(), 'yyyy-MM-dd'))
   const [tripId, setTripId] = useState(initialData?.tripId || '')
+  const [sharedGroupExpense, setSharedGroupExpense] = useState(initialData?.sharedGroupExpense === true)
   const [isSuggesting, setIsSuggesting] = useState(false)
   
   const language = getLanguage()
+  const selectedTrip = trips.find((trip) => trip.id === tripId)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || !category || isSubmitting) return
+
+    const normalizedTripId = tripId.trim()
 
     onSubmit({
       amount: parseFloat(amount),
       category: category as Category,
       description,
       date,
-      tripId: tripId || undefined
+      tripId: normalizedTripId,
+      sharedGroupExpense: normalizedTripId ? sharedGroupExpense : false,
     })
   }
 
@@ -269,7 +274,16 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                   <Plane className="h-3.5 w-3.5 text-muted-foreground" />
                   {t('expense.selectTrip')}
                 </Label>
-                <Select value={tripId} onValueChange={(v) => setTripId(v || '')}>
+                <Select
+                  value={tripId || 'none'}
+                  onValueChange={(value) => {
+                    const nextTripId = value === 'none' ? '' : value || ''
+                    setTripId(nextTripId)
+                    if (!nextTripId) {
+                      setSharedGroupExpense(false)
+                    }
+                  }}
+                >
                   <SelectTrigger className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
                     <SelectValue placeholder={t('expense.selectTrip')} />
                   </SelectTrigger>
@@ -280,6 +294,35 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {selectedTrip && (
+              <div className="space-y-2 rounded-xl border border-border/40 bg-muted/15 p-4">
+                <Label htmlFor="trip-expense-scope" className="flex items-center gap-1.5 text-sm font-medium">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  Trip Expense Scope
+                </Label>
+                <Select
+                  value={sharedGroupExpense ? 'shared-group' : 'personal'}
+                  onValueChange={(value) => setSharedGroupExpense(value === 'shared-group')}
+                >
+                  <SelectTrigger
+                    id="trip-expense-scope"
+                    className="rounded-xl border-border/60 bg-background/80 transition-all focus:bg-background"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="personal">Personal</SelectItem>
+                    <SelectItem value="shared-group">Shared Friend Group</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {sharedGroupExpense
+                    ? `This expense will count toward ${selectedTrip.groupName || 'the shared friend group fund'} for ${selectedTrip.name}.`
+                    : `This expense stays as your personal cost inside ${selectedTrip.name}.`}
+                </p>
               </div>
             )}
 

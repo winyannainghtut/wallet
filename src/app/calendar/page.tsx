@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useApp } from '@/contexts/AppContext'
 import { t, getLanguage } from '@/i18n/config'
 import { Category, Subscription, getCategoryLabel } from '@/types'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 const CATEGORY_COLORS: Record<Category, string> = {
   groceries: 'bg-green-500',
@@ -86,6 +87,7 @@ function isSubscriptionDueOnDay(subscription: Subscription, day: Date, startDate
 export default function CalendarPage() {
   const { expenses, incomes, subscriptions, trips, settings } = useApp()
   const language = getLanguage()
+  const displayCurrency = getCurrencyDisplayLabel(settings)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
 
@@ -379,20 +381,20 @@ export default function CalendarPage() {
                     <TrendingDown className="h-3.5 w-3.5" />
                     {t('reports.totalExpenses')}
                   </div>
-                  <span className="font-semibold tabular-nums">{monthlyExpenseTotal.toLocaleString()} {settings.currency}</span>
+                  <span className="font-semibold tabular-nums">{monthlyExpenseTotal.toLocaleString()} {displayCurrency}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <TrendingUp className="h-3.5 w-3.5" />
                     {t('reports.monthlyIncome')}
                   </div>
-                  <span className="font-semibold tabular-nums text-emerald-600">{monthlyIncomeTotal.toLocaleString()} {settings.currency}</span>
+                  <span className="font-semibold tabular-nums text-emerald-600">{monthlyIncomeTotal.toLocaleString()} {displayCurrency}</span>
                 </div>
               </div>
               <div className="rounded-lg border border-border/40 bg-background/70 px-3 py-2">
                 <p className="text-xs text-muted-foreground">{t('reports.netSavings')}</p>
                 <p className={`text-xl font-bold tabular-nums ${monthlyNetSavings >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                  {Math.round(monthlyNetSavings).toLocaleString()} {settings.currency}
+                  {Math.round(monthlyNetSavings).toLocaleString()} {displayCurrency}
                 </p>
               </div>
             </CardContent>
@@ -420,16 +422,16 @@ export default function CalendarPage() {
                     <div className="grid grid-cols-1 gap-2 border-b border-border/40 pb-3 sm:grid-cols-3">
                       <div className="rounded-md border border-border/40 px-2 py-1.5">
                         <p className="text-[11px] uppercase text-muted-foreground">{t('reports.totalExpenses')}</p>
-                        <p className="text-sm font-semibold tabular-nums">{selectedExpenseTotal.toLocaleString()} {settings.currency}</p>
+                        <p className="text-sm font-semibold tabular-nums">{selectedExpenseTotal.toLocaleString()} {displayCurrency}</p>
                       </div>
                       <div className="rounded-md border border-border/40 px-2 py-1.5">
                         <p className="text-[11px] uppercase text-muted-foreground">{t('reports.monthlyIncome')}</p>
-                        <p className="text-sm font-semibold tabular-nums text-emerald-600">{selectedIncomeTotal.toLocaleString()} {settings.currency}</p>
+                        <p className="text-sm font-semibold tabular-nums text-emerald-600">{selectedIncomeTotal.toLocaleString()} {displayCurrency}</p>
                       </div>
                       <div className="rounded-md border border-border/40 px-2 py-1.5">
                         <p className="text-[11px] uppercase text-muted-foreground">{t('reports.netSavings')}</p>
                         <p className={`text-sm font-semibold tabular-nums ${selectedNetSavings >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                          {Math.round(selectedNetSavings).toLocaleString()} {settings.currency}
+                          {Math.round(selectedNetSavings).toLocaleString()} {displayCurrency}
                         </p>
                       </div>
                     </div>
@@ -445,7 +447,7 @@ export default function CalendarPage() {
                             </span>
                           </div>
                           <span className="text-sm font-semibold tabular-nums">
-                            {amount.toLocaleString()} {settings.currency}
+                            {amount.toLocaleString()} {displayCurrency}
                           </span>
                         </div>
                       ))}

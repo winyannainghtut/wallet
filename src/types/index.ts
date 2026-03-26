@@ -82,6 +82,7 @@ export interface Expense {
   createdAt: string // ISO timestamp
   updatedAt?: string
   tripId?: string
+  sharedGroupExpense?: boolean
 }
 
 export interface Income {
@@ -155,7 +156,21 @@ export interface Trip {
   endDate: string
   budget?: number
   destinations?: string
+  groupName?: string
+  groupSize?: number
+  groupFund?: number
   createdAt: string
+}
+
+export interface TripMutationInput {
+  name: string
+  startDate: string
+  endDate: string
+  destinations?: string
+  budget?: number | null
+  groupName?: string
+  groupSize?: number | null
+  groupFund?: number | null
 }
 
 export type BillingCycle = 'monthly' | 'yearly' | 'weekly'
@@ -209,7 +224,8 @@ export interface CustomCategory {
 export interface AppSettings {
   language: 'en' | 'my'
   currency: string
-  aiModel?: 'glm-4.7' | 'glm-5'
+  currencySign?: string
+  aiModel?: 'glm-4.7' | 'glm-5' | 'glm-5-turbo'
   theme?: 'dark' | 'light' | 'blossom' | 'glowing-horizon'
 }
 

@@ -13,6 +13,7 @@ import { useApp } from '@/contexts/AppContext'
 import { getCryptoAssetSymbol, normalizeAssetSymbol, useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t } from '@/i18n/config'
 import { SavingsAsset, SavingsAssetType, SavingsGoal } from '@/types'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 type SavingsGoalApiRecord = {
   id?: string
@@ -88,6 +89,7 @@ const ASSET_TYPE_META: Record<SavingsAssetType, { label: string; icon: Component
 
 export default function SavingsPage() {
   const { incomes, monthlySummary, subscriptions, settings } = useApp()
+  const displayCurrency = getCurrencyDisplayLabel(settings)
   const [goals, setGoals] = useState<SavingsGoal[]>([])
   const [isGoalsLoading, setIsGoalsLoading] = useState(true)
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false)
@@ -417,7 +419,7 @@ export default function SavingsPage() {
           <CardContent>
             <div className="flex items-center gap-2 text-2xl font-bold tabular-nums text-emerald-600">
               <ArrowUpRight className="h-5 w-5" />
-              {Math.round(monthlyIncome).toLocaleString()} {settings.currency}
+              {Math.round(monthlyIncome).toLocaleString()} {displayCurrency}
             </div>
           </CardContent>
         </Card>
@@ -429,7 +431,7 @@ export default function SavingsPage() {
           <CardContent>
             <div className="flex items-center gap-2 text-2xl font-bold tabular-nums text-rose-600">
               <ArrowDownRight className="h-5 w-5" />
-              {Math.round(monthlyExpense).toLocaleString()} {settings.currency}
+              {Math.round(monthlyExpense).toLocaleString()} {displayCurrency}
             </div>
           </CardContent>
         </Card>
@@ -443,7 +445,7 @@ export default function SavingsPage() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold tabular-nums ${monthlySavings >= 0 ? 'text-primary' : 'text-destructive'}`}>
-              {Math.round(monthlySavings).toLocaleString()} {settings.currency}
+              {Math.round(monthlySavings).toLocaleString()} {displayCurrency}
             </div>
           </CardContent>
         </Card>
@@ -465,7 +467,7 @@ export default function SavingsPage() {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold tabular-nums ${adjustedSavingsPosition >= 0 ? 'text-primary' : 'text-destructive'}`}>
-              {Math.round(adjustedSavingsPosition).toLocaleString()} {settings.currency}
+              {Math.round(adjustedSavingsPosition).toLocaleString()} {displayCurrency}
             </div>
           </CardContent>
         </Card>
@@ -511,13 +513,13 @@ export default function SavingsPage() {
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">{t('savings.goalTarget')}</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(currentGoal.targetAmount).toLocaleString()} {settings.currency}
+                    {Math.round(currentGoal.targetAmount).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">{t('savings.goalSaved')}</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums text-primary">
-                    {Math.round(positiveMonthlySavings).toLocaleString()} {settings.currency}
+                    {Math.round(positiveMonthlySavings).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 px-4 py-3">
@@ -525,7 +527,7 @@ export default function SavingsPage() {
                     {goalReached ? t('savings.goalExceeded') : t('savings.goalRemaining')}
                   </p>
                   <p className={`mt-1 text-lg font-semibold tabular-nums ${goalReached ? 'text-primary' : 'text-muted-foreground'}`}>
-                    {Math.round(goalReached ? exceededAmount : remainingAmount).toLocaleString()} {settings.currency}
+                    {Math.round(goalReached ? exceededAmount : remainingAmount).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
               </div>
@@ -608,31 +610,31 @@ export default function SavingsPage() {
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">Total Assets</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(totalAssetValue).toLocaleString()} {settings.currency}
+                    {Math.round(totalAssetValue).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">Insurance</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(insuranceValue).toLocaleString()} {settings.currency}
+                    {Math.round(insuranceValue).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">Crypto</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(cryptoValue).toLocaleString()} {settings.currency}
+                    {Math.round(cryptoValue).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">Stocks</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(stocksValue).toLocaleString()} {settings.currency}
+                    {Math.round(stocksValue).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/50 px-4 py-3">
                   <p className="text-xs uppercase text-muted-foreground">Personal Saving Funds</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(personalFundsValue).toLocaleString()} {settings.currency}
+                    {Math.round(personalFundsValue).toLocaleString()} {displayCurrency}
                   </p>
                 </div>
               </div>
@@ -690,7 +692,7 @@ export default function SavingsPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <p className="font-semibold tabular-nums">
-                            {Math.round(portfolioAsset.currentValue).toLocaleString()} {settings.currency}
+                            {Math.round(portfolioAsset.currentValue).toLocaleString()} {displayCurrency}
                           </p>
                           <Button variant="ghost" size="icon" onClick={() => openEditAssetDialog(asset)} className="h-8 w-8 rounded-lg">
                             <Edit2 className="h-4 w-4" />
@@ -743,7 +745,7 @@ export default function SavingsPage() {
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {Math.round(goal.targetAmount).toLocaleString()} {settings.currency}
+                    {Math.round(goal.targetAmount).toLocaleString()} {displayCurrency}
                   </p>
                   {goal.note && (
                     <p className="text-xs text-muted-foreground">{goal.note}</p>
@@ -781,7 +783,7 @@ export default function SavingsPage() {
               {t('savings.subscriptionCost')}
             </div>
             <div className="font-semibold tabular-nums">
-              {Math.round(monthlySubscriptionCost).toLocaleString()} {settings.currency}
+              {Math.round(monthlySubscriptionCost).toLocaleString()} {displayCurrency}
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -906,7 +908,7 @@ export default function SavingsPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>{assetForm.type === 'crypto' ? 'Crypto Quantity' : `Amount (${settings.currency})`}</Label>
+              <Label>{assetForm.type === 'crypto' ? 'Crypto Quantity' : `Amount (${displayCurrency})`}</Label>
               <Input
                 type="number"
                 min="0"

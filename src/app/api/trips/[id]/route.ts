@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { buildTripUpdatePayload, parseTripInput } from '@/lib/trips'
 
 type PocketBaseLikeError = {
   status?: number
@@ -54,6 +55,12 @@ async function clearTripReference(
   recordId: string
 ): Promise<boolean> {
   const payloads: Array<Record<string, unknown>> = [
+    { tripId: null, sharedGroupExpense: false },
+    { tripId: '', sharedGroupExpense: false },
+    { tripId: [], sharedGroupExpense: false },
+    { trip: null, sharedGroupExpense: false },
+    { trip: '', sharedGroupExpense: false },
+    { trip: [], sharedGroupExpense: false },
     { tripId: null },
     { tripId: '' },
     { tripId: [] },
@@ -153,7 +160,15 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const record = await pb.collection('trips').update(id, body)
+    const parsed = parseTripInput(body)
+    if (!parsed.data) {
+      return NextResponse.json(
+        { error: parsed.error || 'Invalid trip payload' },
+        { status: 400 }
+      )
+    }
+
+    const record = await pb.collection('trips').update(id, buildTripUpdatePayload(parsed.data))
 
     return NextResponse.json(record)
   } catch (error: unknown) {

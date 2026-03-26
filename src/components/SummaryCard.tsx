@@ -3,6 +3,8 @@
 import React from 'react'
 import { LucideIcon } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useApp } from '@/contexts/AppContext'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 interface SummaryCardProps {
   title: string
@@ -12,7 +14,10 @@ interface SummaryCardProps {
   currency?: string
 }
 
-export function SummaryCard({ title, amount, icon: Icon, subtitle, currency = 'SGD' }: SummaryCardProps) {
+export function SummaryCard({ title, amount, icon: Icon, subtitle, currency }: SummaryCardProps) {
+  const { settings } = useApp()
+  const resolvedCurrency = currency ?? getCurrencyDisplayLabel(settings)
+
   return (
     <Card className="group border-border/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -25,7 +30,7 @@ export function SummaryCard({ title, amount, icon: Icon, subtitle, currency = 'S
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold tracking-tight tabular-nums">
-          {amount.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{currency}</span>
+          {amount.toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{resolvedCurrency}</span>
         </div>
         {subtitle && (
           <p className="mt-1.5 text-xs text-muted-foreground">{subtitle}</p>

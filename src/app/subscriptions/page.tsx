@@ -13,10 +13,12 @@ import { CATEGORIES, Subscription, BillingCycle, Category, getCategoryLabel } fr
 import { useApp } from '@/contexts/AppContext'
 import { t, getLanguage } from '@/i18n/config'
 import { format } from 'date-fns'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 export default function SubscriptionsPage() {
   const { subscriptions, addSubscription, updateSubscription, deleteSubscription, settings } = useApp()
   const language = getLanguage()
+  const displayCurrency = getCurrencyDisplayLabel(settings)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingSub, setEditingSub] = useState<Subscription | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -111,7 +113,7 @@ export default function SubscriptionsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold tabular-nums">
-                {Math.round(totalMonthly).toLocaleString()} <span className="text-lg font-semibold text-muted-foreground">{settings.currency}</span>
+                {Math.round(totalMonthly).toLocaleString()} <span className="text-lg font-semibold text-muted-foreground">{displayCurrency}</span>
               </div>
             </CardContent>
           </Card>
@@ -149,7 +151,7 @@ export default function SubscriptionsPage() {
                     <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto mt-2 sm:mt-0">
                       <div className="text-left sm:text-right">
                         <div className={`text-lg font-bold tabular-nums ${sub.isActive ? '' : 'opacity-50 line-through'}`}>
-                          {sub.amount.toLocaleString()} <span className="text-sm font-semibold text-muted-foreground">{settings.currency}</span>
+                          {sub.amount.toLocaleString()} <span className="text-sm font-semibold text-muted-foreground">{displayCurrency}</span>
                         </div>
                         <div className={`text-xs font-medium flex items-center gap-1 mt-0.5 ${sub.isActive ? 'text-green-500' : 'text-muted-foreground'}`}>
                           {sub.isActive ? <CheckCircle2 className="h-3 w-3" /> : <PauseCircle className="h-3 w-3" />}
@@ -193,7 +195,7 @@ export default function SubscriptionsPage() {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>{t('subscriptions.amount')} ({settings.currency})</Label>
+                <Label>{t('subscriptions.amount')} ({displayCurrency})</Label>
                 <Input
                   type="number"
                   value={subForm.amount || ''}

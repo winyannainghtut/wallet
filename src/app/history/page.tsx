@@ -13,16 +13,18 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { useApp } from '@/contexts/AppContext'
 import { CATEGORIES, Expense, getCategoryLabel } from '@/types'
 import { t, getLanguage } from '@/i18n/config'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 export default function HistoryPage() {
-  const { expenses, deleteExpense, updateExpense } = useApp()
+  const { expenses, deleteExpense, updateExpense, settings } = useApp()
   const language = getLanguage()
+  const displayCurrency = getCurrencyDisplayLabel(settings)
 
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [category, setCategory] = useState<string>('all')
   const [search, setSearch] = useState('')
-  
+
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
@@ -30,19 +32,19 @@ export default function HistoryPage() {
   let filteredExpenses = [...expenses]
 
   if (startDate) {
-    filteredExpenses = filteredExpenses.filter(e => e.date >= startDate)
+    filteredExpenses = filteredExpenses.filter((expense) => expense.date >= startDate)
   }
   if (endDate) {
-    filteredExpenses = filteredExpenses.filter(e => e.date <= endDate)
+    filteredExpenses = filteredExpenses.filter((expense) => expense.date <= endDate)
   }
   if (category !== 'all') {
-    filteredExpenses = filteredExpenses.filter(e => e.category === category)
+    filteredExpenses = filteredExpenses.filter((expense) => expense.category === category)
   }
   if (search) {
     const searchLower = search.toLowerCase()
-    filteredExpenses = filteredExpenses.filter(e =>
-      e.description.toLowerCase().includes(searchLower) ||
-      e.category.toLowerCase().includes(searchLower)
+    filteredExpenses = filteredExpenses.filter((expense) =>
+      expense.description.toLowerCase().includes(searchLower) ||
+      expense.category.toLowerCase().includes(searchLower)
     )
   }
 
@@ -55,7 +57,7 @@ export default function HistoryPage() {
     setSearch('')
   }
 
-  const hasFilters = !!(startDate || endDate || category !== 'all' || search)
+  const hasFilters = Boolean(startDate || endDate || category !== 'all' || search)
   const filteredTotal = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
 
   const handleEdit = (expense: Expense) => {
@@ -65,6 +67,7 @@ export default function HistoryPage() {
 
   const handleSave = async (data: Omit<Expense, 'id' | 'createdAt'>) => {
     if (!editingExpense) return
+
     setIsUpdating(true)
     try {
       await updateExpense(editingExpense.id, data)
@@ -158,7 +161,8 @@ export default function HistoryPage() {
       <div className="flex items-center gap-3 rounded-xl border border-border/40 bg-card/80 px-4 py-3 backdrop-blur-sm">
         <div className="h-2 w-2 rounded-full bg-primary/60" />
         <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{filteredExpenses.length}</span> expenses · {t('common.total')}: <span className="font-bold tabular-nums text-foreground">{filteredTotal.toLocaleString()} SGD</span>
+          <span className="font-medium text-foreground">{filteredExpenses.length}</span> expenses | {t('common.total')}:{' '}
+          <span className="font-bold tabular-nums text-foreground">{filteredTotal.toLocaleString()} {displayCurrency}</span>
         </p>
       </div>
 
@@ -167,10 +171,11 @@ export default function HistoryPage() {
         onDelete={deleteExpense}
         onEdit={handleEdit}
         showDate
+        currency={displayCurrency}
       />
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] p-0 border-none bg-transparent overflow-hidden">
+        <DialogContent className="sm:max-w-[500px] overflow-hidden border-none bg-transparent p-0">
           <div className="p-1">
             {editingExpense && (
               <ExpenseForm

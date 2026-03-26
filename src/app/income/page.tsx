@@ -11,10 +11,12 @@ import { useApp } from '@/contexts/AppContext'
 import { getLanguage, t } from '@/i18n/config'
 import { Income, getIncomeCategoryLabel } from '@/types'
 import { IncomeForm } from '@/components/IncomeForm'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 export default function IncomePage() {
   const language = getLanguage()
   const { incomes, addIncome, updateIncome, deleteIncome, settings } = useApp()
+  const displayCurrency = getCurrencyDisplayLabel(settings)
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -111,7 +113,7 @@ export default function IncomePage() {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold tabular-nums">
-              {Math.round(monthlyIncome).toLocaleString()} <span className="text-lg font-semibold text-muted-foreground">{settings.currency}</span>
+              {Math.round(monthlyIncome).toLocaleString()} <span className="text-lg font-semibold text-muted-foreground">{displayCurrency}</span>
             </p>
           </CardContent>
         </Card>
@@ -156,7 +158,7 @@ export default function IncomePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="font-bold tabular-nums text-primary">
-                    +{item.amount.toLocaleString()} {settings.currency}
+                    +{item.amount.toLocaleString()} {displayCurrency}
                   </p>
                   <Button variant="ghost" size="icon" onClick={() => openEditDialog(item)} className="h-8 w-8 rounded-lg">
                     <Edit2 className="h-4 w-4" />

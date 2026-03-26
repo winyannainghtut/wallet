@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { buildTripCreatePayload, parseTripInput } from '@/lib/trips'
 
 type PocketBaseLikeError = {
   message?: string
@@ -66,9 +67,16 @@ export async function POST(request: NextRequest) {
     const { pb, userId } = auth
 
     const body = await request.json()
+    const parsed = parseTripInput(body)
+    if (!parsed.data) {
+      return NextResponse.json(
+        { error: parsed.error || 'Invalid trip payload' },
+        { status: 400 }
+      )
+    }
 
     const record = await pb.collection('trips').create({
-      ...body,
+      ...buildTripCreatePayload(parsed.data),
       user: userId,
     })
 

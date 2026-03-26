@@ -6,6 +6,7 @@ import {
   Income,
   IncomeCategory,
   Trip,
+  TripMutationInput,
   Subscription,
   UserProfile,
   AppSettings,
@@ -36,7 +37,7 @@ import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-f
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
 import { useAuth } from '@/contexts/AuthContext'
 import { mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-expenses'
-import { DEFAULT_APP_SETTINGS, hasCustomAppSettings, normalizeAppSettings } from '@/lib/settings'
+import { DEFAULT_APP_SETTINGS, getDefaultCurrencySign, hasCustomAppSettings, normalizeAppSettings } from '@/lib/settings'
 import { fetchUserPreferences, updateUserPreferences } from '@/lib/preferences-client'
 
 function normalizeExpenseDate(rawDate: string): string {
@@ -60,6 +61,7 @@ type TransactionApiRecord = {
   created: string
   updated?: string
   tripId?: string
+  sharedGroupExpense?: boolean
   type?: 'income' | 'expense' | string
 }
 
@@ -68,8 +70,11 @@ type TripApiRecord = {
   name: string
   startDate: string
   endDate: string
-  budget?: number
-  destinations?: string
+  budget?: number | null
+  destinations?: string | null
+  groupName?: string | null
+  groupSize?: number | null
+  groupFund?: number | null
   created: string
 }
 
@@ -88,6 +93,10 @@ type SubscriptionApiRecord = {
 }
 
 function mapExpenseRecord(item: TransactionApiRecord): Expense {
+  const tripId = typeof item.tripId === 'string' && item.tripId.trim().length > 0
+    ? item.tripId
+    : undefined
+
   return {
     id: item.id,
     amount: item.amount,
@@ -96,7 +105,8 @@ function mapExpenseRecord(item: TransactionApiRecord): Expense {
     date: normalizeExpenseDate(item.date),
     createdAt: item.created,
     updatedAt: item.updated,
-    tripId: item.tripId,
+    tripId,
+    sharedGroupExpense: item.sharedGroupExpense === true,
   }
 }
 
@@ -118,8 +128,11 @@ function mapTripRecord(item: TripApiRecord): Trip {
     name: item.name,
     startDate: item.startDate,
     endDate: item.endDate,
-    budget: item.budget,
-    destinations: item.destinations,
+    budget: typeof item.budget === 'number' ? item.budget : undefined,
+    destinations: item.destinations || undefined,
+    groupName: item.groupName || undefined,
+    groupSize: typeof item.groupSize === 'number' ? item.groupSize : undefined,
+    groupFund: typeof item.groupFund === 'number' ? item.groupFund : undefined,
     createdAt: item.created,
   }
 }
@@ -167,8 +180,8 @@ interface AppContextType {
 
   // Trips
   trips: Trip[]
-  addTrip: (trip: Omit<Trip, 'id' | 'createdAt'>) => Promise<Trip>
-  updateTrip: (id: string, updates: Partial<Omit<Trip, 'id' | 'createdAt'>>) => Promise<Trip | null>
+  addTrip: (trip: TripMutationInput) => Promise<Trip>
+  updateTrip: (id: string, updates: TripMutationInput) => Promise<Trip | null>
   deleteTrip: (id: string) => Promise<boolean>
   refreshTrips: () => Promise<void>
 
@@ -235,8 +248,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   } : null
 
   const applyPreferenceSnapshot = useCallback((nextSettings: AppSettings, nextCustomCategories: CustomCategory[], nextChatHistory?: ReturnType<typeof getChatHistory>) => {
+    const cachedSettings = getSettings()
     const normalizedSettings = normalizeAppSettings(nextSettings)
-    const storedSettings = saveSettings(normalizedSettings)
+    const cachedDefaultCurrencySign = getDefaultCurrencySign(cachedSettings.currency)
+    const nextDefaultCurrencySign = getDefaultCurrencySign(normalizedSettings.currency)
+    const shouldPreserveCachedCurrencySign =
+      cachedSettings.currency === normalizedSettings.currency &&
+      cachedSettings.currencySign !== cachedDefaultCurrencySign &&
+      normalizedSettings.currencySign === nextDefaultCurrencySign
+
+    const resolvedSettings = shouldPreserveCachedCurrencySign
+      ? normalizeAppSettings({
+          ...normalizedSettings,
+          currencySign: cachedSettings.currencySign,
+        })
+      : normalizedSettings
+
+    const storedSettings = saveSettings(resolvedSettings)
     saveCustomCategories(nextCustomCategories)
     setI18nLanguage(storedSettings.language)
     setSettings(storedSettings)
@@ -499,6 +527,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Must be logged in to add expenses')
     }
 
+    const normalizedTripId =
+      typeof expense.tripId === 'string' && expense.tripId.trim().length > 0
+        ? expense.tripId.trim()
+        : ''
+
     const res = await fetch('/api/transactions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -508,7 +541,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         amount: expense.amount,
         description: expense.description,
         date: expense.date,
-        tripId: expense.tripId,
+        tripId: normalizedTripId,
+        sharedGroupExpense: normalizedTripId ? expense.sharedGroupExpense === true : false,
       }),
     })
 
@@ -528,10 +562,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Must be logged in to update expenses')
     }
 
+    const normalizedTripId =
+      typeof updates.tripId === 'string'
+        ? updates.tripId.trim()
+        : updates.tripId === undefined
+          ? undefined
+          : ''
+
+    const payload = {
+      ...updates,
+      ...(normalizedTripId !== undefined ? { tripId: normalizedTripId } : {}),
+      ...(normalizedTripId !== undefined
+        ? { sharedGroupExpense: normalizedTripId ? updates.sharedGroupExpense === true : false }
+        : {}),
+    }
+
     const res = await fetch(`/api/transactions/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body: JSON.stringify(payload),
     })
 
     if (!res.ok) {
@@ -638,7 +687,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [isAuthenticated])
 
   // Trip operations - PocketBase only (requires authentication)
-  const addTrip = useCallback(async (trip: Omit<Trip, 'id' | 'createdAt'>) => {
+  const addTrip = useCallback(async (trip: TripMutationInput) => {
     if (!isAuthenticated) {
       throw new Error('Must be logged in to add trips')
     }
@@ -659,7 +708,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return newTrip
   }, [isAuthenticated])
 
-  const updateTrip = useCallback(async (id: string, updates: Partial<Omit<Trip, 'id' | 'createdAt'>>) => {
+  const updateTrip = useCallback(async (id: string, updates: TripMutationInput) => {
     if (!isAuthenticated) {
       throw new Error('Must be logged in to update trips')
     }

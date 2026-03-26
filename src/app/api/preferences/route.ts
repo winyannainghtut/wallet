@@ -13,6 +13,7 @@ type PreferencesRecord = {
   user?: string
   language?: string
   currency?: string
+  currencySign?: string
   aiModel?: string
   theme?: string
   customCategories?: string
@@ -167,11 +168,26 @@ function serializePreferences(record: PreferencesRecord | null): PreferencesResp
     settings: normalizeAppSettings(record ? {
       language: record.language === 'my' ? 'my' : record.language === 'en' ? 'en' : undefined,
       currency: record.currency,
+      currencySign: record.currencySign,
       aiModel: record.aiModel as AppSettings['aiModel'],
       theme: record.theme as AppSettings['theme'],
     } : undefined),
     customCategories: parseCustomCategories(record?.customCategories),
     chatHistory: parseChatHistory(record?.chatHistory),
+  }
+}
+
+function buildPreferencesResponse(
+  settings: AppSettings,
+  customCategories: CustomCategory[],
+  chatHistory: PreferenceChatMessage[],
+  exists = true
+): PreferencesResponse {
+  return {
+    exists,
+    settings: normalizeAppSettings(settings),
+    customCategories,
+    chatHistory,
   }
 }
 
@@ -242,17 +258,22 @@ export async function PUT(request: NextRequest) {
       user: userId,
       language: nextSettings.language,
       currency: nextSettings.currency,
+      currencySign: nextSettings.currencySign,
       aiModel: nextSettings.aiModel,
       theme: nextSettings.theme,
       customCategories: JSON.stringify(nextCustomCategories),
       chatHistory: JSON.stringify(nextChatHistory),
     })
 
-    const record = existing
-      ? await pb.collection('user_preferences').update(existing.id, payload)
-      : await pb.collection('user_preferences').create(payload)
+    if (existing) {
+      await pb.collection('user_preferences').update(existing.id, payload)
+    } else {
+      await pb.collection('user_preferences').create(payload)
+    }
 
-    return NextResponse.json(serializePreferences(record as PreferencesRecord))
+    return NextResponse.json(
+      buildPreferencesResponse(nextSettings, nextCustomCategories, nextChatHistory)
+    )
   } catch (error: unknown) {
     if (isMissingCollectionContext(error)) {
       return NextResponse.json(

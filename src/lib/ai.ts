@@ -27,10 +27,8 @@ export type CategorySuggestion = {
   customCategoryName?: string
 }
 
-const ZAI_ALLOWED_MODELS = ['glm-4.7', 'glm-5'] as const
-const LEGACY_ZAI_MODEL_ALIASES: Record<string, (typeof ZAI_ALLOWED_MODELS)[number]> = {
-  'glm-5-turbo': 'glm-5',
-}
+const ZAI_ALLOWED_MODELS = ['glm-4.7', 'glm-5', 'glm-5-turbo'] as const
+const LEGACY_ZAI_MODEL_ALIASES: Partial<Record<string, (typeof ZAI_ALLOWED_MODELS)[number]>> = {}
 const ZAI_DEFAULT_MODEL = 'glm-5'
 const ZAI_DEFAULT_BASE_URL = 'https://api.z.ai/api/coding/paas/v4'
 const ZAI_BASE_URL = (process.env.ZAI_OPENAI_BASE_URL || process.env.NEXT_PUBLIC_ZAI_OPENAI_BASE_URL || ZAI_DEFAULT_BASE_URL).replace(/\/+$/, '')

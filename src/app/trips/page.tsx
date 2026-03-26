@@ -1,7 +1,17 @@
 'use client'
 
 import React, { useState } from 'react'
-import { PlusCircle, Search, Plane, Trash2, MapPin, Calendar as CalendarIcon, Wallet } from 'lucide-react'
+import {
+  PlusCircle,
+  Search,
+  Plane,
+  Trash2,
+  MapPin,
+  Calendar as CalendarIcon,
+  Wallet,
+  DollarSign,
+  Users,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,6 +20,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { useApp } from '@/contexts/AppContext'
 import { Trip } from '@/types'
 import { format, differenceInDays } from 'date-fns'
+import { getTripFinancialSummary } from '@/lib/trips'
+
+const amountFormatter = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 2,
+})
+
+function formatAmount(value: number): string {
+  return amountFormatter.format(value)
+}
 
 export default function TripsPage() {
   const { trips, addTrip, updateTrip, deleteTrip, expenses } = useApp()
@@ -18,12 +37,14 @@ export default function TripsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
 
-  // Form states
   const [name, setName] = useState('')
   const [destinations, setDestinations] = useState('')
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(new Date(Date.now() + 7 * 86400000), 'yyyy-MM-dd'))
   const [budget, setBudget] = useState('')
+  const [groupName, setGroupName] = useState('')
+  const [groupSize, setGroupSize] = useState('')
+  const [groupFund, setGroupFund] = useState('')
   const [search, setSearch] = useState('')
 
   const handleOpenModal = (trip?: Trip) => {
@@ -34,6 +55,9 @@ export default function TripsPage() {
       setStartDate(trip.startDate)
       setEndDate(trip.endDate)
       setBudget(trip.budget?.toString() || '')
+      setGroupName(trip.groupName || '')
+      setGroupSize(trip.groupSize?.toString() || '')
+      setGroupFund(trip.groupFund?.toString() || '')
     } else {
       setEditingTrip(null)
       setName('')
@@ -41,7 +65,11 @@ export default function TripsPage() {
       setStartDate(format(new Date(), 'yyyy-MM-dd'))
       setEndDate(format(new Date(Date.now() + 7 * 86400000), 'yyyy-MM-dd'))
       setBudget('')
+      setGroupName('')
+      setGroupSize('')
+      setGroupFund('')
     }
+
     setIsModalOpen(true)
   }
 
@@ -53,12 +81,42 @@ export default function TripsPage() {
     e.preventDefault()
     if (!name || !startDate || !endDate) return
 
+    const parsedBudget = budget.trim().length > 0 ? Number(budget) : null
+    const parsedGroupSize = groupSize.trim().length > 0 ? Number(groupSize) : null
+    const parsedGroupFund = groupFund.trim().length > 0 ? Number(groupFund) : null
+
+    if (Number.isNaN(parsedBudget) || (parsedBudget !== null && parsedBudget < 0)) {
+      alert('Budget must be a non-negative number')
+      return
+    }
+
+    if (
+      Number.isNaN(parsedGroupSize) ||
+      (parsedGroupSize !== null && (!Number.isInteger(parsedGroupSize) || parsedGroupSize < 2))
+    ) {
+      alert('Total travelers must be an integer of at least 2')
+      return
+    }
+
+    if (Number.isNaN(parsedGroupFund) || (parsedGroupFund !== null && parsedGroupFund < 0)) {
+      alert('Group fund must be a non-negative number')
+      return
+    }
+
+    if (new Date(`${endDate}T00:00:00`) < new Date(`${startDate}T00:00:00`)) {
+      alert('End date must be on or after start date')
+      return
+    }
+
     const tripData = {
-      name,
-      destinations,
+      name: name.trim(),
+      destinations: destinations.trim(),
       startDate,
       endDate,
-      budget: budget ? parseFloat(budget) : undefined
+      budget: parsedBudget,
+      groupName: groupName.trim(),
+      groupSize: parsedGroupSize,
+      groupFund: parsedGroupFund,
     }
 
     try {
@@ -95,10 +153,11 @@ export default function TripsPage() {
     }
   }
 
-  // Filter trips by search
-  const filteredTrips = trips.filter(t => 
-    t.name.toLowerCase().includes(search.toLowerCase()) || 
-    (t.destinations && t.destinations.toLowerCase().includes(search.toLowerCase()))
+  const normalizedSearch = search.toLowerCase()
+  const filteredTrips = trips.filter((trip) =>
+    trip.name.toLowerCase().includes(normalizedSearch) ||
+    (trip.destinations && trip.destinations.toLowerCase().includes(normalizedSearch)) ||
+    (trip.groupName && trip.groupName.toLowerCase().includes(normalizedSearch))
   )
 
   return (
@@ -106,7 +165,7 @@ export default function TripsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">Travel Trips</h1>
-          <p className="text-sm text-muted-foreground">Manage your trips and travel budgets</p>
+          <p className="text-sm text-muted-foreground">Manage your trips, budgets, and shared group funds</p>
         </div>
         <Button onClick={() => handleOpenModal()} className="rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-sm shadow-primary/20 hover:shadow-md hover:shadow-primary/25">
           <PlusCircle className="mr-2 h-4 w-4" />
@@ -117,11 +176,11 @@ export default function TripsPage() {
       {trips.length > 0 && (
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input 
-            placeholder="Search trips or destinations..." 
+          <Input
+            placeholder="Search trips, destinations, or group names..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 rounded-xl border-border/60 bg-card/60"
+            className="rounded-xl border-border/60 bg-card/60 pl-9"
           />
         </div>
       )}
@@ -133,9 +192,9 @@ export default function TripsPage() {
           </div>
           <h3 className="mb-2 text-lg font-semibold tracking-tight">No trips found</h3>
           <p className="mb-6 max-w-sm text-sm text-muted-foreground">
-            {trips.length === 0 
+            {trips.length === 0
               ? "You haven't added any trips yet. Create a trip to start tracking travel expenses separately."
-              : "No trips match your search criteria."}
+              : 'No trips match your search criteria.'}
           </p>
           {trips.length === 0 && (
             <Button onClick={() => handleOpenModal()} className="rounded-xl">
@@ -146,33 +205,36 @@ export default function TripsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredTrips.map(trip => {
-            const tripExpenses = expenses.filter(e => e.tripId === trip.id)
-            const totalSpend = tripExpenses.reduce((sum, e) => sum + e.amount, 0)
+          {filteredTrips.map((trip) => {
+            const tripExpenses = expenses.filter((expense) => expense.tripId === trip.id)
+            const sharedGroupExpenses = tripExpenses.filter((expense) => expense.sharedGroupExpense)
+            const totalSpend = tripExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+            const sharedGroupSpend = sharedGroupExpenses.reduce((sum, expense) => sum + expense.amount, 0)
             const days = Math.max(1, differenceInDays(new Date(trip.endDate), new Date(trip.startDate)) + 1)
-            
-            let progress = 0
-            if (trip.budget) {
-              progress = Math.min((totalSpend / trip.budget) * 100, 100)
-            }
-            const isOverBudget = trip.budget && totalSpend > trip.budget
+            const financialSummary = getTripFinancialSummary(trip, totalSpend, sharedGroupSpend)
 
             return (
-              <Card 
-                key={trip.id} 
-                className="group relative overflow-hidden transition-all hover:-translate-y-1 hover:shadow-md cursor-pointer border-border/40 hover:border-primary/30"
+              <Card
+                key={trip.id}
+                className="group relative cursor-pointer overflow-hidden border-border/40 transition-all hover:-translate-y-1 hover:border-primary/30 hover:shadow-md"
                 onClick={() => handleOpenModal(trip)}
               >
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-primary/[0.03] to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                
-                <CardHeader className="pb-3 border-b border-border/20 bg-muted/20">
+
+                <CardHeader className="border-b border-border/20 bg-muted/20 pb-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <CardTitle className="text-lg line-clamp-1">{trip.name}</CardTitle>
+                      <CardTitle className="line-clamp-1 text-lg">{trip.name}</CardTitle>
                       {trip.destinations && (
-                        <CardDescription className="flex items-center gap-1 mt-1 font-medium text-primary/80 line-clamp-1">
+                        <CardDescription className="mt-1 flex items-center gap-1 font-medium text-primary/80 line-clamp-1">
                           <MapPin className="h-3 w-3" />
                           {trip.destinations}
+                        </CardDescription>
+                      )}
+                      {trip.groupName && (
+                        <CardDescription className="mt-1 flex items-center gap-1 text-muted-foreground line-clamp-1">
+                          <Users className="h-3 w-3" />
+                          {trip.groupName}
                         </CardDescription>
                       )}
                     </div>
@@ -182,7 +244,7 @@ export default function TripsPage() {
                       size="icon"
                       aria-label="Delete trip"
                       disabled={deletingTripId === trip.id}
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0 -mt-1 -mr-1"
+                      className="-mr-1 -mt-1 h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                       onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => void handleDelete(trip.id, e)}
                     >
@@ -190,44 +252,130 @@ export default function TripsPage() {
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4 pb-2 space-y-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground bg-accent/20 px-3 py-1.5 rounded-lg w-max">
+                <CardContent className="space-y-4 pb-2 pt-4">
+                  <div className="flex w-max items-center gap-2 rounded-lg bg-accent/20 px-3 py-1.5 text-sm text-muted-foreground">
                     <CalendarIcon className="h-4 w-4 text-primary" />
                     {format(new Date(trip.startDate), 'MMM d, yyyy')} &rarr; {format(new Date(trip.endDate), 'MMM d')}
-                    <span className="opacity-50 mx-1">•</span>
+                    <span className="mx-1 opacity-50">&bull;</span>
                     <span className="font-medium text-foreground/80">{days} days</span>
                   </div>
 
                   <div className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Total Spend</span>
-                      <span className={`font-bold ${isOverBudget ? 'text-destructive' : ''}`}>
-                        {totalSpend.toLocaleString()}
+                      <span className={`font-bold ${financialSummary.isOverBudget ? 'text-destructive' : ''}`}>
+                        {formatAmount(totalSpend)}
                       </span>
                     </div>
-                    
-                    {trip.budget && (
+
+                    {financialSummary.hasBudget && typeof trip.budget === 'number' && (
                       <div className="space-y-1.5 pt-1">
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>Budget: {trip.budget.toLocaleString()}</span>
-                          <span>{progress.toFixed(0)}%</span>
+                          <span>Budget: {formatAmount(trip.budget)}</span>
+                          <span>{financialSummary.budgetProgress.toFixed(0)}%</span>
                         </div>
                         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
                           <div
                             className={`h-full rounded-full transition-all ${
-                              isOverBudget ? 'bg-destructive' 
-                                : progress > 85 ? 'bg-amber-500' 
-                                : 'bg-primary'
+                              financialSummary.isOverBudget
+                                ? 'bg-destructive'
+                                : financialSummary.budgetProgress > 85
+                                  ? 'bg-amber-500'
+                                  : 'bg-primary'
                             }`}
-                            style={{ width: `${progress}%` }}
+                            style={{ width: `${financialSummary.budgetProgress}%` }}
                           />
                         </div>
+                        {typeof financialSummary.remainingBudget === 'number' && (
+                          <p className={`text-xs ${financialSummary.remainingBudget < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {financialSummary.remainingBudget < 0 ? 'Over budget by ' : 'Budget left: '}
+                            {formatAmount(Math.abs(financialSummary.remainingBudget))}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
+
+                  {financialSummary.hasGroupSetup && (
+                    <div className="rounded-xl border border-primary/15 bg-primary/[0.04] p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary/80">
+                            <Users className="h-3.5 w-3.5" />
+                            Shared Group
+                          </p>
+                          <p className="mt-1 text-sm font-semibold">{trip.groupName || 'Shared Friend Group'}</p>
+                        </div>
+                        {typeof trip.groupSize === 'number' && (
+                          <span className="rounded-full bg-background/80 px-2.5 py-1 text-xs font-medium text-muted-foreground">
+                            {trip.groupSize} travelers
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div className="space-y-1">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Shared Spend</p>
+                          <p className="font-semibold">{formatAmount(financialSummary.sharedGroupSpend)}</p>
+                        </div>
+                        {typeof trip.groupFund === 'number' && (
+                          <div className="space-y-1">
+                            <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-muted-foreground">
+                              <DollarSign className="h-3 w-3" />
+                              Group Fund
+                            </p>
+                            <p className="font-semibold">{formatAmount(trip.groupFund)}</p>
+                          </div>
+                        )}
+                        {typeof financialSummary.remainingGroupFund === 'number' && (
+                          <div className="space-y-1">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Fund Left</p>
+                            <p className={`font-semibold ${financialSummary.remainingGroupFund < 0 ? 'text-destructive' : ''}`}>
+                              {formatAmount(financialSummary.remainingGroupFund)}
+                            </p>
+                          </div>
+                        )}
+                        {typeof financialSummary.perPersonSharedSpend === 'number' && (
+                          <div className="space-y-1">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Per Person Shared Spend</p>
+                            <p className="font-semibold">{formatAmount(financialSummary.perPersonSharedSpend)}</p>
+                          </div>
+                        )}
+                        {typeof financialSummary.perPersonFundTarget === 'number' && (
+                          <div className="space-y-1">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Fund Per Person</p>
+                            <p className="font-semibold">{formatAmount(financialSummary.perPersonFundTarget)}</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {typeof financialSummary.groupFundProgress === 'number' && (
+                        <div className="mt-3 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>Group fund usage</span>
+                            <span>{financialSummary.groupFundProgress.toFixed(0)}%</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-background/70">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                financialSummary.isOverGroupFund ? 'bg-destructive' : 'bg-primary'
+                              }`}
+                              style={{ width: `${financialSummary.groupFundProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
-                <CardFooter className="pt-2 pb-4 text-xs text-muted-foreground flex items-center justify-between border-t border-border/10">
+                <CardFooter className="flex items-center justify-between border-t border-border/10 pb-4 pt-2 text-xs text-muted-foreground">
                   <span>{tripExpenses.length} transactions</span>
+                  {(sharedGroupExpenses.length > 0 || typeof trip.groupSize === 'number') && (
+                    <div className="flex items-center gap-3">
+                      {sharedGroupExpenses.length > 0 && <span>{sharedGroupExpenses.length} shared group</span>}
+                      {typeof trip.groupSize === 'number' && <span>Split across {trip.groupSize}</span>}
+                    </div>
+                  )}
                 </CardFooter>
               </Card>
             )
@@ -236,53 +384,53 @@ export default function TripsPage() {
       )}
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>{editingTrip ? 'Edit Trip' : 'Create New Trip'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 py-2">
             <div className="space-y-2">
               <Label htmlFor="name">Trip Name *</Label>
-              <Input 
-                id="name" 
-                value={name} 
-                onChange={e => setName(e.target.value)} 
-                placeholder="e.g. Summer Vacation" 
-                required 
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Summer Vacation"
+                required
                 className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="destinations">Destination(s)</Label>
-              <Input 
-                id="destinations" 
-                value={destinations} 
-                onChange={e => setDestinations(e.target.value)} 
+              <Input
+                id="destinations"
+                value={destinations}
+                onChange={(e) => setDestinations(e.target.value)}
                 placeholder="e.g. Bali, Indonesia"
                 className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="start">Start Date *</Label>
-                <Input 
-                  id="start" 
-                  type="date" 
-                  value={startDate} 
-                  onChange={e => setStartDate(e.target.value)} 
+                <Input
+                  id="start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
                   required
                   className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="end">End Date *</Label>
-                <Input 
-                  id="end" 
-                  type="date" 
-                  value={endDate} 
-                  onChange={e => setEndDate(e.target.value)} 
+                <Input
+                  id="end"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                   required
                   className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
                 />
@@ -292,24 +440,81 @@ export default function TripsPage() {
             <div className="space-y-2">
               <Label htmlFor="budget">Total Budget (Optional)</Label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                  <Wallet className="w-4 h-4 text-muted-foreground" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <Input 
-                  id="budget" 
-                  type="number" 
+                <Input
+                  id="budget"
+                  type="number"
                   min="0"
                   step="1000"
-                  value={budget} 
-                  onChange={e => setBudget(e.target.value)} 
+                  value={budget}
+                  onChange={(e) => setBudget(e.target.value)}
                   placeholder="e.g. 500000"
-                  className="pl-9 rounded-xl border-border/60 bg-muted/20 focus:bg-background"
+                  className="rounded-xl border-border/60 bg-muted/20 pl-9 focus:bg-background"
                 />
               </div>
             </div>
 
+            <div className="space-y-4 rounded-2xl border border-border/50 bg-muted/15 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Shared Friend Group</p>
+                <p className="text-xs text-muted-foreground">
+                  Record one pooled fund for the whole trip and split total usage across the group.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="group-name">Group Name (Optional)</Label>
+                <Input
+                  id="group-name"
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
+                  placeholder="e.g. Bali Crew"
+                  className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="group-size">Total Travelers</Label>
+                  <Input
+                    id="group-size"
+                    type="number"
+                    min="2"
+                    step="1"
+                    value={groupSize}
+                    onChange={(e) => setGroupSize(e.target.value)}
+                    placeholder="e.g. 4"
+                    className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
+                  />
+                  <p className="text-[11px] text-muted-foreground">Include yourself in the count.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="group-fund">Group Fund</Label>
+                  <div className="relative">
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <Input
+                      id="group-fund"
+                      type="number"
+                      min="0"
+                      step="100"
+                      value={groupFund}
+                      onChange={(e) => setGroupFund(e.target.value)}
+                      placeholder="e.g. 8000"
+                      className="rounded-xl border-border/60 bg-muted/20 pl-9 focus:bg-background"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={handleCloseModal} className="rounded-xl">Cancel</Button>
+              <Button type="button" variant="outline" onClick={handleCloseModal} className="rounded-xl">
+                Cancel
+              </Button>
               <Button type="submit" disabled={isSaving} className="rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-sm">
                 {editingTrip ? 'Save Changes' : 'Create Trip'}
               </Button>

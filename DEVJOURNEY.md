@@ -1,5 +1,25 @@
 # Dev Journey - Wallet App
 
+## 2026-03-26
+
+### Completed
+
+- **Per-user settings upgrade:**
+  - Added user-selectable currency display sign while keeping currency code for FX/export logic.
+  - Synced settings persistence between local bootstrap cache and backend `user_preferences`.
+- **Trips shared expense upgrade:**
+  - Added `Shared Friend Group` option for trip-linked expenses.
+  - Group fund usage now counts only shared-group tagged trip expenses.
+  - Extended Excel import/export to round-trip shared trip expense metadata.
+- **AI model options refresh:**
+  - Re-enabled `glm-5-turbo` as a selectable AI model alongside `glm-5` and `glm-4.7`.
+- **Theme refresh:**
+  - Reworked Blossom theme palette and gradients.
+- **Backend/migration updates:**
+  - Added migrations for trip group fields, `user_preferences.currencySign`, and `transactions.sharedGroupExpense`.
+- **Documentation sync:**
+  - Updated README, setup guide, PocketBase setup, tech stack, and env docs for the latest app behavior.
+
 ## 2026-03-24
 
 ### Completed
@@ -104,6 +124,12 @@ Browser -> Next.js API routes -> PocketBase
 - `1774166000_wallet_schema.js`
 - `1774300000_income_savings_collections.js`
 - `1774301000_ensure_income_savings_collections.js`
+- `1774500000_savings_assets_collection.js`
+- `1774600000_add_symbol_to_savings_assets.js`
+- `1774700000_user_preferences_and_personal_funds.js`
+- `1774800000_trip_group_fund_fields.js`
+- `1774900000_add_currency_sign_to_preferences.js`
+- `1775000000_add_shared_group_expense_to_transactions.js`
 
 ## Next Practical Tasks
 
@@ -113,4 +139,4 @@ Browser -> Next.js API routes -> PocketBase
 
 ---
 
-Last updated: 2026-03-24
+Last updated: 2026-03-26

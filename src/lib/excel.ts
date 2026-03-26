@@ -14,6 +14,7 @@ import {
   getIncomeCategoryLabel,
 } from '@/types'
 import { format } from 'date-fns'
+import { getTripFinancialSummary } from '@/lib/trips'
 
 export type ExcelImportIssue = {
   level: 'warning' | 'error'
@@ -156,14 +157,27 @@ function buildFingerprint(
   date: string,
   amount: number,
   category: string,
-  description: string
+  description: string,
+  tripId?: string,
+  sharedGroupExpense?: boolean
 ): string {
   return [
     date,
     amount.toFixed(4),
     category.trim().toLowerCase(),
     description.trim().toLowerCase(),
+    (tripId || '').trim().toLowerCase(),
+    sharedGroupExpense ? 'shared-group' : 'personal',
   ].join('|')
+}
+
+function parseBooleanFlag(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value === 1
+  if (typeof value !== 'string') return false
+
+  const normalized = value.trim().toLowerCase()
+  return ['true', 'yes', 'y', '1', 'shared', 'shared-group', 'group'].includes(normalized)
 }
 
 function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
@@ -189,12 +203,20 @@ function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
     const rawCategory = getRowValue(row, ['Category Key', 'Category', 'category'])
     const rawDescription = getRowValue(row, ['Description', 'description'])
     const rawTripId = getRowValue(row, ['Trip ID', 'tripId', 'trip id'])
+    const rawSharedGroupExpense = getRowValue(row, [
+      'Shared Friend Group',
+      'sharedGroupExpense',
+      'shared group expense',
+      'shared group',
+      'trip expense scope',
+    ])
 
     const amount = parseAmount(rawAmount)
     const date = parseExcelDate(rawDate)
     const category = normalizeExpenseCategory(rawCategory)
     const description = String(rawDescription || '').trim()
     const tripId = String(rawTripId || '').trim()
+    const sharedGroupExpense = parseBooleanFlag(rawSharedGroupExpense)
 
     if (amount === null || amount <= 0) {
       skippedRows++
@@ -218,7 +240,7 @@ function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
       return
     }
 
-    const fingerprint = buildFingerprint(date, amount, category, description)
+    const fingerprint = buildFingerprint(date, amount, category, description, tripId, sharedGroupExpense)
     if (seen.has(fingerprint)) {
       duplicateRows++
       skippedRows++
@@ -239,6 +261,7 @@ function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
       description,
       date,
       tripId: tripId || undefined,
+      sharedGroupExpense: tripId ? sharedGroupExpense : undefined,
       createdAt: new Date().toISOString(),
     })
   })
@@ -343,6 +366,7 @@ export function exportToExcel(
     Amount: item.amount,
     Description: item.description,
     'Trip ID': item.tripId || '',
+    'Shared Friend Group': item.sharedGroupExpense ? 'Yes' : '',
     'Created At': item.createdAt,
     'Updated At': item.updatedAt || '',
   }))
@@ -360,8 +384,17 @@ export function exportToExcel(
   const summaryRows = [
     { Metric: 'Generated At', Value: format(new Date(), 'yyyy-MM-dd HH:mm:ss') },
     { Metric: 'Expense Rows', Value: expenseRows.length },
+    { Metric: 'Shared Group Expense Rows', Value: expenses.filter((item) => item.sharedGroupExpense).length },
     { Metric: 'Income Rows', Value: incomeRows.length },
     { Metric: 'Trip Rows', Value: trips.length },
+    {
+      Metric: 'Trips With Shared Group Setup',
+      Value: trips.filter((trip) => trip.groupName || typeof trip.groupSize === 'number' || typeof trip.groupFund === 'number').length,
+    },
+    {
+      Metric: 'Total Shared Group Fund',
+      Value: trips.reduce((sum, trip) => sum + (trip.groupFund ?? 0), 0),
+    },
   ]
   if (savingsSummary) {
     summaryRows.push(
@@ -448,6 +481,9 @@ export function exportToExcel(
     'End Date': trip.endDate,
     Budget: trip.budget ?? '',
     Destinations: trip.destinations ?? '',
+    'Group Name': trip.groupName ?? '',
+    'Total Travelers': trip.groupSize ?? '',
+    'Group Fund': trip.groupFund ?? '',
     'Created At': trip.createdAt,
   }))
 
@@ -457,13 +493,60 @@ export function exportToExcel(
     return acc
   }, {})
 
-  const tripNameById = new Map(trips.map((trip) => [trip.id, trip.name]))
-  const tripSummaryRows = Object.entries(tripSpendMap)
+  const sharedGroupTripSpendMap = expenses.reduce<Record<string, number>>((acc, expense) => {
+    if (!expense.tripId || !expense.sharedGroupExpense) return acc
+    acc[expense.tripId] = (acc[expense.tripId] || 0) + expense.amount
+    return acc
+  }, {})
+
+  const sharedGroupTripCountMap = expenses.reduce<Record<string, number>>((acc, expense) => {
+    if (!expense.tripId || !expense.sharedGroupExpense) return acc
+    acc[expense.tripId] = (acc[expense.tripId] || 0) + 1
+    return acc
+  }, {})
+
+  const tripSummaryRows = trips
+    .map((trip) => {
+      const totalExpense = tripSpendMap[trip.id] || 0
+      const sharedGroupExpense = sharedGroupTripSpendMap[trip.id] || 0
+      const financialSummary = getTripFinancialSummary(trip, totalExpense, sharedGroupExpense)
+
+      return {
+        'Trip ID': trip.id,
+        Name: trip.name,
+        'Total Expense': totalExpense,
+        'Shared Group Expense': sharedGroupExpense,
+        'Shared Group Transactions': sharedGroupTripCountMap[trip.id] || 0,
+        Budget: trip.budget ?? '',
+        'Budget Left': financialSummary.remainingBudget ?? '',
+        'Group Name': trip.groupName ?? '',
+        'Total Travelers': trip.groupSize ?? '',
+        'Group Fund': trip.groupFund ?? '',
+        'Group Fund Left': financialSummary.remainingGroupFund ?? '',
+        'Per Person Shared Spend': financialSummary.perPersonSharedSpend ?? '',
+        'Fund Per Person': financialSummary.perPersonFundTarget ?? '',
+      }
+    })
+    .sort((a, b) => Number(b['Total Expense']) - Number(a['Total Expense']))
+
+  const linkedTripIds = new Set(trips.map((trip) => trip.id))
+  const orphanTripSummaryRows = Object.entries(tripSpendMap)
+    .filter(([tripId]) => !linkedTripIds.has(tripId))
     .sort((a, b) => b[1] - a[1])
     .map(([tripId, total]) => ({
       'Trip ID': tripId,
-      Name: tripNameById.get(tripId) || '(Unlinked)',
+      Name: '(Unlinked)',
       'Total Expense': total,
+      'Shared Group Expense': sharedGroupTripSpendMap[tripId] || '',
+      'Shared Group Transactions': sharedGroupTripCountMap[tripId] || '',
+      Budget: '',
+      'Budget Left': '',
+      'Group Name': '',
+      'Total Travelers': '',
+      'Group Fund': '',
+      'Group Fund Left': '',
+      'Per Person Shared Spend': '',
+      'Fund Per Person': '',
     }))
 
   const wb = XLSX.utils.book_new()
@@ -476,6 +559,7 @@ export function exportToExcel(
     { wch: 14 },
     { wch: 40 },
     { wch: 20 },
+    { wch: 18 },
     { wch: 22 },
     { wch: 22 },
   ]
@@ -505,7 +589,18 @@ export function exportToExcel(
   const tripsWs = XLSX.utils.json_to_sheet(
     tripRows.length > 0
       ? tripRows
-      : [{ 'Trip ID': '-', Name: 'No trips', 'Start Date': '', 'End Date': '', Budget: '', Destinations: '', 'Created At': '' }]
+      : [{
+        'Trip ID': '-',
+        Name: 'No trips',
+        'Start Date': '',
+        'End Date': '',
+        Budget: '',
+        Destinations: '',
+        'Group Name': '',
+        'Total Travelers': '',
+        'Group Fund': '',
+        'Created At': '',
+      }]
   )
   tripsWs['!cols'] = [
     { wch: 22 },
@@ -515,16 +610,43 @@ export function exportToExcel(
     { wch: 12 },
     { wch: 30 },
     { wch: 22 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 22 },
   ]
 
   const tripSummaryWs = XLSX.utils.json_to_sheet(
-    tripSummaryRows.length > 0
-      ? tripSummaryRows
-      : [{ 'Trip ID': '-', Name: 'No trip expenses', 'Total Expense': 0 }]
+    tripSummaryRows.length > 0 || orphanTripSummaryRows.length > 0
+      ? [...tripSummaryRows, ...orphanTripSummaryRows]
+      : [{
+        'Trip ID': '-',
+        Name: 'No trip expenses',
+        'Total Expense': 0,
+        'Shared Group Expense': 0,
+        'Shared Group Transactions': 0,
+        Budget: '',
+        'Budget Left': '',
+        'Group Name': '',
+        'Total Travelers': '',
+        'Group Fund': '',
+        'Group Fund Left': '',
+        'Per Person Shared Spend': '',
+        'Fund Per Person': '',
+      }]
   )
   tripSummaryWs['!cols'] = [
     { wch: 22 },
     { wch: 24 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
     { wch: 16 },
   ]
 
@@ -640,6 +762,7 @@ export function downloadTemplate(): void {
       Amount: 1000,
       Description: 'Example expense entry',
       'Trip ID': '',
+      'Shared Friend Group': '',
     },
   ]
 
@@ -675,6 +798,7 @@ export function downloadTemplate(): void {
     { wch: 14 },
     { wch: 40 },
     { wch: 20 },
+    { wch: 18 },
   ]
   withStandardSheetFormatting(expenseWs)
 

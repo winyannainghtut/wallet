@@ -8,9 +8,11 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
 - Expense tracking (categories, history, reports)
 - Income tracking
 - Savings page with monthly savings goal CRUD
-- Savings assets (insurance, crypto, stocks) with live crypto market price feed
+- Savings assets (insurance, crypto, stocks, personal saving funds) with live crypto market price feed
 - Crypto assets support quantity input and live conversion to app currency (for example SGD)
 - Trips and subscriptions persisted in PocketBase
+- Trip plans support shared friend-group setup, pooled group fund tracking, and per-expense `Shared Friend Group` tagging
+- User settings support custom currency display sign separate from the currency code used for FX/export
 - AI-assisted category suggestion for expenses with optional auto-create custom category flow
 - Excel import with validation and duplicate detection for expenses and incomes
 - Excel export with unified workbook for expenses, incomes, savings assets, trips, and category references
@@ -20,6 +22,7 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
   - net savings
 - English/Myanmar language support
 - AI assistant with Z.AI GLM (server-side key management)
+  - Selectable models: `glm-5`, `glm-5-turbo`, `glm-4.7`
   - Understands full financial context (expenses, incomes, savings, subscriptions)
   - Strict domain guarding (finance only) and forced Myanmar language output
   - Persistent chat history across sessions
@@ -53,6 +56,7 @@ Data:
 - `/api/savings-assets`
 - `/api/savings-assets/[id]`
 - `/api/market/fx`
+- `/api/preferences`
 - `/api/trips`
 - `/api/trips/[id]`
 - `/api/subscriptions`
@@ -70,6 +74,7 @@ Import:
   - `Category Key` (or `Category`)
   - `Description`
   - `Trip ID` (expenses only)
+  - `Shared Friend Group` (expenses only, optional)
 - Invalid rows are skipped with issue reporting
 - Duplicate rows inside the same file are skipped automatically
 - Data is imported via API-backed context actions (no direct localStorage write for transactions)
@@ -85,6 +90,8 @@ Export:
   - `Trip Summary`
   - `Expense Categories`
   - `Income Categories`
+- `Expenses` sheet includes optional `Shared Friend Group` column for trip-linked shared expenses
+- `Trip Summary` includes shared-group metrics such as shared spend, shared-group transaction count, group fund left, and per-person shared spend
 - Export includes built-in categories plus custom categories detected from settings and data
 - Template download filename: `wallet_import_template.xlsx`
 
@@ -138,7 +145,7 @@ ZAI_API_KEYS_JSON={"admin@wallet.local":"sk-xxx","user2@wallet.local":"sk-yyy"}
 # ZAI_API_KEY=sk-fallback
 ```
 
-Settings page now allows **model selection only** (`glm-5`, `glm-4.7`).
+Settings page now allows **model selection only** (`glm-5`, `glm-5-turbo`, `glm-4.7`).
 API keys are never stored in browser/localStorage.
 
 ### 6) Control registration (internal use)
@@ -165,6 +172,10 @@ Managed migration files:
 - `pb_migrations/1774301000_ensure_income_savings_collections.js` (repair migration)
 - `pb_migrations/1774500000_savings_assets_collection.js`
 - `pb_migrations/1774600000_add_symbol_to_savings_assets.js` (adds optional `symbol` for live crypto ticker)
+- `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
+- `pb_migrations/1774800000_trip_group_fund_fields.js`
+- `pb_migrations/1774900000_add_currency_sign_to_preferences.js`
+- `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
 
 Expected collections:
 
@@ -173,6 +184,7 @@ Expected collections:
 - `incomes`
 - `savings_goals`
 - `savings_assets`
+- `user_preferences`
 - `trips`
 - `subscriptions`
 

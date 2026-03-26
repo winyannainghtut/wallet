@@ -5,19 +5,24 @@ import { Trash2, Edit } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { useApp } from '@/contexts/AppContext'
 import { Expense, getCategoryLabel } from '@/types'
 import { format } from 'date-fns'
 import { t, getLanguage } from '@/i18n/config'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 interface ExpenseListProps {
   expenses: Expense[]
   onEdit?: (expense: Expense) => void
   onDelete?: (id: string) => void
   showDate?: boolean
+  currency?: string
 }
 
-export function ExpenseList({ expenses, onEdit, onDelete, showDate = true }: ExpenseListProps) {
+export function ExpenseList({ expenses, onEdit, onDelete, showDate = true, currency }: ExpenseListProps) {
   const language = getLanguage()
+  const { settings } = useApp()
+  const resolvedCurrency = currency ?? getCurrencyDisplayLabel(settings)
 
   if (expenses.length === 0) {
     return (
@@ -44,6 +49,11 @@ export function ExpenseList({ expenses, onEdit, onDelete, showDate = true }: Exp
                   <Badge variant="secondary" className="rounded-lg font-medium">
                     {getCategoryLabel(expense.category, language)}
                   </Badge>
+                  {expense.sharedGroupExpense && (
+                    <Badge variant="outline" className="rounded-lg border-primary/30 text-primary">
+                      Shared Friend Group
+                    </Badge>
+                  )}
                   {showDate && (
                     <span className="text-xs text-muted-foreground/80">
                       {format(new Date(expense.date), 'MMM dd, yyyy')}
@@ -58,7 +68,7 @@ export function ExpenseList({ expenses, onEdit, onDelete, showDate = true }: Exp
               </div>
               <div className="flex items-center justify-between gap-3 sm:justify-end">
                 <span className="text-base font-bold tabular-nums sm:text-lg">
-                  {expense.amount.toLocaleString()} <span className="text-xs font-medium text-muted-foreground">SGD</span>
+                  {expense.amount.toLocaleString()} <span className="text-xs font-medium text-muted-foreground">{resolvedCurrency}</span>
                 </span>
                 {(onEdit || onDelete) && (
                   <div className="flex gap-1 opacity-60 transition-opacity group-hover:opacity-100">

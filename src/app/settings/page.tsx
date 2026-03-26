@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { endOfMonth, format, startOfMonth } from 'date-fns'
-import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, User, Palette, Plus } from 'lucide-react'
+import { Download, Upload, Trash2, Key, Globe, FileSpreadsheet, User, Palette, Plus, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,9 +15,10 @@ import { clearAllData } from '@/lib/storage'
 import { exportToExcel, importFromExcel, downloadTemplate } from '@/lib/excel'
 import { t, Language } from '@/i18n/config'
 import { Expense, Income } from '@/types'
+import { getCurrencyDisplayLabel, getCurrencySignOptions } from '@/lib/settings'
 
 type NoticeType = 'success' | 'error'
-type AiModel = 'glm-4.7' | 'glm-5'
+type AiModel = 'glm-4.7' | 'glm-5' | 'glm-5-turbo'
 
 function normalizeDateKey(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -60,6 +61,7 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [aiModel, setAiModel] = useState<AiModel>((settings.aiModel as AiModel) || 'glm-5')
+  const [currencySignInput, setCurrencySignInput] = useState(getCurrencyDisplayLabel(settings))
   const [notice, setNotice] = useState<{ type: NoticeType; message: string } | null>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [latestImportIssues, setLatestImportIssues] = useState<string[]>([])
@@ -92,12 +94,35 @@ export default function SettingsPage() {
     setAiModel((settings.aiModel as AiModel) || 'glm-5')
   }, [settings.aiModel])
 
+  useEffect(() => {
+    setCurrencySignInput(
+      getCurrencyDisplayLabel({
+        currency: settings.currency,
+        currencySign: settings.currencySign,
+      })
+    )
+  }, [settings.currency, settings.currencySign])
+
   const showNotice = (type: NoticeType, message: string) => {
     setNotice({ type, message })
   }
 
-  const buildRowFingerprint = (date: string, amount: number, category: string, description: string) =>
-    `${date}|${amount.toFixed(4)}|${category.trim().toLowerCase()}|${description.trim().toLowerCase()}`
+  const buildRowFingerprint = (
+    date: string,
+    amount: number,
+    category: string,
+    description: string,
+    tripId?: string,
+    sharedGroupExpense?: boolean
+  ) =>
+    [
+      date,
+      amount.toFixed(4),
+      category.trim().toLowerCase(),
+      description.trim().toLowerCase(),
+      (tripId || '').trim().toLowerCase(),
+      sharedGroupExpense ? 'shared-group' : 'personal',
+    ].join('|')
 
   const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
     const chunks: T[][] = []
@@ -113,12 +138,26 @@ export default function SettingsPage() {
 
     const existing = new Set(
       expenses.map((item) =>
-        buildRowFingerprint(item.date, item.amount, item.category, item.description || '')
+        buildRowFingerprint(
+          item.date,
+          item.amount,
+          item.category,
+          item.description || '',
+          item.tripId,
+          item.sharedGroupExpense
+        )
       )
     )
 
     const uniqueItems = items.filter((item) => {
-      const fingerprint = buildRowFingerprint(item.date, item.amount, item.category, item.description || '')
+      const fingerprint = buildRowFingerprint(
+        item.date,
+        item.amount,
+        item.category,
+        item.description || '',
+        item.tripId,
+        item.sharedGroupExpense
+      )
       if (existing.has(fingerprint)) {
         return false
       }
@@ -135,6 +174,7 @@ export default function SettingsPage() {
             description: item.description,
             date: item.date,
             tripId: item.tripId,
+            sharedGroupExpense: item.sharedGroupExpense,
           })
         )
       )
@@ -197,6 +237,13 @@ export default function SettingsPage() {
     setAiModel(model)
     updateSettings({ aiModel: model })
     showNotice('success', t('settings.aiModelUpdated'))
+  }
+
+  const handleCurrencySignSave = (value: string) => {
+    const nextSign = value.trim() || settings.currency
+    updateSettings({ currencySign: nextSign })
+    setCurrencySignInput(nextSign)
+    showNotice('success', 'Currency sign updated.')
   }
 
   const handleExport = () => {
@@ -305,6 +352,7 @@ export default function SettingsPage() {
   }
 
   const sectionIconClass = "flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-accent/20"
+  const currencySignOptions = getCurrencySignOptions(settings.currency)
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -374,6 +422,76 @@ export default function SettingsPage() {
               <SelectItem value="my">{t('settings.myanmar')}</SelectItem>
             </SelectContent>
           </Select>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/40">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className={sectionIconClass}>
+              <Wallet className="h-3.5 w-3.5 text-primary" />
+            </span>
+            Currency Display
+          </CardTitle>
+          <CardDescription>
+            Currency code stays <span className="font-medium text-foreground">{settings.currency}</span> for FX, crypto conversion, and export. Currency sign only changes how amounts look in the UI.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/20 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Active Currency Code</p>
+              <p className="text-xs text-muted-foreground">Used by live market conversion and exports</p>
+            </div>
+            <span className="rounded-full bg-background px-3 py-1 text-sm font-semibold">
+              {settings.currency}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="currency-sign">Currency Sign</Label>
+            <Input
+              id="currency-sign"
+              value={currencySignInput}
+              maxLength={8}
+              onChange={(e) => setCurrencySignInput(e.target.value)}
+              onBlur={(e) => handleCurrencySignSave(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleCurrencySignSave(currencySignInput)
+                }
+              }}
+              placeholder={settings.currency}
+              className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background sm:w-56"
+            />
+            <p className="text-xs text-muted-foreground">
+              Preview: 1,250 {currencySignInput.trim() || settings.currency}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Quick Select</Label>
+            <div className="flex flex-wrap gap-2">
+              {currencySignOptions.map((option) => {
+                const active = (currencySignInput.trim() || settings.currency) === option
+                return (
+                  <Button
+                    key={option}
+                    type="button"
+                    variant="outline"
+                    className={[
+                      'rounded-full border-border/60 px-3',
+                      active ? 'border-primary bg-primary/10 text-primary' : '',
+                    ].join(' ')}
+                    onClick={() => handleCurrencySignSave(option)}
+                  >
+                    {option}
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -492,6 +610,7 @@ export default function SettingsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="glm-5">GLM-5</SelectItem>
+                <SelectItem value="glm-5-turbo">GLM-5 Turbo</SelectItem>
                 <SelectItem value="glm-4.7">GLM-4.7</SelectItem>
               </SelectContent>
             </Select>
@@ -539,7 +658,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="rounded-xl border border-border/40 bg-muted/30 p-3 text-xs text-muted-foreground">
-            Supports expense and income import. Headers supported: `Date`, `Amount`, `Type`, `Category`, `Description`, `Trip ID`.
+            Supports expense and income import. Headers supported: `Date`, `Amount`, `Type`, `Category`, `Description`, `Trip ID`, `Shared Friend Group`.
             Duplicate rows in the same file are skipped automatically.
           </div>
           {latestImportIssues.length > 0 && (

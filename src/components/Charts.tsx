@@ -2,9 +2,11 @@
 
 import React, { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { useApp } from '@/contexts/AppContext'
 import { Category, DailySummary, WeeklySummary, Expense, Income, getCategoryLabel } from '@/types'
 import { format, parseISO, startOfWeek, endOfWeek, subDays, subWeeks, subMonths, isWithinInterval, startOfMonth, endOfMonth, isValid } from 'date-fns'
 import { getLanguage, t } from '@/i18n/config'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 // Refined color palette — harmonious and modern
 const COLORS: Record<string, string> = {
@@ -104,7 +106,9 @@ interface DailyBarChartProps {
   detailsByDate?: Record<string, { expense: number; subscription: number; income?: number; count: number }>
 }
 
-export function DailyBarChart({ data, title, currency = 'SGD', detailsByDate }: DailyBarChartProps) {
+export function DailyBarChart({ data, title, currency, detailsByDate }: DailyBarChartProps) {
+  const { settings } = useApp()
+  const resolvedCurrency = currency ?? getCurrencyDisplayLabel(settings)
   const maxValue = Math.max(...data.map(d => d.total), 1)
 
   if (data.every(d => d.total === 0)) {
@@ -136,11 +140,11 @@ export function DailyBarChart({ data, title, currency = 'SGD', detailsByDate }: 
             const netAmount = incomeAmount - d.total
             const itemCount = details?.count ?? d.count
             const tooltip = [
-              `${d.total.toLocaleString()} ${currency}`,
-              `Expense: ${expenseAmount.toLocaleString()} ${currency}`,
-              `Subscription: ${subscriptionAmount.toLocaleString()} ${currency}`,
-              `Income: ${incomeAmount.toLocaleString()} ${currency}`,
-              `Net: ${netAmount.toLocaleString()} ${currency}`,
+              `${d.total.toLocaleString()} ${resolvedCurrency}`,
+              `Expense: ${expenseAmount.toLocaleString()} ${resolvedCurrency}`,
+              `Subscription: ${subscriptionAmount.toLocaleString()} ${resolvedCurrency}`,
+              `Income: ${incomeAmount.toLocaleString()} ${resolvedCurrency}`,
+              `Net: ${netAmount.toLocaleString()} ${resolvedCurrency}`,
               `Items: ${itemCount}`,
             ].join('\n')
             return (
@@ -173,9 +177,12 @@ export function DailyBarChart({ data, title, currency = 'SGD', detailsByDate }: 
 interface WeeklyTrendChartProps {
   data: WeeklySummary[]
   title: string
+  currency?: string
 }
 
-export function WeeklyTrendChart({ data, title }: WeeklyTrendChartProps) {
+export function WeeklyTrendChart({ data, title, currency }: WeeklyTrendChartProps) {
+  const { settings } = useApp()
+  const resolvedCurrency = currency ?? getCurrencyDisplayLabel(settings)
   const maxValue = Math.max(...data.map(d => d.total), 1)
 
   if (data.every(d => d.total === 0)) {
@@ -212,7 +219,7 @@ export function WeeklyTrendChart({ data, title }: WeeklyTrendChartProps) {
                       height: `${height}%`,
                       background: 'linear-gradient(to top, var(--chart-4), color-mix(in oklab, var(--chart-4) 65%, var(--chart-2)))'
                     }}
-                    title={`${d.total.toLocaleString()} SGD`}
+                    title={`${d.total.toLocaleString()} ${resolvedCurrency}`}
                   />
                 </div>
                 <span className="text-[11px] font-medium text-muted-foreground text-center">
@@ -234,7 +241,9 @@ interface IncomeExpenseBarChartProps {
   currency?: string
 }
 
-export function IncomeExpenseBarChart({ expenses, incomes, title, currency = 'SGD' }: IncomeExpenseBarChartProps) {
+export function IncomeExpenseBarChart({ expenses, incomes, title, currency }: IncomeExpenseBarChartProps) {
+  const { settings } = useApp()
+  const resolvedCurrency = currency ?? getCurrencyDisplayLabel(settings)
   const [tab, setTab] = useState<'7d' | '1m' | '1y'>('7d')
 
   const chartData = useMemo(() => {
@@ -339,7 +348,7 @@ export function IncomeExpenseBarChart({ expenses, incomes, title, currency = 'SG
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription className="text-xs mt-1">Income vs Expense trends ({currency})</CardDescription>
+            <CardDescription className="text-xs mt-1">Income vs Expense trends ({resolvedCurrency})</CardDescription>
           </div>
           
           <div className="flex bg-muted/50 rounded-lg p-1">
