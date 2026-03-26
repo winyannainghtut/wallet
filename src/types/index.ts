@@ -112,6 +112,8 @@ export interface SavingsAsset {
   name: string
   amount: number
   symbol?: string
+  recurringMonthlyAmount?: number
+  recurringStartDate?: string
   note?: string
   createdAt: string // ISO timestamp
   updatedAt?: string
@@ -132,6 +134,8 @@ export interface AiSavingsAssetContext {
   productId?: string
   unitPriceUsd?: number
   quoteUpdatedAt?: string
+  recurringMonthlyAmount?: number
+  recurringStartDate?: string
 }
 
 export interface AiSavingsContext {

@@ -19,8 +19,9 @@ spec:
     spec:
       containers:
         - name: wallet-app
-          image: winyannainghtut/wallet-app:dev-latest
-          imagePullPolicy: Always
+          # Replace with the desired immutable app image digest or sha-<commit> tag during deployment.
+          image: winyannainghtut/wallet-app@sha256:94e5940b718544325c923f4c2b7e65aba18ec7bf1fd5ee8b0ad10d3d7a34f36f
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: http

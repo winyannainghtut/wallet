@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { escapeFilterValue, parseTransactionPayload } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   message?: string
@@ -34,11 +35,11 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate')
 
     // Build filter
-    const filters: string[] = [`user = "${pb.authStore.model.id}"`]
-    if (category) filters.push(`category = "${category}"`)
-    if (type) filters.push(`type = "${type}"`)
-    if (startDate) filters.push(`date >= "${startDate}"`)
-    if (endDate) filters.push(`date <= "${endDate}"`)
+    const filters: string[] = [`user = "${escapeFilterValue(pb.authStore.model.id)}"`]
+    if (category) filters.push(`category = "${escapeFilterValue(category)}"`)
+    if (type) filters.push(`type = "${escapeFilterValue(type)}"`)
+    if (startDate) filters.push(`date >= "${escapeFilterValue(startDate)}"`)
+    if (endDate) filters.push(`date <= "${escapeFilterValue(endDate)}"`)
 
     const result = await pb.collection('transactions').getList(page, perPage, {
       sort: '-date',
@@ -66,9 +67,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    const parsed = await parseTransactionPayload(body, {
+      pb,
+      userId: pb.authStore.model.id,
+    })
+
+    if (!parsed.data) {
+      return NextResponse.json(
+        { error: parsed.error || 'Invalid transaction payload' },
+        { status: 400 }
+      )
+    }
 
     const record = await pb.collection('transactions').create({
-      ...body,
+      ...parsed.data,
       user: pb.authStore.model.id,
     })
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { parseTransactionPayload } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   status?: number
@@ -87,8 +88,26 @@ export async function PUT(
     }
 
     const body = await request.json()
+    const parsed = await parseTransactionPayload(body, {
+      pb,
+      userId,
+      partial: true,
+      existing: {
+        type: existing.type,
+        tripId: existing.tripId,
+        trip: existing.trip,
+        sharedGroupExpense: existing.sharedGroupExpense,
+      },
+    })
 
-    const record = await pb.collection('transactions').update(id, body)
+    if (!parsed.data) {
+      return NextResponse.json(
+        { error: parsed.error || 'Invalid transaction payload' },
+        { status: 400 }
+      )
+    }
+
+    const record = await pb.collection('transactions').update(id, parsed.data)
 
     return NextResponse.json(record)
   } catch (error: unknown) {

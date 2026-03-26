@@ -278,10 +278,10 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                   value={tripId || 'none'}
                   onValueChange={(value) => {
                     const nextTripId = value === 'none' ? '' : value || ''
-                    setTripId(nextTripId)
-                    if (!nextTripId) {
+                    if (nextTripId !== tripId) {
                       setSharedGroupExpense(false)
                     }
+                    setTripId(nextTripId)
                   }}
                 >
                   <SelectTrigger className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">

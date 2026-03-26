@@ -17,7 +17,7 @@ export function LanguageSwitcher() {
 
   const changeLanguage = (lang: Language) => {
     if (lang !== language) {
-      setLanguage(lang)
+      void setLanguage(lang)
     }
   }
 

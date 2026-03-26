@@ -16,6 +16,7 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1774166000_wallet_schema.js`
   - `pb_migrations/1774300000_income_savings_collections.js`
   - `pb_migrations/1774301000_ensure_income_savings_collections.js`
+  - `pb_migrations/1774400000_update_income_category.js`
   - `pb_migrations/1774500000_savings_assets_collection.js`
   - `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
   - `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
@@ -86,6 +87,7 @@ This document summarizes the current technologies used in the Wallet App codebas
   - initContainer runs `superuser upsert`
   - migration payload comes from `k8s/pocketbase-bootstrap.yaml`
 - **GitHub Actions** workflow to build/push image to Docker Hub.
+- **CI gates** for `npm run lint` and `npm run build` before image publish.
 
 ## Quality Tooling
 

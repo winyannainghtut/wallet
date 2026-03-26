@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SavingsAsset } from '@/types'
+import {
+  calculateInsuranceAssetValue,
+  getNextRecurringContributionDate,
+  getRecurringContributionCount,
+  getRecurringContributionTotal,
+} from '@/lib/savings-assets'
 
 type SavingsAssetApiRecord = {
   id?: string
@@ -9,6 +15,8 @@ type SavingsAssetApiRecord = {
   name?: string
   amount?: number
   symbol?: string
+  recurringMonthlyAmount?: number | null
+  recurringStartDate?: string | null
   note?: string
   created?: string
   updated?: string
@@ -42,6 +50,11 @@ export type PortfolioAsset = {
   unitPriceUsd?: number
   currentValue: number
   quoteUpdatedAt?: string
+  recurringMonthlyAmount?: number
+  recurringStartDate?: string
+  recurringContributionCount?: number
+  recurringContributionValue?: number
+  nextRecurringContributionDate?: string
   valueSource: 'manual' | 'live' | 'pending'
 }
 
@@ -164,6 +177,14 @@ function normalizeAssetRecord(raw: SavingsAssetApiRecord): SavingsAsset | null {
     name: raw.name,
     amount: raw.amount,
     symbol: typeof raw.symbol === 'string' ? normalizeAssetSymbol(raw.symbol) : undefined,
+    recurringMonthlyAmount:
+      typeof raw.recurringMonthlyAmount === 'number' && raw.recurringMonthlyAmount > 0
+        ? raw.recurringMonthlyAmount
+        : undefined,
+    recurringStartDate:
+      typeof raw.recurringStartDate === 'string' && raw.recurringStartDate.trim().length > 0
+        ? raw.recurringStartDate.trim()
+        : undefined,
     note: raw.note,
     createdAt: raw.createdAt ?? raw.created ?? new Date().toISOString(),
     updatedAt: raw.updatedAt ?? raw.updated,
@@ -393,9 +414,25 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
 
     return assets.map((asset): PortfolioAsset => {
       if (asset.type !== 'crypto') {
+        const recurringContributionCount = asset.type === 'insurance'
+          ? getRecurringContributionCount(asset.recurringStartDate)
+          : undefined
+        const recurringContributionValue = asset.type === 'insurance'
+          ? getRecurringContributionTotal(asset.recurringMonthlyAmount, asset.recurringStartDate)
+          : undefined
+
         return {
           asset,
-          currentValue: asset.amount,
+          currentValue: asset.type === 'insurance'
+            ? calculateInsuranceAssetValue(asset)
+            : asset.amount,
+          recurringMonthlyAmount: asset.recurringMonthlyAmount,
+          recurringStartDate: asset.recurringStartDate,
+          recurringContributionCount,
+          recurringContributionValue,
+          nextRecurringContributionDate: asset.type === 'insurance'
+            ? getNextRecurringContributionDate(asset.recurringStartDate)
+            : undefined,
           valueSource: 'manual',
         }
       }

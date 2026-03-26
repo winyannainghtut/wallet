@@ -25,14 +25,14 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
-import { getLanguage, t, setLanguage } from '@/i18n/config'
+import { t } from '@/i18n/config'
 import { useApp } from '@/contexts/AppContext'
 
 export function CommandPalette() {
   const [open, setOpen] = React.useState(false)
   const router = useRouter()
-  const { updateSettings } = useApp()
-  const language = getLanguage()
+  const { settings, setLanguage } = useApp()
+  const language = settings.language
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -102,8 +102,7 @@ export function CommandPalette() {
         <CommandGroup heading={t('common.quickActions')}>
           <CommandItem onSelect={() => runCommand(() => {
             const nextLang = language === 'en' ? 'my' : 'en'
-            setLanguage(nextLang)
-            updateSettings({ language: nextLang })
+            void setLanguage(nextLang)
           })}>
             <Languages className="mr-2 h-4 w-4" />
             <span>Switch to {language === 'en' ? 'Myanmar' : 'English'}</span>

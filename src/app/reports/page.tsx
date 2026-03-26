@@ -83,11 +83,9 @@ export default function ReportsPage() {
   const weeklyTotalWithSubs = weeklySummary.total
   const weeklySubShare = weeklyTotalWithSubs > 0 ? (currentWeekSubSpend / weeklyTotalWithSubs) * 100 : 0
   const weeklyNetSavings = weeklyIncomeTotal - weeklyTotalWithSubs
-  const weeklyNetSavingsWithAssets = weeklyNetSavings + totalAssetValue
   const weeklySavingsRate = weeklyIncomeTotal > 0 ? (weeklyNetSavings / weeklyIncomeTotal) * 100 : 0
   const weeklyExpenseIncomeRatio = weeklyIncomeTotal > 0 ? (weeklyTotalWithSubs / weeklyIncomeTotal) * 100 : 0
   const monthlyNetSavings = monthlyIncomeTotal - monthlySummary.total
-  const monthlyNetSavingsWithAssets = monthlyNetSavings + totalAssetValue
   const monthlySavingsRate = monthlyIncomeTotal > 0 ? (monthlyNetSavings / monthlyIncomeTotal) * 100 : 0
   const monthlyExpenseIncomeRatio = monthlyIncomeTotal > 0 ? (monthlySummary.total / monthlyIncomeTotal) * 100 : 0
 
@@ -269,13 +267,13 @@ export default function ReportsPage() {
             </Card>
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Savings + Assets</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Tracked Assets</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold tracking-tight tabular-nums ${weeklyNetSavingsWithAssets >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                  {Math.round(weeklyNetSavingsWithAssets).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
+                <div className="text-2xl font-bold tracking-tight tabular-nums text-primary">
+                  {Math.round(totalAssetValue).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Assets snapshot: {Math.round(totalAssetValue).toLocaleString()} {displayCurrency}</p>
+                <p className="text-xs text-muted-foreground mt-1">Insurance, crypto, stocks, and personal funds snapshot</p>
               </CardContent>
             </Card>
           </div>
@@ -341,13 +339,13 @@ export default function ReportsPage() {
             </Card>
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Savings + Assets</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Tracked Assets</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold tracking-tight tabular-nums ${monthlyNetSavingsWithAssets >= 0 ? 'text-primary' : 'text-destructive'}`}>
-                  {Math.round(monthlyNetSavingsWithAssets).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
+                <div className="text-2xl font-bold tracking-tight tabular-nums text-primary">
+                  {Math.round(totalAssetValue).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Assets snapshot: {Math.round(totalAssetValue).toLocaleString()} {displayCurrency}</p>
+                <p className="text-xs text-muted-foreground mt-1">Insurance, crypto, stocks, and personal funds snapshot</p>
               </CardContent>
             </Card>
             <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">

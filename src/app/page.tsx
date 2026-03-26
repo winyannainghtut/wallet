@@ -75,7 +75,6 @@ export default function DashboardPage() {
   }, 0)
 
   const monthlySavings = monthlyIncome - monthlySummary.total
-  const monthlySavingsWithAssets = monthlySavings + totalAssetValue
   const weeklySavings = weeklyIncome - weeklySummary.total
   const expenseIncomeRatio = monthlyIncome > 0 ? (monthlySummary.total / monthlyIncome) * 100 : 0
   const averageDailyExpense = monthlySummary.total / 30
@@ -101,6 +100,8 @@ export default function DashboardPage() {
       productId: item.productId,
       unitPriceUsd: item.unitPriceUsd,
       quoteUpdatedAt: item.quoteUpdatedAt,
+      recurringMonthlyAmount: item.recurringMonthlyAmount,
+      recurringStartDate: item.recurringStartDate,
     })),
   }
 
@@ -145,7 +146,10 @@ export default function DashboardPage() {
                 Weekly Net: {Math.round(weeklySavings).toLocaleString()} {displayCurrency}
               </span>
               <span className="rounded-full bg-primary/10 px-3 py-1.5 font-medium text-primary">
-                Savings + Assets: {Math.round(monthlySavingsWithAssets).toLocaleString()} {displayCurrency}
+                Net Savings: {Math.round(monthlySavings).toLocaleString()} {displayCurrency}
+              </span>
+              <span className="rounded-full bg-accent/30 px-3 py-1.5 font-medium text-foreground">
+                Assets: {Math.round(totalAssetValue).toLocaleString()} {displayCurrency}
               </span>
             </div>
           </div>
@@ -226,10 +230,10 @@ export default function DashboardPage() {
             currency={displayCurrency}
           />
           <SummaryCard
-            title="Savings + Assets"
-            amount={monthlySavingsWithAssets}
-            icon={PiggyBank}
-            subtitle={`Assets: ${Math.round(totalAssetValue).toLocaleString()} ${displayCurrency}`}
+            title="Tracked Assets"
+            amount={totalAssetValue}
+            icon={Wallet}
+            subtitle="Insurance, crypto, stocks, and personal funds"
             currency={displayCurrency}
           />
           <SummaryCard

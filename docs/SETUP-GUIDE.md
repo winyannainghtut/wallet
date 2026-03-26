@@ -42,13 +42,13 @@ Run once for fresh `pb_data`.
 Bash:
 
 ```bash
-docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
 ```
 
 PowerShell:
 
 ```powershell
-docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
 ```
 
 Restart local PocketBase:
@@ -151,13 +151,14 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
 ### 3.6 Excel import/export
 
 1. Open `/settings` -> `Excel`.
-2. Download template (`wallet_import_template.xlsx`) and inspect `Expenses` + `Incomes` sheets.
-3. Import an Excel file with mixed valid/invalid rows.
+2. Download template (`wallet_import_template.xlsx`) and inspect `Expenses`, `Incomes`, and `Trips` sheets.
+3. Import an Excel file with mixed valid/invalid rows across expenses, incomes, and trips.
 4. Verify:
    - Valid rows are imported through API-backed actions.
    - Duplicate rows in the same file are skipped.
    - Settings page shows top import warnings.
    - Expenses sheet accepts optional `Shared Friend Group` column for trip-linked shared spend.
+   - Trips are imported before expenses so `Trip ID` references can be remapped safely.
 5. Export data and verify workbook contains:
    - `Summary`
    - `Expenses`
@@ -189,6 +190,7 @@ Migration files:
 - `pb_migrations/1774166000_wallet_schema.js`
 - `pb_migrations/1774300000_income_savings_collections.js`
 - `pb_migrations/1774301000_ensure_income_savings_collections.js`
+- `pb_migrations/1774400000_update_income_category.js`
 - `pb_migrations/1774500000_savings_assets_collection.js`
 - `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
 - `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
@@ -218,6 +220,13 @@ kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
 kubectl apply -f k8s/deployment.yaml
+```
+
+Patch the frontend deployment to the immutable application image you want to run:
+
+```bash
+kubectl -n wallet-app set image deployment/wallet-frontend wallet-app=winyannainghtut/wallet-app:sha-<commit>
+kubectl rollout status deployment/wallet-frontend -n wallet-app
 ```
 
 ### 4.3 Verify bootstrap logs

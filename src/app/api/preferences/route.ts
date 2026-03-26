@@ -79,6 +79,10 @@ function stripUndefined(obj: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined))
 }
 
+function hasOwn<T extends object>(obj: T, key: keyof T): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key)
+}
+
 function sanitizeCustomCategory(item: unknown): CustomCategory | null {
   if (typeof item !== 'object' || item === null) {
     return null
@@ -177,20 +181,6 @@ function serializePreferences(record: PreferencesRecord | null): PreferencesResp
   }
 }
 
-function buildPreferencesResponse(
-  settings: AppSettings,
-  customCategories: CustomCategory[],
-  chatHistory: PreferenceChatMessage[],
-  exists = true
-): PreferencesResponse {
-  return {
-    exists,
-    settings: normalizeAppSettings(settings),
-    customCategories,
-    chatHistory,
-  }
-}
-
 async function getPreferencesRecord(
   pb: ReturnType<typeof createPbServer>,
   userId: string
@@ -256,13 +246,13 @@ export async function PUT(request: NextRequest) {
 
     const payload = stripUndefined({
       user: userId,
-      language: nextSettings.language,
-      currency: nextSettings.currency,
-      currencySign: nextSettings.currencySign,
-      aiModel: nextSettings.aiModel,
-      theme: nextSettings.theme,
-      customCategories: JSON.stringify(nextCustomCategories),
-      chatHistory: JSON.stringify(nextChatHistory),
+      ...(body.settings && hasOwn(body.settings, 'language') ? { language: nextSettings.language } : {}),
+      ...(body.settings && hasOwn(body.settings, 'currency') ? { currency: nextSettings.currency } : {}),
+      ...(body.settings && hasOwn(body.settings, 'currencySign') ? { currencySign: nextSettings.currencySign } : {}),
+      ...(body.settings && hasOwn(body.settings, 'aiModel') ? { aiModel: nextSettings.aiModel } : {}),
+      ...(body.settings && hasOwn(body.settings, 'theme') ? { theme: nextSettings.theme } : {}),
+      ...(body.customCategories !== undefined ? { customCategories: JSON.stringify(nextCustomCategories) } : {}),
+      ...(body.chatHistory !== undefined ? { chatHistory: JSON.stringify(nextChatHistory) } : {}),
     })
 
     if (existing) {
@@ -271,9 +261,9 @@ export async function PUT(request: NextRequest) {
       await pb.collection('user_preferences').create(payload)
     }
 
-    return NextResponse.json(
-      buildPreferencesResponse(nextSettings, nextCustomCategories, nextChatHistory)
-    )
+    const storedRecord = await getPreferencesRecord(pb, userId)
+
+    return NextResponse.json(serializePreferences(storedRecord))
   } catch (error: unknown) {
     if (isMissingCollectionContext(error)) {
       return NextResponse.json(

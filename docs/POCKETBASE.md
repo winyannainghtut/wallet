@@ -56,6 +56,7 @@ Migration files:
 - `pb_migrations/1774166000_wallet_schema.js`
 - `pb_migrations/1774300000_income_savings_collections.js`
 - `pb_migrations/1774301000_ensure_income_savings_collections.js`
+- `pb_migrations/1774400000_update_income_category.js`
 - `pb_migrations/1774500000_savings_assets_collection.js`
 - `pb_migrations/1774600000_add_symbol_to_savings_assets.js`
 - `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
@@ -68,6 +69,7 @@ Purpose summary:
 - `1774166000`: base wallet schema (`users`, `transactions`, `trips`, `subscriptions`)
 - `1774300000`: adds `incomes` and `savings_goals`
 - `1774301000`: repair migration that ensures `incomes`/`savings_goals` exist even when history is inconsistent
+- `1774400000`: updates legacy income category values
 - `1774500000`: adds `savings_assets` (`insurance`, `crypto`, `stocks`)
 - `1774600000`: adds optional `symbol` field in `savings_assets` for live crypto ticker mapping
 - `1774700000`: adds `user_preferences` and extends `savings_assets.type` with `personal_funds`
@@ -96,6 +98,8 @@ Expected collections:
   - initContainer runs:
     - `pocketbase migrate up`
     - `pocketbase superuser upsert`
+  - PVC uses the cluster default storage class unless you set one explicitly
+  - PocketBase image is pinned by digest for deterministic deploys
 
 Superuser credentials come from secret `pocketbase-bootstrap`.
 
@@ -130,13 +134,13 @@ Apply migration + create/update superuser:
 Bash:
 
 ```bash
-docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
 ```
 
 PowerShell:
 
 ```powershell
-docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
 ```
 
 Then restart local PocketBase to ensure live process sees current DB state:
@@ -182,7 +186,7 @@ Fix steps:
 2. Re-run migration against the actual data dir:
 
 ```bash
-docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up"
+docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up"
 ```
 
 3. Restart PocketBase process/container/pod.

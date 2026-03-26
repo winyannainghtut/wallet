@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { AiSavingsContext, Expense, Income, Subscription } from '@/types'
 import { getChatHistory, saveChatHistory } from '@/lib/storage'
-import { fetchUserPreferences, updateUserPreferences } from '@/lib/preferences-client'
+import { fetchUserPreferences } from '@/lib/preferences-client'
 import { isAiKeyNotConfiguredError, streamChatAboutExpenses } from '@/lib/ai-client'
 import { sanitizeAiOutput } from '@/lib/ai-output'
 import { t, getLanguage } from '@/i18n/config'
@@ -40,7 +40,7 @@ export function ChatAssistant({
   className,
   messagesClassName,
 }: ChatAssistantProps) {
-  const { settings, currentUser } = useApp()
+  const { settings, currentUser, persistChatHistory } = useApp()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -103,12 +103,12 @@ export function ChatAssistant({
       saveChatHistory(messages)
 
       if (currentUser) {
-        void updateUserPreferences({ chatHistory: messages })
+        void persistChatHistory(messages)
       }
     }, 300)
 
     return () => clearTimeout(timer)
-  }, [currentUser, isInitialized, isLoading, messages])
+  }, [currentUser, isInitialized, isLoading, messages, persistChatHistory])
 
   useEffect(() => {
     if (stickToBottom && scrollContainerRef.current) {

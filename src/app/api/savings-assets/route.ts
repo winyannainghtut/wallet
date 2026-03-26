@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
-import { SavingsAssetType } from '@/types'
+import { isSavingsAssetType } from '@/lib/savings-assets'
 
 type PocketBaseLikeError = {
   status?: number
@@ -10,15 +10,11 @@ type PocketBaseLikeError = {
 type SavingsAssetInput = {
   type?: string
   name?: string
-  amount?: number
+  amount?: number | string | null
   symbol?: string
   note?: string
-}
-
-const SAVINGS_ASSET_TYPES: SavingsAssetType[] = ['insurance', 'crypto', 'stocks', 'personal_funds']
-
-function isSavingsAssetType(value: string): value is SavingsAssetType {
-  return SAVINGS_ASSET_TYPES.includes(value as SavingsAssetType)
+  recurringMonthlyAmount?: number | string | null
+  recurringStartDate?: string | null
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -52,12 +48,27 @@ function getAuthenticatedPb(request: NextRequest):
 }
 
 function normalizeInput(input: SavingsAssetInput) {
+  const parseNumber = (value: unknown): number | null | undefined => {
+    if (value === undefined) return undefined
+    if (value === null) return null
+    if (typeof value === 'string' && value.trim().length === 0) return null
+    const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value).trim())
+    return Number.isFinite(parsed) ? parsed : Number.NaN
+  }
+
   return {
     type: typeof input.type === 'string' ? input.type.trim().toLowerCase() : undefined,
     name: typeof input.name === 'string' ? input.name.trim() : undefined,
-    amount: typeof input.amount === 'number' ? input.amount : undefined,
+    amount: parseNumber(input.amount),
     symbol: typeof input.symbol === 'string' ? input.symbol.trim().toUpperCase() || undefined : undefined,
     note: typeof input.note === 'string' ? input.note.trim() : undefined,
+    recurringMonthlyAmount: parseNumber(input.recurringMonthlyAmount),
+    recurringStartDate:
+      typeof input.recurringStartDate === 'string'
+        ? input.recurringStartDate.trim() || null
+        : input.recurringStartDate === null
+          ? null
+          : undefined,
   }
 }
 
@@ -67,6 +78,24 @@ function isValidAssetSymbol(value: string): boolean {
 
 function stripUndefined(obj: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined))
+}
+
+function isValidDateOnly(value: string): boolean {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) {
+    return false
+  }
+
+  const year = Number.parseInt(match[1], 10)
+  const month = Number.parseInt(match[2], 10)
+  const day = Number.parseInt(match[3], 10)
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  )
 }
 
 // GET - List savings assets
@@ -144,7 +173,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (normalized.amount === undefined || !Number.isFinite(normalized.amount) || normalized.amount < 0) {
+    if (
+      normalized.amount === undefined ||
+      normalized.amount === null ||
+      !Number.isFinite(normalized.amount) ||
+      normalized.amount < 0
+    ) {
       return NextResponse.json(
         { error: 'amount must be a non-negative number' },
         { status: 400 }
@@ -165,6 +199,44 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const recurringEnabled =
+      normalized.type === 'insurance' &&
+      normalized.recurringMonthlyAmount !== undefined &&
+      normalized.recurringMonthlyAmount !== null &&
+      normalized.recurringMonthlyAmount > 0
+
+    if (
+      normalized.recurringMonthlyAmount !== undefined &&
+      normalized.recurringMonthlyAmount !== null &&
+      (!Number.isFinite(normalized.recurringMonthlyAmount) || normalized.recurringMonthlyAmount < 0)
+    ) {
+      return NextResponse.json(
+        { error: 'recurringMonthlyAmount must be a non-negative number' },
+        { status: 400 }
+      )
+    }
+
+    if (normalized.recurringStartDate && !isValidDateOnly(normalized.recurringStartDate)) {
+      return NextResponse.json(
+        { error: 'recurringStartDate must be a valid YYYY-MM-DD date' },
+        { status: 400 }
+      )
+    }
+
+    if (normalized.recurringStartDate && !recurringEnabled) {
+      return NextResponse.json(
+        { error: 'recurringStartDate requires a recurringMonthlyAmount greater than 0 for insurance assets' },
+        { status: 400 }
+      )
+    }
+
+    if (recurringEnabled && !normalized.recurringStartDate) {
+      return NextResponse.json(
+        { error: 'recurringStartDate is required when recurringMonthlyAmount is enabled for insurance assets' },
+        { status: 400 }
+      )
+    }
+
     const created = await pb.collection('savings_assets').create(stripUndefined({
       user: userId,
       type: normalized.type,
@@ -172,6 +244,8 @@ export async function POST(request: NextRequest) {
       amount: normalized.amount,
       symbol: normalized.symbol,
       note: normalized.note,
+      recurringMonthlyAmount: recurringEnabled ? normalized.recurringMonthlyAmount : undefined,
+      recurringStartDate: recurringEnabled ? normalized.recurringStartDate : undefined,
     }))
 
     return NextResponse.json(created)

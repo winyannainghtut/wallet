@@ -10,11 +10,12 @@ import {
   INCOME_CATEGORIES,
   INCOME_CATEGORY_LABELS,
   Trip,
+  TripMutationInput,
   getCategoryLabel,
   getIncomeCategoryLabel,
 } from '@/types'
 import { format } from 'date-fns'
-import { getTripFinancialSummary } from '@/lib/trips'
+import { getTripFinancialSummary, parseTripInput } from '@/lib/trips'
 
 export type ExcelImportIssue = {
   level: 'warning' | 'error'
@@ -26,6 +27,7 @@ export type ExcelImportIssue = {
 export type ExcelImportResult = {
   expenses: Expense[]
   incomes: Income[]
+  trips: ExcelImportedTrip[]
   issues: ExcelImportIssue[]
   skippedRows: number
   duplicateRows: number
@@ -33,13 +35,24 @@ export type ExcelImportResult = {
 
 type ExcelRow = Record<string, unknown>
 
+export type ExcelImportedTrip = {
+  sourceId?: string
+  data: TripMutationInput
+}
+
 export type ExcelSavingsAssetSnapshot = {
   type: string
   name: string
   symbol?: string
+  baseAmount?: number
   quantity?: number
   unitPriceUsd?: number
   currentValue: number
+  recurringMonthlyAmount?: number
+  recurringStartDate?: string
+  recurringContributionCount?: number
+  recurringContributionValue?: number
+  nextRecurringContributionDate?: string
   valueSource?: string
   quoteUpdatedAt?: string
 }
@@ -59,6 +72,10 @@ export type ExcelSavingsSummary = {
 
 function normalizeHeaderKey(value: string): string {
   return value.trim().toLowerCase()
+}
+
+function normalizeTextValue(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 function buildRowLookup(row: ExcelRow): Map<string, unknown> {
@@ -340,6 +357,83 @@ function parseIncomeRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
       description,
       date,
       createdAt: new Date().toISOString(),
+    })
+  })
+
+  return { items, skippedRows, duplicateRows }
+}
+
+function buildTripFingerprint(row: TripMutationInput): string {
+  return [
+    row.name.trim().toLowerCase(),
+    row.startDate,
+    row.endDate,
+    (row.destinations || '').trim().toLowerCase(),
+    row.budget ?? '',
+    (row.groupName || '').trim().toLowerCase(),
+    row.groupSize ?? '',
+    row.groupFund ?? '',
+  ].join('|')
+}
+
+function parseTripRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
+  items: ExcelImportedTrip[]
+  skippedRows: number
+  duplicateRows: number
+} {
+  const items: ExcelImportedTrip[] = []
+  const seen = new Set<string>()
+  let skippedRows = 0
+  let duplicateRows = 0
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 2
+
+    if (isBlankRow(row)) {
+      skippedRows++
+      return
+    }
+
+    const sourceId = normalizeTextValue(getRowValue(row, ['Trip ID', 'tripId', 'trip id'])) || undefined
+    const parsed = parseTripInput({
+      name: getRowValue(row, ['Name', 'Trip Name', 'name']),
+      startDate: getRowValue(row, ['Start Date', 'startDate', 'start date']),
+      endDate: getRowValue(row, ['End Date', 'endDate', 'end date']),
+      budget: getRowValue(row, ['Budget', 'budget']),
+      destinations: getRowValue(row, ['Destinations', 'Destination', 'destinations']),
+      groupName: getRowValue(row, ['Group Name', 'groupName', 'group name']),
+      groupSize: getRowValue(row, ['Total Travelers', 'groupSize', 'group size']),
+      groupFund: getRowValue(row, ['Group Fund', 'groupFund', 'group fund']),
+    })
+
+    if (!parsed.data) {
+      skippedRows++
+      issues.push({
+        level: 'error',
+        sheet: 'Trips',
+        row: rowNumber,
+        message: parsed.error || 'Invalid trip row',
+      })
+      return
+    }
+
+    const fingerprint = sourceId ? `id:${sourceId.toLowerCase()}` : buildTripFingerprint(parsed.data)
+    if (seen.has(fingerprint)) {
+      duplicateRows++
+      skippedRows++
+      issues.push({
+        level: 'warning',
+        sheet: 'Trips',
+        row: rowNumber,
+        message: 'Duplicate trip row in import file',
+      })
+      return
+    }
+
+    seen.add(fingerprint)
+    items.push({
+      sourceId,
+      data: parsed.data,
     })
   })
 
@@ -654,24 +748,36 @@ export function exportToExcel(
     Type: asset.type,
     Name: asset.name,
     Symbol: asset.symbol || '',
+    'Base Amount': asset.baseAmount ?? '',
     Quantity: asset.quantity ?? '',
     'Unit Price (USD)': asset.unitPriceUsd ?? '',
     'Current Value': asset.currentValue,
+    'Recurring Monthly Contribution': asset.recurringMonthlyAmount ?? '',
+    'Recurring Start Date': asset.recurringStartDate || '',
+    'Recurring Contributions Applied': asset.recurringContributionCount ?? '',
+    'Recurring Contribution Total': asset.recurringContributionValue ?? '',
+    'Next Recurring Contribution': asset.nextRecurringContributionDate || '',
     'Value Source': asset.valueSource || '',
     'Quote Updated At': asset.quoteUpdatedAt || '',
   }))
   const savingsAssetsWs = XLSX.utils.json_to_sheet(
     savingsAssetsRows.length > 0
       ? savingsAssetsRows
-      : [{ Type: '-', Name: 'No savings assets snapshot', Symbol: '', Quantity: '', 'Unit Price (USD)': '', 'Current Value': 0, 'Value Source': '', 'Quote Updated At': '' }]
+      : [{ Type: '-', Name: 'No savings assets snapshot', Symbol: '', 'Base Amount': '', Quantity: '', 'Unit Price (USD)': '', 'Current Value': 0, 'Recurring Monthly Contribution': '', 'Recurring Start Date': '', 'Recurring Contributions Applied': '', 'Recurring Contribution Total': '', 'Next Recurring Contribution': '', 'Value Source': '', 'Quote Updated At': '' }]
   )
   savingsAssetsWs['!cols'] = [
     { wch: 12 },
     { wch: 24 },
     { wch: 12 },
+    { wch: 14 },
     { wch: 12 },
     { wch: 16 },
     { wch: 14 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 22 },
+    { wch: 22 },
+    { wch: 22 },
     { wch: 14 },
     { wch: 24 },
   ]
@@ -700,24 +806,38 @@ export function importFromExcel(file: File): Promise<ExcelImportResult> {
 
         const expenseSheetName = workbook.SheetNames.find((name) =>
           ['expenses', 'expense', 'template'].includes(name.trim().toLowerCase())
-        ) || workbook.SheetNames[0]
+        )
 
         const incomeSheetName = workbook.SheetNames.find((name) =>
           ['incomes', 'income'].includes(name.trim().toLowerCase())
         )
 
-        const expenseSheet = workbook.Sheets[expenseSheetName]
-        if (!expenseSheet) {
-          reject(new Error('Could not find an expense sheet in this file'))
+        const tripSheetName = workbook.SheetNames.find((name) =>
+          ['trips', 'trip'].includes(name.trim().toLowerCase())
+        )
+
+        if (!expenseSheetName && !incomeSheetName && !tripSheetName) {
+          reject(new Error('Could not find an importable sheet in this file'))
           return
         }
 
-        const expenseRows = XLSX.utils.sheet_to_json(expenseSheet, {
-          raw: true,
-          defval: '',
-        }) as ExcelRow[]
+        let parsedExpenses = {
+          items: [] as Expense[],
+          skippedRows: 0,
+          duplicateRows: 0,
+        }
 
-        const parsedExpenses = parseExpenseRows(expenseRows, issues)
+        if (expenseSheetName) {
+          const expenseSheet = workbook.Sheets[expenseSheetName]
+          if (expenseSheet) {
+            const expenseRows = XLSX.utils.sheet_to_json(expenseSheet, {
+              raw: true,
+              defval: '',
+            }) as ExcelRow[]
+
+            parsedExpenses = parseExpenseRows(expenseRows, issues)
+          }
+        }
 
         let parsedIncomes = {
           items: [] as Income[],
@@ -736,12 +856,30 @@ export function importFromExcel(file: File): Promise<ExcelImportResult> {
           }
         }
 
+        let parsedTrips = {
+          items: [] as ExcelImportedTrip[],
+          skippedRows: 0,
+          duplicateRows: 0,
+        }
+
+        if (tripSheetName) {
+          const tripSheet = workbook.Sheets[tripSheetName]
+          if (tripSheet) {
+            const tripRows = XLSX.utils.sheet_to_json(tripSheet, {
+              raw: true,
+              defval: '',
+            }) as ExcelRow[]
+            parsedTrips = parseTripRows(tripRows, issues)
+          }
+        }
+
         resolve({
           expenses: parsedExpenses.items,
           incomes: parsedIncomes.items,
+          trips: parsedTrips.items,
           issues,
-          skippedRows: parsedExpenses.skippedRows + parsedIncomes.skippedRows,
-          duplicateRows: parsedExpenses.duplicateRows + parsedIncomes.duplicateRows,
+          skippedRows: parsedExpenses.skippedRows + parsedIncomes.skippedRows + parsedTrips.skippedRows,
+          duplicateRows: parsedExpenses.duplicateRows + parsedIncomes.duplicateRows + parsedTrips.duplicateRows,
         })
       } catch {
         reject(new Error('Failed to parse Excel file'))
@@ -773,6 +911,20 @@ export function downloadTemplate(): void {
       Category: 'Salary',
       Amount: 5000,
       Description: 'Example income entry',
+    },
+  ]
+
+  const tripTemplate = [
+    {
+      'Trip ID': 'sample-trip-1',
+      Name: 'Example Trip',
+      'Start Date': format(new Date(), 'yyyy-MM-dd'),
+      'End Date': format(new Date(Date.now() + 3 * 86400000), 'yyyy-MM-dd'),
+      Budget: 2500,
+      Destinations: 'Bangkok',
+      'Group Name': 'Friends Trip',
+      'Total Travelers': 4,
+      'Group Fund': 1200,
     },
   ]
 
@@ -818,8 +970,23 @@ export function downloadTemplate(): void {
   const incomeCategoriesWs = XLSX.utils.json_to_sheet(incomeCategories)
   incomeCategoriesWs['!cols'] = [{ wch: 16 }, { wch: 22 }, { wch: 22 }]
 
+  const tripWs = XLSX.utils.json_to_sheet(tripTemplate)
+  tripWs['!cols'] = [
+    { wch: 22 },
+    { wch: 24 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 30 },
+    { wch: 22 },
+    { wch: 16 },
+    { wch: 14 },
+  ]
+  withStandardSheetFormatting(tripWs)
+
   XLSX.utils.book_append_sheet(wb, expenseWs, 'Expenses')
   XLSX.utils.book_append_sheet(wb, incomeWs, 'Incomes')
+  XLSX.utils.book_append_sheet(wb, tripWs, 'Trips')
   XLSX.utils.book_append_sheet(wb, expenseCategoriesWs, 'Expense Categories')
   XLSX.utils.book_append_sheet(wb, incomeCategoriesWs, 'Income Categories')
 

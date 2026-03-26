@@ -14,7 +14,7 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
 - Trip plans support shared friend-group setup, pooled group fund tracking, and per-expense `Shared Friend Group` tagging
 - User settings support custom currency display sign separate from the currency code used for FX/export
 - AI-assisted category suggestion for expenses with optional auto-create custom category flow
-- Excel import with validation and duplicate detection for expenses and incomes
+- Excel import with validation and duplicate detection for expenses, incomes, and trips
 - Excel export with unified workbook for expenses, incomes, savings assets, trips, and category references
 - Dashboard/Reports/Calendar cross comparison for:
   - expense
@@ -66,8 +66,7 @@ Data:
 ### Excel Data Tools
 
 Import:
-- Supports `Expenses` sheet (also accepts `Expense`, `Template`, or first sheet fallback)
-- Supports optional `Incomes` sheet
+- Supports optional `Expenses`, `Incomes`, and `Trips` sheets
 - Accepted headers:
   - `Date`
   - `Amount`
@@ -75,9 +74,11 @@ Import:
   - `Description`
   - `Trip ID` (expenses only)
   - `Shared Friend Group` (expenses only, optional)
+  - `Name`, `Start Date`, `End Date`, `Budget`, `Destinations`, `Group Name`, `Total Travelers`, `Group Fund` (trips)
 - Invalid rows are skipped with issue reporting
 - Duplicate rows inside the same file are skipped automatically
-- Data is imported via API-backed context actions (no direct localStorage write for transactions)
+- Trips are imported first so exported `Trip ID` values can be remapped before expense import
+- Data is imported via API-backed context actions (no direct localStorage write for transactions/preferences)
 
 Export:
 - Generates `wallet_data_YYYY-MM-DD.xlsx`
@@ -93,7 +94,7 @@ Export:
 - `Expenses` sheet includes optional `Shared Friend Group` column for trip-linked shared expenses
 - `Trip Summary` includes shared-group metrics such as shared spend, shared-group transaction count, group fund left, and per-person shared spend
 - Export includes built-in categories plus custom categories detected from settings and data
-- Template download filename: `wallet_import_template.xlsx`
+- Template download filename: `wallet_import_template.xlsx` and includes `Expenses`, `Incomes`, and `Trips` sheets
 
 ## Local Development
 
@@ -114,13 +115,13 @@ docker-compose -f docker-compose.pb.yml up -d
 Bash:
 
 ```bash
-docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
 ```
 
 PowerShell:
 
 ```powershell
-docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
+docker run --rm --entrypoint /bin/sh -v "${pwd}:/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up && pocketbase --dir=/work/pb_data superuser upsert admin@wallet.local change-me-strong-password"
 ```
 
 Superuser is for PocketBase Admin UI only (`http://localhost:8090/_/`).
@@ -170,6 +171,7 @@ Managed migration files:
 - `pb_migrations/1774166000_wallet_schema.js`
 - `pb_migrations/1774300000_income_savings_collections.js`
 - `pb_migrations/1774301000_ensure_income_savings_collections.js` (repair migration)
+- `pb_migrations/1774400000_update_income_category.js`
 - `pb_migrations/1774500000_savings_assets_collection.js`
 - `pb_migrations/1774600000_add_symbol_to_savings_assets.js` (adds optional `symbol` for live crypto ticker)
 - `pb_migrations/1774700000_user_preferences_and_personal_funds.js`
@@ -201,6 +203,15 @@ kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
 kubectl apply -f k8s/deployment.yaml
 ```
+
+Then patch the frontend image to the exact immutable tag for the release you want to run:
+
+```bash
+kubectl -n wallet-app set image deployment/wallet-frontend wallet-app=winyannainghtut/wallet-app:sha-<commit>
+kubectl rollout status deployment/wallet-frontend -n wallet-app
+```
+
+`k8s/deployment.yaml` is intentionally pinned to a known digest baseline. Do not rely on mutable tags like `dev-latest` for shared environments.
 
 ### Expose App via Cloudflare Tunnel (`wallet.winyan.dev`, token mode)
 
@@ -238,7 +249,7 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
 2. Re-run migration:
 
 ```bash
-docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase:latest -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up"
+docker run --rm --entrypoint /bin/sh -v "$(pwd):/work" ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf -lc "pocketbase --dir=/work/pb_data --migrationsDir=/work/pb_migrations migrate up"
 docker restart wallet-pocketbase
 ```
 
@@ -249,13 +260,14 @@ docker restart wallet-pocketbase
 
 Workflow: `.github/workflows/dockerhub-build.yml`
 
-- Trigger: push to `main`, and `workflow_dispatch`
+- Trigger: push to `main`, `dev`, and `workflow_dispatch`
 - Required secrets:
   - `DOCKERHUB_USERNAME`
   - `DOCKERHUB_TOKEN`
 - Published tags:
   - `sha-<commit>`
   - `latest` (on `main`)
+  - `dev-latest` (on `dev`)
 
 ## Docs
 

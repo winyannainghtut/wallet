@@ -12,13 +12,21 @@ import { useApp } from '@/contexts/AppContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { clearAllData } from '@/lib/storage'
-import { exportToExcel, importFromExcel, downloadTemplate } from '@/lib/excel'
+import { exportToExcel, importFromExcel, downloadTemplate, type ExcelImportedTrip } from '@/lib/excel'
 import { t, Language } from '@/i18n/config'
 import { Expense, Income } from '@/types'
 import { getCurrencyDisplayLabel, getCurrencySignOptions } from '@/lib/settings'
 
 type NoticeType = 'success' | 'error'
 type AiModel = 'glm-4.7' | 'glm-5' | 'glm-5-turbo'
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
+
+  return fallback
+}
 
 function normalizeDateKey(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -47,6 +55,7 @@ export default function SettingsPage() {
     deleteCustomCategory,
     addExpense,
     addIncome,
+    addTrip,
   } = useApp()
   const {
     totalAssetValue,
@@ -122,6 +131,29 @@ export default function SettingsPage() {
       description.trim().toLowerCase(),
       (tripId || '').trim().toLowerCase(),
       sharedGroupExpense ? 'shared-group' : 'personal',
+    ].join('|')
+
+  const buildTripFingerprint = (
+    trip: {
+      name: string
+      startDate: string
+      endDate: string
+      destinations?: string
+      budget?: number | null
+      groupName?: string
+      groupSize?: number | null
+      groupFund?: number | null
+    }
+  ) =>
+    [
+      trip.name.trim().toLowerCase(),
+      trip.startDate,
+      trip.endDate,
+      (trip.destinations || '').trim().toLowerCase(),
+      trip.budget ?? '',
+      (trip.groupName || '').trim().toLowerCase(),
+      trip.groupSize ?? '',
+      trip.groupFund ?? '',
     ].join('|')
 
   const chunkArray = <T,>(items: T[], chunkSize: number): T[][] => {
@@ -228,22 +260,86 @@ export default function SettingsPage() {
     return { success, failed }
   }
 
-  const handleLanguageChange = (lang: Language) => {
-    setLanguage(lang)
-    showNotice('success', 'Language updated.')
+  const importTrips = async (items: ExcelImportedTrip[]): Promise<{
+    success: number
+    failed: number
+    tripIdMap: Map<string, string>
+  }> => {
+    let success = 0
+    let failed = 0
+    const tripIdMap = new Map<string, string>()
+    const knownTripIdsByFingerprint = new Map<string, string>(
+      trips.map((trip) => [buildTripFingerprint(trip), trip.id])
+    )
+
+    for (const item of items) {
+      const fingerprint = buildTripFingerprint(item.data)
+      const existingTripId = knownTripIdsByFingerprint.get(fingerprint)
+
+      if (existingTripId) {
+        if (item.sourceId) {
+          tripIdMap.set(item.sourceId, existingTripId)
+        }
+        continue
+      }
+
+      try {
+        const created = await addTrip(item.data)
+        success++
+        knownTripIdsByFingerprint.set(fingerprint, created.id)
+        if (item.sourceId) {
+          tripIdMap.set(item.sourceId, created.id)
+        }
+      } catch {
+        failed++
+      }
+    }
+
+    return { success, failed, tripIdMap }
   }
 
-  const handleAiModelChange = (model: AiModel) => {
+  const handleLanguageChange = async (lang: Language) => {
+    try {
+      await setLanguage(lang)
+      showNotice('success', 'Language updated.')
+    } catch (error) {
+      showNotice('error', getErrorMessage(error, 'Failed to update language.'))
+    }
+  }
+
+  const handleAiModelChange = async (model: AiModel) => {
     setAiModel(model)
-    updateSettings({ aiModel: model })
-    showNotice('success', t('settings.aiModelUpdated'))
+    try {
+      await updateSettings({ aiModel: model })
+      showNotice('success', t('settings.aiModelUpdated'))
+    } catch (error) {
+      setAiModel((settings.aiModel as AiModel) || 'glm-5')
+      showNotice('error', getErrorMessage(error, 'Failed to update AI model.'))
+    }
   }
 
-  const handleCurrencySignSave = (value: string) => {
+  const handleCurrencySignSave = async (value: string) => {
     const nextSign = value.trim() || settings.currency
-    updateSettings({ currencySign: nextSign })
     setCurrencySignInput(nextSign)
-    showNotice('success', 'Currency sign updated.')
+    try {
+      await updateSettings({ currencySign: nextSign })
+      showNotice('success', 'Currency sign updated.')
+    } catch (error) {
+      setCurrencySignInput(getCurrencyDisplayLabel(settings))
+      showNotice('error', getErrorMessage(error, 'Failed to update currency sign.'))
+    }
+  }
+
+  const handleThemeChange = async (value: string | null) => {
+    if (!value || !isThemeValue(value)) {
+      return
+    }
+
+    try {
+      await updateSettings({ theme: value })
+    } catch (error) {
+      showNotice('error', getErrorMessage(error, 'Failed to update theme.'))
+    }
   }
 
   const handleExport = () => {
@@ -271,9 +367,15 @@ export default function SettingsPage() {
           type: item.asset.type,
           name: item.asset.name,
           symbol: item.symbol ?? item.asset.symbol,
+          baseAmount: item.asset.amount,
           quantity: item.quantity,
           unitPriceUsd: item.unitPriceUsd,
           currentValue: item.currentValue,
+          recurringMonthlyAmount: item.recurringMonthlyAmount,
+          recurringStartDate: item.recurringStartDate,
+          recurringContributionCount: item.recurringContributionCount,
+          recurringContributionValue: item.recurringContributionValue,
+          nextRecurringContributionDate: item.nextRecurringContributionDate,
           valueSource: item.valueSource,
           quoteUpdatedAt: item.quoteUpdatedAt,
         })),
@@ -291,24 +393,57 @@ export default function SettingsPage() {
     setIsImporting(true)
     try {
       const parsed = await importFromExcel(file)
-      setLatestImportIssues(
-        parsed.issues.slice(0, 8).map((issue) =>
-          issue.row ? `Row ${issue.row}: ${issue.message}` : issue.message
-        )
+      const latestIssues = parsed.issues.map((issue) =>
+        issue.row ? `${issue.sheet} row ${issue.row}: ${issue.message}` : `${issue.sheet}: ${issue.message}`
       )
 
-      if (parsed.expenses.length === 0 && parsed.incomes.length === 0) {
+      if (parsed.expenses.length === 0 && parsed.incomes.length === 0 && parsed.trips.length === 0) {
+        setLatestImportIssues(latestIssues.slice(0, 8))
         showNotice('error', parsed.issues[0]?.message || t('common.noData'))
         return
       }
 
+      const tripResult = await importTrips(parsed.trips)
+      const unresolvedTripIds = new Set<string>()
+      const remappedExpenses = parsed.expenses.map((item) => {
+        if (!item.tripId) {
+          return item
+        }
+
+        const mappedTripId = tripResult.tripIdMap.get(item.tripId)
+        if (!mappedTripId) {
+          unresolvedTripIds.add(item.tripId)
+          return {
+            ...item,
+            tripId: undefined,
+            sharedGroupExpense: false,
+          }
+        }
+
+        return {
+          ...item,
+          tripId: mappedTripId,
+          sharedGroupExpense: item.sharedGroupExpense === true,
+        }
+      })
+
+      if (unresolvedTripIds.size > 0) {
+        latestIssues.push(
+          ...Array.from(unresolvedTripIds).map((tripId) =>
+            `Expenses referencing trip "${tripId}" were imported without a trip link because the trip could not be created or matched.`
+          )
+        )
+      }
+
+      setLatestImportIssues(latestIssues.slice(0, 8))
+
       const [expenseResult, incomeResult] = await Promise.all([
-        importExpenses(parsed.expenses),
+        importExpenses(remappedExpenses),
         importIncomes(parsed.incomes),
       ])
 
-      const importedCount = expenseResult.success + incomeResult.success
-      const failedCount = expenseResult.failed + incomeResult.failed
+      const importedCount = tripResult.success + expenseResult.success + incomeResult.success
+      const failedCount = tripResult.failed + expenseResult.failed + incomeResult.failed
       const skippedCount = parsed.skippedRows
 
       if (importedCount === 0) {
@@ -319,9 +454,11 @@ export default function SettingsPage() {
 
       const details = [
         `Imported ${importedCount} rows`,
+        tripResult.success > 0 ? `${tripResult.success} trip` : '',
         expenseResult.success > 0 ? `${expenseResult.success} expense` : '',
         incomeResult.success > 0 ? `${incomeResult.success} income` : '',
         skippedCount > 0 ? `skipped ${skippedCount}` : '',
+        unresolvedTripIds.size > 0 ? `unlinked ${unresolvedTripIds.size} trip reference` : '',
         failedCount > 0 ? `failed ${failedCount}` : '',
       ].filter(Boolean)
 
@@ -413,7 +550,7 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Select value={settings.language} onValueChange={(v) => handleLanguageChange(v as Language)}>
+          <Select value={settings.language} onValueChange={(v) => void handleLanguageChange(v as Language)}>
             <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20 sm:w-56 transition-all focus:bg-background">
               <SelectValue />
             </SelectTrigger>
@@ -455,11 +592,11 @@ export default function SettingsPage() {
               value={currencySignInput}
               maxLength={8}
               onChange={(e) => setCurrencySignInput(e.target.value)}
-              onBlur={(e) => handleCurrencySignSave(e.target.value)}
+              onBlur={(e) => void handleCurrencySignSave(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
-                  handleCurrencySignSave(currencySignInput)
+                  void handleCurrencySignSave(currencySignInput)
                 }
               }}
               placeholder={settings.currency}
@@ -484,7 +621,7 @@ export default function SettingsPage() {
                       'rounded-full border-border/60 px-3',
                       active ? 'border-primary bg-primary/10 text-primary' : '',
                     ].join(' ')}
-                    onClick={() => handleCurrencySignSave(option)}
+                    onClick={() => void handleCurrencySignSave(option)}
                   >
                     {option}
                   </Button>
@@ -508,11 +645,7 @@ export default function SettingsPage() {
         <CardContent>
           <Select
             value={settings.theme || 'dark'}
-            onValueChange={(v) => {
-              if (v && isThemeValue(v)) {
-                updateSettings({ theme: v })
-              }
-            }}
+            onValueChange={(v) => void handleThemeChange(v)}
           >
             <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20 sm:w-56 transition-all focus:bg-background">
               <SelectValue />
@@ -604,7 +737,7 @@ export default function SettingsPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="ai-model" className="text-sm font-medium">{t('settings.aiModel')}</Label>
-            <Select value={aiModel} onValueChange={(v) => handleAiModelChange(v as AiModel)}>
+            <Select value={aiModel} onValueChange={(v) => void handleAiModelChange(v as AiModel)}>
               <SelectTrigger id="ai-model" className="w-full rounded-xl border-border/60 bg-muted/20 sm:w-56 transition-all focus:bg-background">
                 <SelectValue />
               </SelectTrigger>
@@ -658,7 +791,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="rounded-xl border border-border/40 bg-muted/30 p-3 text-xs text-muted-foreground">
-            Supports expense and income import. Headers supported: `Date`, `Amount`, `Type`, `Category`, `Description`, `Trip ID`, `Shared Friend Group`.
+            Supports expense, income, and trip import. Headers supported: `Date`, `Amount`, `Type`, `Category`, `Description`, `Trip ID`, `Shared Friend Group`, `Name`, `Start Date`, `End Date`, `Group Fund`.
             Duplicate rows in the same file are skipped automatically.
           </div>
           {latestImportIssues.length > 0 && (

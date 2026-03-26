@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import {
   Expense,
   Income,
@@ -37,8 +37,8 @@ import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-f
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
 import { useAuth } from '@/contexts/AuthContext'
 import { mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-expenses'
-import { DEFAULT_APP_SETTINGS, getDefaultCurrencySign, hasCustomAppSettings, normalizeAppSettings } from '@/lib/settings'
-import { fetchUserPreferences, updateUserPreferences } from '@/lib/preferences-client'
+import { DEFAULT_APP_SETTINGS, hasCustomAppSettings, normalizeAppSettings } from '@/lib/settings'
+import { fetchUserPreferences, updateUserPreferences, type UserPreferencesResponse } from '@/lib/preferences-client'
 
 function normalizeExpenseDate(rawDate: string): string {
   const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
@@ -206,13 +206,14 @@ interface AppContextType {
 
   // Settings
   settings: AppSettings
-  updateSettings: (settings: Partial<AppSettings>) => void
-  setLanguage: (lang: 'en' | 'my') => void
+  updateSettings: (settings: Partial<AppSettings>) => Promise<AppSettings>
+  setLanguage: (lang: 'en' | 'my') => Promise<void>
 
   // Custom Categories
   customCategories: CustomCategory[]
   addCustomCategory: (category: Omit<CustomCategory, 'id'>) => CustomCategory
   deleteCustomCategory: (id: string) => boolean
+  persistChatHistory: (messages: ReturnType<typeof getChatHistory>) => Promise<void>
 
   // Loading
   isLoading: boolean
@@ -239,6 +240,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS)
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const preferencesWriteQueueRef = useRef<Promise<void>>(Promise.resolve())
 
   // Current PocketBase user
   const currentUser = user ? {
@@ -248,23 +250,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   } : null
 
   const applyPreferenceSnapshot = useCallback((nextSettings: AppSettings, nextCustomCategories: CustomCategory[], nextChatHistory?: ReturnType<typeof getChatHistory>) => {
-    const cachedSettings = getSettings()
     const normalizedSettings = normalizeAppSettings(nextSettings)
-    const cachedDefaultCurrencySign = getDefaultCurrencySign(cachedSettings.currency)
-    const nextDefaultCurrencySign = getDefaultCurrencySign(normalizedSettings.currency)
-    const shouldPreserveCachedCurrencySign =
-      cachedSettings.currency === normalizedSettings.currency &&
-      cachedSettings.currencySign !== cachedDefaultCurrencySign &&
-      normalizedSettings.currencySign === nextDefaultCurrencySign
-
-    const resolvedSettings = shouldPreserveCachedCurrencySign
-      ? normalizeAppSettings({
-          ...normalizedSettings,
-          currencySign: cachedSettings.currencySign,
-        })
-      : normalizedSettings
-
-    const storedSettings = saveSettings(resolvedSettings)
+    const storedSettings = saveSettings(normalizedSettings)
     saveCustomCategories(nextCustomCategories)
     setI18nLanguage(storedSettings.language)
     setSettings(storedSettings)
@@ -326,20 +313,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     settings?: Partial<AppSettings>
     customCategories?: CustomCategory[]
     chatHistory?: ReturnType<typeof getChatHistory>
-  }) => {
+  }): Promise<UserPreferencesResponse | null> => {
     if (!isAuthenticated || !user) {
-      return
+      return null
     }
 
+    const task = preferencesWriteQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const updatedPreferences = await updateUserPreferences(patch)
+        applyPreferenceSnapshot(
+          updatedPreferences.settings,
+          updatedPreferences.customCategories,
+          updatedPreferences.chatHistory
+        )
+        return updatedPreferences
+      })
+
+    preferencesWriteQueueRef.current = task
+      .then(() => undefined)
+      .catch(() => undefined)
+
     try {
-      const updatedPreferences = await updateUserPreferences(patch)
-      applyPreferenceSnapshot(
-        updatedPreferences.settings,
-        updatedPreferences.customCategories,
-        updatedPreferences.chatHistory
-      )
+      return await task
     } catch (error) {
       console.error('Failed to persist user preferences:', error)
+      throw error
     }
   }, [applyPreferenceSnapshot, isAuthenticated, user])
 
@@ -848,16 +847,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [expenses, subscriptions])
 
   // Settings
-  const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
-    const updated = saveSettings(newSettings)
-    setSettings(updated)
-    setI18nLanguage(updated.language)
-    void persistPreferences({ settings: updated })
-  }, [persistPreferences])
+  const updateSettings = useCallback(async (newSettings: Partial<AppSettings>) => {
+    const settingKeys = Object.keys(newSettings) as (keyof AppSettings)[]
+    if (settingKeys.length === 0) {
+      return settings
+    }
 
-  const setLanguage = useCallback((lang: 'en' | 'my') => {
-    setI18nLanguage(lang)
-    updateSettings({ language: lang })
+    if (!isAuthenticated || !user) {
+      const updated = saveSettings(newSettings)
+      setSettings(updated)
+      setI18nLanguage(updated.language)
+      return updated
+    }
+
+    const persistedPreferences = await persistPreferences({ settings: newSettings })
+    if (!persistedPreferences) {
+      throw new Error('Failed to persist user preferences')
+    }
+
+    const expectedSettings = normalizeAppSettings({ ...settings, ...newSettings })
+    const didPersistRequestedKeys = settingKeys.every(
+      (key) => persistedPreferences.settings[key] === expectedSettings[key]
+    )
+
+    if (!didPersistRequestedKeys) {
+      throw new Error('Settings update did not persist on the server. Apply the latest backend migrations and try again.')
+    }
+
+    return persistedPreferences.settings
+  }, [isAuthenticated, persistPreferences, settings, user])
+
+  const setLanguage = useCallback(async (lang: 'en' | 'my') => {
+    await updateSettings({ language: lang })
   }, [updateSettings])
 
   // Custom Categories
@@ -899,6 +920,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setCustomCategories(updated)
     void persistPreferences({ customCategories: updated })
     return true
+  }, [persistPreferences])
+
+  const persistChatHistory = useCallback(async (messages: ReturnType<typeof getChatHistory>) => {
+    saveChatHistory(messages)
+    await persistPreferences({ chatHistory: messages })
   }, [persistPreferences])
 
   // Sync Theme to DOM
@@ -953,6 +979,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         customCategories,
         addCustomCategory,
         deleteCustomCategory,
+        persistChatHistory,
         isLoading,
         currentUser,
       }}

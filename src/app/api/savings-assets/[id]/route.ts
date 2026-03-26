@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
 import { SavingsAssetType } from '@/types'
+import { isSavingsAssetType } from '@/lib/savings-assets'
 
 type PocketBaseLikeError = {
   status?: number
@@ -10,22 +11,21 @@ type PocketBaseLikeError = {
 type SavingsAssetInput = {
   type?: string
   name?: string
-  amount?: number
+  amount?: number | string | null
   symbol?: string
   note?: string
+  recurringMonthlyAmount?: number | string | null
+  recurringStartDate?: string | null
 }
 
 type SavingsAssetRecord = {
   id: string
   user?: string
   type?: SavingsAssetType
+  amount?: number
   symbol?: string
-}
-
-const SAVINGS_ASSET_TYPES: SavingsAssetType[] = ['insurance', 'crypto', 'stocks', 'personal_funds']
-
-function isSavingsAssetType(value: string): value is SavingsAssetType {
-  return SAVINGS_ASSET_TYPES.includes(value as SavingsAssetType)
+  recurringMonthlyAmount?: number | null
+  recurringStartDate?: string | null
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
@@ -63,12 +63,27 @@ function getAuthenticatedPb(request: NextRequest):
 }
 
 function normalizeInput(input: SavingsAssetInput) {
+  const parseNumber = (value: unknown): number | null | undefined => {
+    if (value === undefined) return undefined
+    if (value === null) return null
+    if (typeof value === 'string' && value.trim().length === 0) return null
+    const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value).trim())
+    return Number.isFinite(parsed) ? parsed : Number.NaN
+  }
+
   return {
     type: typeof input.type === 'string' ? input.type.trim().toLowerCase() : undefined,
     name: typeof input.name === 'string' ? input.name.trim() : undefined,
-    amount: typeof input.amount === 'number' ? input.amount : undefined,
+    amount: parseNumber(input.amount),
     symbol: typeof input.symbol === 'string' ? input.symbol.trim().toUpperCase() : undefined,
     note: typeof input.note === 'string' ? input.note.trim() : undefined,
+    recurringMonthlyAmount: parseNumber(input.recurringMonthlyAmount),
+    recurringStartDate:
+      typeof input.recurringStartDate === 'string'
+        ? input.recurringStartDate.trim() || null
+        : input.recurringStartDate === null
+          ? null
+          : undefined,
   }
 }
 
@@ -78,6 +93,24 @@ function isValidAssetSymbol(value: string): boolean {
 
 function stripUndefined(obj: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined))
+}
+
+function isValidDateOnly(value: string): boolean {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!match) {
+    return false
+  }
+
+  const year = Number.parseInt(match[1], 10)
+  const month = Number.parseInt(match[2], 10)
+  const day = Number.parseInt(match[3], 10)
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  )
 }
 
 async function getOwnedAsset(
@@ -167,6 +200,7 @@ export async function PUT(
 
     if (
       normalized.amount !== undefined &&
+      normalized.amount !== null &&
       (!Number.isFinite(normalized.amount) || normalized.amount < 0)
     ) {
       return NextResponse.json(
@@ -191,12 +225,74 @@ export async function PUT(
       )
     }
 
+    const effectiveRecurringMonthlyAmount =
+      normalized.recurringMonthlyAmount !== undefined
+        ? normalized.recurringMonthlyAmount
+        : existing.recurringMonthlyAmount
+    const effectiveRecurringStartDate =
+      normalized.recurringStartDate !== undefined
+        ? normalized.recurringStartDate
+        : existing.recurringStartDate
+    const recurringEnabled =
+      effectiveType === 'insurance' &&
+      typeof effectiveRecurringMonthlyAmount === 'number' &&
+      Number.isFinite(effectiveRecurringMonthlyAmount) &&
+      effectiveRecurringMonthlyAmount > 0
+
+    if (
+      normalized.recurringMonthlyAmount !== undefined &&
+      normalized.recurringMonthlyAmount !== null &&
+      (!Number.isFinite(normalized.recurringMonthlyAmount) || normalized.recurringMonthlyAmount < 0)
+    ) {
+      return NextResponse.json(
+        { error: 'recurringMonthlyAmount must be a non-negative number' },
+        { status: 400 }
+      )
+    }
+
+    if (effectiveRecurringStartDate && !isValidDateOnly(effectiveRecurringStartDate)) {
+      return NextResponse.json(
+        { error: 'recurringStartDate must be a valid YYYY-MM-DD date' },
+        { status: 400 }
+      )
+    }
+
+    if (effectiveRecurringStartDate && !recurringEnabled) {
+      return NextResponse.json(
+        { error: 'recurringStartDate requires a recurringMonthlyAmount greater than 0 for insurance assets' },
+        { status: 400 }
+      )
+    }
+
+    if (recurringEnabled && !effectiveRecurringStartDate) {
+      return NextResponse.json(
+        { error: 'recurringStartDate is required when recurringMonthlyAmount is enabled for insurance assets' },
+        { status: 400 }
+      )
+    }
+
     const updated = await pb.collection('savings_assets').update(id, stripUndefined({
       type: normalized.type,
       name: normalized.name,
       amount: normalized.amount,
       symbol: normalized.symbol,
       note: normalized.note,
+      recurringMonthlyAmount:
+        normalized.type !== undefined && normalized.type !== 'insurance'
+          ? null
+          : recurringEnabled
+            ? effectiveRecurringMonthlyAmount
+            : normalized.recurringMonthlyAmount !== undefined || normalized.recurringStartDate !== undefined
+              ? null
+              : undefined,
+      recurringStartDate:
+        normalized.type !== undefined && normalized.type !== 'insurance'
+          ? null
+          : recurringEnabled
+            ? effectiveRecurringStartDate
+            : normalized.recurringMonthlyAmount !== undefined || normalized.recurringStartDate !== undefined
+              ? null
+              : undefined,
     }))
 
     return NextResponse.json(updated)

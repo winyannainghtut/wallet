@@ -9,7 +9,6 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  storageClassName: microk8s-hostpath
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -34,7 +33,7 @@ spec:
     spec:
       initContainers:
         - name: pocketbase-bootstrap
-          image: ghcr.io/muchobien/pocketbase:latest
+          image: ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf
           command:
             - /bin/sh
             - -ec
@@ -72,7 +71,7 @@ spec:
                 - ALL
       containers:
         - name: pocketbase
-          image: ghcr.io/muchobien/pocketbase:latest
+          image: ghcr.io/muchobien/pocketbase@sha256:244e8028be1fc9a9ab3649e746c248f40dd0cf852f7cdc8b12e17922347f52cf
           command:
             - /bin/sh
             - -ec

@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useApp } from '@/contexts/AppContext'
 import { Trip } from '@/types'
-import { format, differenceInDays } from 'date-fns'
+import { differenceInDays, format, parseISO } from 'date-fns'
 import { getTripFinancialSummary } from '@/lib/trips'
 
 const amountFormatter = new Intl.NumberFormat(undefined, {
@@ -210,7 +210,9 @@ export default function TripsPage() {
             const sharedGroupExpenses = tripExpenses.filter((expense) => expense.sharedGroupExpense)
             const totalSpend = tripExpenses.reduce((sum, expense) => sum + expense.amount, 0)
             const sharedGroupSpend = sharedGroupExpenses.reduce((sum, expense) => sum + expense.amount, 0)
-            const days = Math.max(1, differenceInDays(new Date(trip.endDate), new Date(trip.startDate)) + 1)
+            const tripStartDate = parseISO(trip.startDate)
+            const tripEndDate = parseISO(trip.endDate)
+            const days = Math.max(1, differenceInDays(tripEndDate, tripStartDate) + 1)
             const financialSummary = getTripFinancialSummary(trip, totalSpend, sharedGroupSpend)
 
             return (
@@ -255,7 +257,7 @@ export default function TripsPage() {
                 <CardContent className="space-y-4 pb-2 pt-4">
                   <div className="flex w-max items-center gap-2 rounded-lg bg-accent/20 px-3 py-1.5 text-sm text-muted-foreground">
                     <CalendarIcon className="h-4 w-4 text-primary" />
-                    {format(new Date(trip.startDate), 'MMM d, yyyy')} &rarr; {format(new Date(trip.endDate), 'MMM d')}
+                    {format(tripStartDate, 'MMM d, yyyy')} &rarr; {format(tripEndDate, 'MMM d')}
                     <span className="mx-1 opacity-50">&bull;</span>
                     <span className="font-medium text-foreground/80">{days} days</span>
                   </div>

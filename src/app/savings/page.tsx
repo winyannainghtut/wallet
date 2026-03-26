@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/contexts/AppContext'
 import { getCryptoAssetSymbol, normalizeAssetSymbol, useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
@@ -42,6 +43,8 @@ type AssetFormState = {
   name: string
   amount: string
   symbol: string
+  recurringMonthlyAmount: string
+  recurringStartDate: string
   note: string
 }
 
@@ -110,8 +113,11 @@ export default function SavingsPage() {
     name: '',
     amount: '',
     symbol: '',
+    recurringMonthlyAmount: '',
+    recurringStartDate: format(new Date(), 'yyyy-MM-dd'),
     note: '',
   })
+  const [isRecurringInsuranceEnabled, setIsRecurringInsuranceEnabled] = useState(false)
   const {
     isAssetsLoading,
     assetsError,
@@ -172,7 +178,6 @@ export default function SavingsPage() {
   const remainingAmount = currentGoal ? Math.max(currentGoal.targetAmount - positiveMonthlySavings, 0) : 0
   const exceededAmount = currentGoal ? Math.max(positiveMonthlySavings - currentGoal.targetAmount, 0) : 0
   const goalReached = Boolean(currentGoal && positiveMonthlySavings >= currentGoal.targetAmount)
-  const adjustedSavingsPosition = monthlySavings + totalAssetValue
 
   const openCreateGoalDialog = () => {
     setEditingGoal(null)
@@ -201,8 +206,11 @@ export default function SavingsPage() {
       name: '',
       amount: '',
       symbol: '',
+      recurringMonthlyAmount: '',
+      recurringStartDate: format(new Date(), 'yyyy-MM-dd'),
       note: '',
     })
+    setIsRecurringInsuranceEnabled(false)
     setIsAssetDialogOpen(true)
   }
 
@@ -214,8 +222,16 @@ export default function SavingsPage() {
       name: asset.name,
       amount: String(asset.amount),
       symbol: currentSymbol ?? '',
+      recurringMonthlyAmount: asset.recurringMonthlyAmount ? String(asset.recurringMonthlyAmount) : '',
+      recurringStartDate: asset.recurringStartDate ?? format(new Date(), 'yyyy-MM-dd'),
       note: asset.note ?? '',
     })
+    setIsRecurringInsuranceEnabled(
+      asset.type === 'insurance' &&
+      typeof asset.recurringMonthlyAmount === 'number' &&
+      asset.recurringMonthlyAmount > 0 &&
+      Boolean(asset.recurringStartDate)
+    )
     setIsAssetDialogOpen(true)
   }
 
@@ -338,6 +354,28 @@ export default function SavingsPage() {
       return
     }
 
+    const parsedRecurringMonthlyAmount = isRecurringInsuranceEnabled && assetForm.type === 'insurance'
+      ? Number(assetForm.recurringMonthlyAmount)
+      : null
+
+    if (
+      isRecurringInsuranceEnabled &&
+      assetForm.type === 'insurance' &&
+      (Number.isNaN(parsedRecurringMonthlyAmount) || parsedRecurringMonthlyAmount === null || parsedRecurringMonthlyAmount <= 0)
+    ) {
+      alert('Recurring monthly insurance contribution must be greater than 0.')
+      return
+    }
+
+    if (
+      isRecurringInsuranceEnabled &&
+      assetForm.type === 'insurance' &&
+      !/^\d{4}-\d{2}-\d{2}$/.test(assetForm.recurringStartDate)
+    ) {
+      alert('Recurring start date is required.')
+      return
+    }
+
     const symbolPayload =
       assetForm.type === 'crypto'
         ? normalizedSymbol
@@ -350,6 +388,14 @@ export default function SavingsPage() {
       name: assetForm.name.trim(),
       amount: parsedAmount,
       symbol: symbolPayload,
+      recurringMonthlyAmount:
+        assetForm.type === 'insurance' && isRecurringInsuranceEnabled
+          ? parsedRecurringMonthlyAmount
+          : null,
+      recurringStartDate:
+        assetForm.type === 'insurance' && isRecurringInsuranceEnabled
+          ? assetForm.recurringStartDate
+          : null,
       note: assetForm.note.trim() || undefined,
     }
 
@@ -463,12 +509,15 @@ export default function SavingsPage() {
 
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Savings + Assets</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tracked Assets</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold tabular-nums ${adjustedSavingsPosition >= 0 ? 'text-primary' : 'text-destructive'}`}>
-              {Math.round(adjustedSavingsPosition).toLocaleString()} {displayCurrency}
+            <div className="text-2xl font-bold tabular-nums text-primary">
+              {Math.round(totalAssetValue).toLocaleString()} {displayCurrency}
             </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Insurance, crypto, stocks, and personal saving funds
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -666,6 +715,29 @@ export default function SavingsPage() {
                           {asset.note && (
                             <p className="text-sm text-muted-foreground">{asset.note}</p>
                           )}
+                          {asset.type === 'insurance' && portfolioAsset.recurringMonthlyAmount && portfolioAsset.recurringStartDate && (
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
+                                {Math.round(portfolioAsset.recurringMonthlyAmount).toLocaleString()} {displayCurrency} / month
+                              </span>
+                              <span>Since {format(new Date(`${portfolioAsset.recurringStartDate}T00:00:00`), 'MMM d, yyyy')}</span>
+                              {typeof portfolioAsset.recurringContributionCount === 'number' && (
+                                <span>
+                                  {portfolioAsset.recurringContributionCount} contributions
+                                </span>
+                              )}
+                              {typeof portfolioAsset.recurringContributionValue === 'number' && portfolioAsset.recurringContributionValue > 0 && (
+                                <span>
+                                  Added {Math.round(portfolioAsset.recurringContributionValue).toLocaleString()} {displayCurrency}
+                                </span>
+                              )}
+                              {portfolioAsset.nextRecurringContributionDate && (
+                                <span>
+                                  Next {format(new Date(`${portfolioAsset.nextRecurringContributionDate}T00:00:00`), 'MMM d, yyyy')}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {asset.type === 'crypto' && (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
@@ -691,9 +763,16 @@ export default function SavingsPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold tabular-nums">
-                            {Math.round(portfolioAsset.currentValue).toLocaleString()} {displayCurrency}
-                          </p>
+                          <div className="text-right">
+                            <p className="font-semibold tabular-nums">
+                              {Math.round(portfolioAsset.currentValue).toLocaleString()} {displayCurrency}
+                            </p>
+                            {asset.type === 'insurance' && portfolioAsset.recurringContributionValue && portfolioAsset.recurringContributionValue > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Base {Math.round(asset.amount).toLocaleString()} + recurring {Math.round(portfolioAsset.recurringContributionValue).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
                           <Button variant="ghost" size="icon" onClick={() => openEditAssetDialog(asset)} className="h-8 w-8 rounded-lg">
                             <Edit2 className="h-4 w-4" />
                           </Button>
@@ -867,11 +946,18 @@ export default function SavingsPage() {
                     <button
                       key={assetType}
                       type="button"
-                      onClick={() => setAssetForm((prev) => ({
-                        ...prev,
-                        type: assetType,
-                        symbol: assetType === 'crypto' ? prev.symbol : '',
-                      }))}
+                      onClick={() => {
+                        setAssetForm((prev) => ({
+                          ...prev,
+                          type: assetType,
+                          symbol: assetType === 'crypto' ? prev.symbol : '',
+                          recurringMonthlyAmount: assetType === 'insurance' ? prev.recurringMonthlyAmount : '',
+                          recurringStartDate: assetType === 'insurance' ? prev.recurringStartDate : format(new Date(), 'yyyy-MM-dd'),
+                        }))
+                        if (assetType !== 'insurance') {
+                          setIsRecurringInsuranceEnabled(false)
+                        }
+                      }}
                       className={[
                         'flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-all',
                         active
@@ -894,6 +980,55 @@ export default function SavingsPage() {
                 placeholder="AIA policy, BTC wallet, emergency fund..."
               />
             </div>
+            {assetForm.type === 'insurance' && (
+              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">Recurring Monthly Insurance Saving</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Add a monthly insurance contribution and track when it started.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={isRecurringInsuranceEnabled}
+                    onCheckedChange={(checked) => {
+                      setIsRecurringInsuranceEnabled(checked)
+                      if (!checked) {
+                        setAssetForm((prev) => ({
+                          ...prev,
+                          recurringMonthlyAmount: '',
+                          recurringStartDate: format(new Date(), 'yyyy-MM-dd'),
+                        }))
+                      }
+                    }}
+                  />
+                </div>
+
+                {isRecurringInsuranceEnabled && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Monthly Contribution</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={assetForm.recurringMonthlyAmount}
+                        onChange={(e) => setAssetForm((prev) => ({ ...prev, recurringMonthlyAmount: e.target.value }))}
+                        placeholder="e.g. 250"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Recurring Start Date</Label>
+                      <Input
+                        type="date"
+                        value={assetForm.recurringStartDate}
+                        onChange={(e) => setAssetForm((prev) => ({ ...prev, recurringStartDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             {assetForm.type === 'crypto' && (
               <div className="space-y-2">
                 <Label>Crypto Symbol</Label>
@@ -908,7 +1043,13 @@ export default function SavingsPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label>{assetForm.type === 'crypto' ? 'Crypto Quantity' : `Amount (${displayCurrency})`}</Label>
+              <Label>
+                {assetForm.type === 'crypto'
+                  ? 'Crypto Quantity'
+                  : assetForm.type === 'insurance' && isRecurringInsuranceEnabled
+                    ? `Base Amount (${displayCurrency})`
+                    : `Amount (${displayCurrency})`}
+              </Label>
               <Input
                 type="number"
                 min="0"
@@ -919,6 +1060,11 @@ export default function SavingsPage() {
               {assetForm.type === 'crypto' && (
                 <p className="text-xs text-muted-foreground">
                   Enter coin amount (for example 0.25 BTC). App will calculate live {settings.currency} value.
+                </p>
+              )}
+              {assetForm.type === 'insurance' && isRecurringInsuranceEnabled && (
+                <p className="text-xs text-muted-foreground">
+                  Base amount stays fixed. Monthly insurance contributions are added automatically from the selected start date.
                 </p>
               )}
             </div>

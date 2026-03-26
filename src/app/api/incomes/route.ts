@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { escapeFilterValue } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   status?: number
@@ -81,15 +82,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const perPage = Math.max(1, parseInt(searchParams.get('perPage') || '100', 10))
-    const internalPerPage = Math.max(perPage * 4, 400)
-
     let incomesItems: IncomeRecord[] = []
     try {
-      const incomesResult = await pb.collection('incomes').getList(1, internalPerPage, {
+      incomesItems = await pb.collection('incomes').getFullList<IncomeRecord>({
         sort: '-date',
-        filter: `user = "${userId}"`,
+        filter: `user = "${escapeFilterValue(userId)}"`,
       })
-      incomesItems = (incomesResult.items || []) as IncomeRecord[]
     } catch (error: unknown) {
       if (!isMissingCollectionContext(error)) {
         throw error
@@ -98,11 +96,10 @@ export async function GET(request: NextRequest) {
 
     let legacyItems: IncomeRecord[] = []
     try {
-      const legacyResult = await pb.collection('transactions').getList(1, internalPerPage, {
+      legacyItems = await pb.collection('transactions').getFullList<IncomeRecord>({
         sort: '-date',
-        filter: `user = "${userId}" && type = "income"`,
+        filter: `user = "${escapeFilterValue(userId)}" && type = "income"`,
       })
-      legacyItems = (legacyResult.items || []) as IncomeRecord[]
     } catch (error: unknown) {
       if (!isMissingCollectionContext(error)) {
         throw error

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
 import { buildTripUpdatePayload, parseTripInput } from '@/lib/trips'
+import { escapeFilterValue } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   status?: number
@@ -82,30 +83,25 @@ async function clearTripReference(
 }
 
 async function clearTripFromTransactions(pb: ReturnType<typeof createPbServer>, userId: string, tripId: string) {
-  try {
-    const allRecords = await pb.collection('transactions').getFullList<TransactionRecord>({
-      filter: `user = "${userId}"`,
-    })
+  const allRecords = await pb.collection('transactions').getFullList<TransactionRecord>({
+    filter: `user = "${escapeFilterValue(userId)}"`,
+  })
 
-    const linkedRecords = allRecords.filter(
-      (record) => referencesTrip(record.tripId, tripId) || referencesTrip(record.trip, tripId)
-    )
+  const linkedRecords = allRecords.filter(
+    (record) => referencesTrip(record.tripId, tripId) || referencesTrip(record.trip, tripId)
+  )
 
-    if (linkedRecords.length === 0) {
-      return
-    }
+  if (linkedRecords.length === 0) {
+    return
+  }
 
-    const clearResults = await Promise.all(
-      linkedRecords.map((record) => clearTripReference(pb, record.id))
-    )
+  const clearResults = await Promise.all(
+    linkedRecords.map((record) => clearTripReference(pb, record.id))
+  )
 
-    const failedCount = clearResults.filter((result) => !result).length
-    if (failedCount > 0) {
-      console.warn(`Failed to unlink ${failedCount} transaction(s) from trip ${tripId}`)
-    }
-  } catch (error) {
-    // Ignore if the transactions collection doesn't have tripId yet.
-    console.warn('Skipping trip transaction unlink:', getErrorMessage(error, 'Unknown error'))
+  const failedCount = clearResults.filter((result) => !result).length
+  if (failedCount > 0) {
+    throw new Error(`Failed to unlink ${failedCount} transaction(s) from this trip`)
   }
 }
 
