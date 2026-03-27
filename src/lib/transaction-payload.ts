@@ -13,9 +13,6 @@ type TransactionPayloadInput = {
   sourceAmount?: unknown
   sourceCurrency?: unknown
   sourceExchangeRate?: unknown
-  merchantName?: unknown
-  tagsJson?: unknown
-  reviewStatus?: unknown
   accountId?: unknown
   description?: unknown
   date?: unknown
@@ -31,9 +28,6 @@ type ExistingTransaction = {
   sourceAmount?: unknown
   sourceCurrency?: unknown
   sourceExchangeRate?: unknown
-  merchantName?: unknown
-  tagsJson?: unknown
-  reviewStatus?: unknown
   accountId?: unknown
   tripId?: unknown
   trip?: unknown
@@ -92,37 +86,6 @@ function normalizeType(value: unknown): TransactionType | null {
   }
 
   return null
-}
-
-function normalizeReviewStatus(value: unknown): 'pending' | 'reviewed' | 'ignored' | null {
-  if (value === 'pending' || value === 'reviewed' || value === 'ignored') {
-    return value
-  }
-
-  return null
-}
-
-function normalizeTags(value: unknown): string[] {
-  const raw = typeof value === 'string'
-    ? (() => {
-        try {
-          return JSON.parse(value)
-        } catch {
-          return value.split(',').map((item) => item.trim()).filter(Boolean)
-        }
-      })()
-    : value
-
-  if (!Array.isArray(raw)) {
-    return []
-  }
-
-  return raw
-    .map((item) => normalizeText(item))
-    .filter(Boolean)
-    .map((item) => item.slice(0, 40))
-    .filter((item, index, array) => array.indexOf(item) === index)
-    .slice(0, 12)
 }
 
 function isValidDateOnly(value: string): boolean {
@@ -216,9 +179,6 @@ export async function parseTransactionPayload(
   const hasSourceAmount = hasOwn(body, 'sourceAmount')
   const hasSourceCurrency = hasOwn(body, 'sourceCurrency')
   const hasSourceExchangeRate = hasOwn(body, 'sourceExchangeRate')
-  const hasMerchantName = hasOwn(body, 'merchantName')
-  const hasTagsJson = hasOwn(body, 'tagsJson')
-  const hasReviewStatus = hasOwn(body, 'reviewStatus')
   const hasAccountId = hasOwn(body, 'accountId')
   const hasDescription = hasOwn(body, 'description')
   const hasDate = hasOwn(body, 'date')
@@ -251,13 +211,7 @@ export async function parseTransactionPayload(
   }
 
   const description = hasDescription ? normalizeText(body.description).slice(0, 500) : ''
-  const merchantName = hasMerchantName ? normalizeText(body.merchantName).slice(0, 160) : ''
-  const tags = hasTagsJson ? normalizeTags(body.tagsJson) : []
-  const reviewStatus = hasReviewStatus ? normalizeReviewStatus(body.reviewStatus) : null
   const accountId = hasAccountId ? normalizeTripId(body.accountId) : ''
-  if (hasReviewStatus && !reviewStatus) {
-    return { error: 'reviewStatus must be pending, reviewed, or ignored' }
-  }
 
   const existingType = normalizeType(options.existing?.type)
   const existingAmount =
@@ -276,9 +230,6 @@ export async function parseTransactionPayload(
   const existingTripId = normalizeTripId(options.existing?.tripId ?? options.existing?.trip)
   const existingSharedGroupExpense = options.existing?.sharedGroupExpense === true
   const existingPaidByMemberId = normalizeTripId(options.existing?.paidByMemberId)
-  const existingMerchantName = normalizeText(options.existing?.merchantName).slice(0, 160)
-  const existingTags = normalizeTags(options.existing?.tagsJson)
-  const existingReviewStatus = normalizeReviewStatus(options.existing?.reviewStatus)
   const existingAccountId = normalizeTripId(options.existing?.accountId)
 
   const effectiveType = nextType ?? existingType
@@ -323,9 +274,6 @@ export async function parseTransactionPayload(
     : effectiveSharedGroupExpense
       ? requestedPaidByMemberId ?? existingPaidByMemberId
       : ''
-  const effectiveMerchantName = hasMerchantName ? merchantName : existingMerchantName
-  const effectiveTags = hasTagsJson ? tags : existingTags
-  const effectiveReviewStatus = hasReviewStatus ? reviewStatus : existingReviewStatus
   const effectiveAccountId = hasAccountId ? accountId : existingAccountId
   let effectiveSourceAmount = effectiveType === 'expense' && effectiveTripId
     ? requestedSourceAmount !== undefined
@@ -486,9 +434,6 @@ export async function parseTransactionPayload(
   if (!partial || hasType) payload.type = effectiveType
   if (!partial || hasCategory) payload.category = category
   if (!partial || hasAmount) payload.amount = amount
-  if (!partial || hasMerchantName) payload.merchantName = effectiveMerchantName
-  if (!partial || hasTagsJson) payload.tagsJson = JSON.stringify(effectiveTags)
-  if (!partial || hasReviewStatus) payload.reviewStatus = effectiveReviewStatus ?? 'pending'
   if (!partial || hasAccountId) payload.accountId = effectiveAccountId || null
   if (!partial || hasDescription) payload.description = description
   if (!partial || hasDate) payload.date = date

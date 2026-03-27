@@ -25,21 +25,16 @@
 - Added forecast and projected net worth views in Reports and Calendar.
 - Added manual planning and collaboration layers:
   - `accounts`
-  - `liabilities`
-  - `budgets`
-  - `transaction_rules`
   - `households`
   - `household_members`
-- Added transaction review queue with merchant cleanup, tags, review states, and account assignment across expenses and incomes.
-- Added bills center that consolidates subscriptions, liabilities, and recurring insurance contributions.
+- Added bills center that consolidates subscriptions and recurring insurance contributions.
 - Hardened household collaboration:
   - household creation now seeds the active owner membership
   - invited members can auto-bind by matching email on sign-in
   - household/member management is owner-only
   - member rows can no longer be moved across households
 - Hardened account-linked validation:
-  - incomes now validate account ownership and review metadata like transactions
-  - review edits reject foreign or missing account ids
+  - incomes now validate account ownership like transactions
 - Preserved historical trip-currency exchange rates when editing trip-linked expenses.
 - Added budget duplicate protection:
   - API rejects duplicate `(user, month, category)` budgets
@@ -63,7 +58,10 @@
   - `1775600000_remove_budget_and_liability_features.js`
 - Synced bootstrap ConfigMap:
   - `k8s/pocketbase-bootstrap.yaml`
-- Synced docs for trip currency, planning/collaboration hardening, and the budgets/liabilities removal.
+- Removed the review queue and transaction-rules backend/UI slice.
+- Added PocketBase migration:
+  - `1775700000_remove_review_feature.js`
+- Synced docs for trip currency, planning/collaboration hardening, the budgets/liabilities removal, and the review removal.
 
 ## 2026-03-26
 
@@ -201,12 +199,13 @@ Browser -> Next.js API routes -> PocketBase
 - `1775400000_planning_collaboration_collections.js`
 - `1775500000_fix_household_rules_and_budget_indexes.js`
 - `1775600000_remove_budget_and_liability_features.js`
+- `1775700000_remove_review_feature.js`
 
 ## Next Practical Tasks
 
-1. Expand Myanmar translation coverage for the newer accounts, review, household, and fund-goal screens.
-2. Add CI coverage for migration bootstraps plus the new accounts/review/household routes.
-3. Add end-to-end smoke tests for review queue, bills, and trip settle-up flows.
+1. Expand Myanmar translation coverage for the newer accounts, household, and fund-goal screens.
+2. Add CI coverage for migration bootstraps plus the new accounts/household routes.
+3. Add end-to-end smoke tests for bills and trip settle-up flows.
 
 ---
 

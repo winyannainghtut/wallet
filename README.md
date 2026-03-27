@@ -1,6 +1,6 @@
 # Wallet App
 
-Wallet App is a Next.js 16 personal finance system with PocketBase backend, authentication, trips, accounts, review workflows, household collaboration, subscriptions, savings goals, reports, calendar planning, and AI insights.
+Wallet App is a Next.js 16 personal finance system with PocketBase backend, authentication, trips, accounts, household collaboration, subscriptions, savings goals, reports, calendar planning, and AI insights.
 
 ## Key Features
 
@@ -12,7 +12,6 @@ Wallet App is a Next.js 16 personal finance system with PocketBase backend, auth
 - Crypto assets support quantity input and live conversion to app currency (for example SGD)
 - Stock assets use manual value entry
 - Manual accounts layer for cash, bank, credit card, e-wallet, investment, and other balances
-- Transaction review queue with tags, merchant cleanup, account assignment, and reusable transaction rules
 - Household workspaces with member roles, shared base currency, owner-only management, and email-based invite auto-binding
 - Bills center that combines subscriptions and recurring insurance contributions
 - Trips and subscriptions persisted in PocketBase
@@ -58,8 +57,6 @@ Auth:
 Data:
 - `/api/transactions`
 - `/api/transactions/[id]`
-- `/api/transactions/review`
-- `/api/transactions/review/[id]`
 - `/api/accounts`
 - `/api/accounts/[id]`
 - `/api/incomes`
@@ -84,8 +81,6 @@ Data:
 - `/api/households/[id]`
 - `/api/household-members`
 - `/api/household-members/[id]`
-- `/api/transaction-rules`
-- `/api/transaction-rules/[id]`
 - `/api/ai`
 
 ### Excel Data Tools
@@ -211,6 +206,7 @@ Managed migration files:
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
 - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
 - `pb_migrations/1775600000_remove_budget_and_liability_features.js`
+- `pb_migrations/1775700000_remove_review_feature.js`
 
 `1775600000_remove_budget_and_liability_features.js` is destructive and deletes the legacy `budgets` and `liabilities` collections from PocketBase.
 
@@ -227,7 +223,6 @@ Expected collections:
 - `trip_members`
 - `trip_settlements`
 - `fund_goals`
-- `transaction_rules`
 - `households`
 - `household_members`
 - `subscriptions`

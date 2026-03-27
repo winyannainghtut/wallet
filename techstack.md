@@ -29,6 +29,7 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1775400000_planning_collaboration_collections.js`
   - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
   - `pb_migrations/1775600000_remove_budget_and_liability_features.js`
+  - `pb_migrations/1775700000_remove_review_feature.js`
 - **Main collections:**
   - `users`
   - `transactions`
@@ -41,7 +42,6 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `trip_members`
   - `trip_settlements`
   - `fund_goals`
-  - `transaction_rules`
   - `households`
   - `household_members`
   - `subscriptions`
@@ -55,7 +55,6 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)** with live ticker pricing for crypto and manual stock values
 - **Trips** with optional shared friend-group pooled spend metadata and manual destination currency / exchange rate
 - **Trip members and settle-up records** for payer-aware group trip accounting
-- **Transaction rules + review queue** with merchant cleanup, tags, review states, and account assignment
 - **Household collaboration** with member roles, shared base currency, owner-only management, and email invite auto-binding
 - **Subscriptions (recurring cost modeled into reports/calendar)**
 - **Bills center** that consolidates recurring subscriptions and recurring insurance contributions

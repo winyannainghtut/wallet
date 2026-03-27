@@ -12,9 +12,6 @@ type IncomeRecord = {
   user?: string
   type?: string
   amount?: unknown
-  merchantName?: unknown
-  tagsJson?: unknown
-  reviewStatus?: unknown
   accountId?: unknown
   category?: unknown
   description?: unknown

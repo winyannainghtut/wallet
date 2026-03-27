@@ -21,7 +21,6 @@ import {
   Landmark,
   PiggyBank,
   Receipt,
-  ScanSearch,
   Users
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -44,7 +43,6 @@ const navItems = [
   { href: '/subscriptions', icon: Repeat, labelKey: 'nav.subscriptions' },
   { href: '/bills', icon: Receipt, labelKey: 'nav.bills' },
   { href: '/accounts', icon: Landmark, labelKey: 'nav.accounts' },
-  { href: '/review', icon: ScanSearch, labelKey: 'nav.review' },
   { href: '/household', icon: Users, labelKey: 'nav.household' },
   { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ]

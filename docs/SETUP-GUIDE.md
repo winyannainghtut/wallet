@@ -177,23 +177,6 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Goal card shows target amount, linked asset value, and projected completion status.
    - Dashboard shows active fund goals.
 
-### 3.8 Review queue + transaction rules
-
-1. Open `/review`.
-2. Confirm queue items load from both expenses and incomes.
-3. Edit one item:
-   - merchant
-   - category
-   - tags
-   - account
-   - review status
-4. Create one rule that matches merchant text and auto-applies category/tags.
-5. Click `Apply Rules`.
-6. Verify:
-   - review queue updates in place
-   - rules can rename merchants, assign categories, attach tags, and auto-mark reviewed
-   - `ignored` items stay visible only when the filter includes them
-
 ### 3.9 Household collaboration
 
 1. Open `/household`.
@@ -263,7 +246,6 @@ Expected collections:
 - `trip_members`
 - `trip_settlements`
 - `fund_goals`
-- `transaction_rules`
 - `households`
 - `household_members`
 - `subscriptions`
@@ -286,6 +268,7 @@ Migration files:
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
 - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
 - `pb_migrations/1775600000_remove_budget_and_liability_features.js`
+- `pb_migrations/1775700000_remove_review_feature.js`
 
 ## 4) Kubernetes Setup
 

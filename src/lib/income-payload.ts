@@ -3,9 +3,6 @@ import { parseTransactionPayload } from '@/lib/transaction-payload'
 
 type IncomeLikeRecord = {
   amount?: unknown
-  merchantName?: unknown
-  tagsJson?: unknown
-  reviewStatus?: unknown
   accountId?: unknown
   category?: unknown
   description?: unknown
@@ -28,9 +25,6 @@ function pickIncomeCollectionFields(payload: Record<string, unknown>): Record<st
   return {
     amount: payload.amount,
     category: payload.category,
-    merchantName: payload.merchantName,
-    tagsJson: payload.tagsJson,
-    reviewStatus: payload.reviewStatus,
     accountId: payload.accountId,
     description: payload.description,
     date: payload.date,

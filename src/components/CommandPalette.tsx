@@ -15,7 +15,6 @@ import {
   Landmark,
   PiggyBank,
   Receipt,
-  ScanSearch,
   Users
 } from 'lucide-react'
 
@@ -103,10 +102,6 @@ export function CommandPalette() {
           <CommandItem onSelect={() => runCommand(() => router.push('/accounts'))}>
             <Landmark className="mr-2 h-4 w-4" />
             <span>{t('nav.accounts')}</span>
-          </CommandItem>
-          <CommandItem onSelect={() => runCommand(() => router.push('/review'))}>
-            <ScanSearch className="mr-2 h-4 w-4" />
-            <span>{t('nav.review')}</span>
           </CommandItem>
           <CommandItem onSelect={() => runCommand(() => router.push('/household'))}>
             <Users className="mr-2 h-4 w-4" />

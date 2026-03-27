@@ -24,8 +24,6 @@ Browser -> Next.js API routes -> PocketBase
 
 - `/api/transactions`
 - `/api/transactions/[id]`
-- `/api/transactions/review`
-- `/api/transactions/review/[id]`
 - `/api/accounts`
 - `/api/accounts/[id]`
 - `/api/incomes`
@@ -50,8 +48,6 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/households/[id]`
 - `/api/household-members`
 - `/api/household-members/[id]`
-- `/api/transaction-rules`
-- `/api/transaction-rules/[id]`
 - `/api/ai` (server-side Z.AI calls; does not expose keys to browser)
 
 ### Market data integration for savings assets
@@ -65,13 +61,12 @@ Browser -> Next.js API routes -> PocketBase
 - Per-user settings, custom categories, and AI chat history are stored in `user_preferences` via `/api/preferences`.
 - `user_preferences` now carries settings such as `language`, `currency`, `currencySign`, `aiModel`, `theme`, `customCategories`, and `chatHistory`.
 - `transactions` can carry `tripId`, `sharedGroupExpense`, `paidByMemberId`, `sourceAmount`, `sourceCurrency`, and `sourceExchangeRate` for trip-linked pooled friend-group spend and destination-currency expense capture.
-- `transactions` and `incomes` can also carry `merchantName`, `tagsJson`, `reviewStatus`, and `accountId` for the review queue and manual accounts layer.
+- `transactions` and `incomes` carry `accountId` for the manual accounts layer.
 - `accounts` stores manual balance snapshots and account metadata used by expense/income entry.
 - `trips` can carry manual `currency` and `exchangeRate` values for destination-currency budgets and group-fund tracking.
 - `trip_members` stores the participant list for each trip.
 - `trip_settlements` stores planned or paid settle-up records between trip members.
 - `fund_goals` stores linked savings/trip targets, status, and linked asset ids.
-- `transaction_rules` stores merchant-text rules that can rename, re-categorize, tag, and mark transactions reviewed.
 - `households` stores shared workspace metadata.
 - `households` are readable to active members, but management remains owner-only.
 - `household_members` stores member role/status by household and supports email invite auto-binding to `userId` after matching sign-in.
@@ -96,6 +91,7 @@ Migration files:
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
 - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
 - `pb_migrations/1775600000_remove_budget_and_liability_features.js`
+- `pb_migrations/1775700000_remove_review_feature.js`
 
 Purpose summary:
 
@@ -112,9 +108,10 @@ Purpose summary:
 - `1775100000`: adds recurring monthly insurance contribution fields to `savings_assets`
 - `1775200000`: adds `trip_members`, `trip_settlements`, `fund_goals`, and `transactions.paidByMemberId`
 - `1775300000`: adds `trips.currency`, `trips.exchangeRate`, and `transactions.source*` metadata for trip destination currency capture
-- `1775400000`: adds `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, `household_members`, and review/account metadata fields on `transactions` and `incomes`
+- `1775400000`: adds `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, `household_members`, and account/review metadata fields on `transactions` and `incomes`
 - `1775500000`: tightens household visibility/management rules and adds household membership uniqueness indexes
 - `1775600000`: destructively removes the legacy `budgets` and `liabilities` collections from PocketBase
+- `1775700000`: destructively removes the review queue backend (`transaction_rules`, `merchantName`, `tagsJson`, and `reviewStatus`) while keeping `accounts`
 
 Expected collections:
 
@@ -129,7 +126,6 @@ Expected collections:
 - `trip_members`
 - `trip_settlements`
 - `fund_goals`
-- `transaction_rules`
 - `households`
 - `household_members`
 - `subscriptions`
@@ -277,16 +273,17 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - `trip_settlements` collection exists
    - `fund_goals` collection exists
 
-### Accounts, review queue, or household data missing
+### Accounts or household data missing
 
 1. Confirm latest migration is applied:
    - `1775400000_planning_collaboration_collections.js`
    - `1775500000_fix_household_rules_and_budget_indexes.js`
    - `1775600000_remove_budget_and_liability_features.js`
+- `1775700000_remove_review_feature.js`
 2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
 3. In PocketBase Admin, verify:
-   - `accounts`, `transaction_rules`, `households`, and `household_members` collections exist
-   - `transactions` and `incomes` have `merchantName`, `tagsJson`, `reviewStatus`, and `accountId`
+   - `accounts`, `households`, and `household_members` collections exist
+   - `transactions` and `incomes` keep `accountId` only from the removed review/account metadata bundle
    - `households` read rules are membership-based and write rules are owner-only
    - `household_members` stores invite `email` and can populate `userId` for the matching signed-in member
 

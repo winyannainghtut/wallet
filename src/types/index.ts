@@ -79,9 +79,6 @@ export interface Expense {
   sourceAmount?: number
   sourceCurrency?: string
   sourceExchangeRate?: number
-  merchantName?: string
-  tags?: string[]
-  reviewStatus?: 'pending' | 'reviewed' | 'ignored'
   accountId?: string
   category: Category
   description: string
@@ -96,9 +93,6 @@ export interface Expense {
 export interface Income {
   id: string
   amount: number
-  merchantName?: string
-  tags?: string[]
-  reviewStatus?: 'pending' | 'reviewed' | 'ignored'
   accountId?: string
   category: IncomeCategory
   description: string
@@ -242,19 +236,6 @@ export interface Account {
   currency: string
   balance: number
   note?: string
-  isActive: boolean
-  createdAt: string
-  updatedAt?: string
-}
-
-export interface TransactionRule {
-  id: string
-  name: string
-  matchText: string
-  renameTo?: string
-  category?: Category
-  tags: string[]
-  markReviewed?: boolean
   isActive: boolean
   createdAt: string
   updatedAt?: string
