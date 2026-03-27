@@ -15,7 +15,7 @@ import {
   getIncomeCategoryLabel,
 } from '@/types'
 import { format } from 'date-fns'
-import { getTripFinancialSummary, parseTripInput } from '@/lib/trips'
+import { getExpenseAmountForTripCurrency, getTripFinancialSummary, parseTripInput } from '@/lib/trips'
 
 export type ExcelImportIssue = {
   level: 'warning' | 'error'
@@ -76,6 +76,11 @@ function normalizeHeaderKey(value: string): string {
 
 function normalizeTextValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function normalizeCurrencyCode(value: unknown): string {
+  const normalized = normalizeTextValue(value).toUpperCase()
+  return /^[A-Z]{3}$/.test(normalized) ? normalized : ''
 }
 
 function buildRowLookup(row: ExcelRow): Map<string, unknown> {
@@ -176,7 +181,10 @@ function buildFingerprint(
   category: string,
   description: string,
   tripId?: string,
-  sharedGroupExpense?: boolean
+  sharedGroupExpense?: boolean,
+  sourceAmount?: number,
+  sourceCurrency?: string,
+  sourceExchangeRate?: number
 ): string {
   return [
     date,
@@ -185,6 +193,9 @@ function buildFingerprint(
     description.trim().toLowerCase(),
     (tripId || '').trim().toLowerCase(),
     sharedGroupExpense ? 'shared-group' : 'personal',
+    typeof sourceAmount === 'number' ? sourceAmount.toFixed(4) : '',
+    normalizeCurrencyCode(sourceCurrency),
+    typeof sourceExchangeRate === 'number' ? sourceExchangeRate.toFixed(8) : '',
   ].join('|')
 }
 
@@ -220,6 +231,9 @@ function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
     const rawCategory = getRowValue(row, ['Category Key', 'Category', 'category'])
     const rawDescription = getRowValue(row, ['Description', 'description'])
     const rawTripId = getRowValue(row, ['Trip ID', 'tripId', 'trip id'])
+    const rawSourceAmount = getRowValue(row, ['Source Amount', 'sourceAmount', 'source amount'])
+    const rawSourceCurrency = getRowValue(row, ['Source Currency', 'sourceCurrency', 'source currency'])
+    const rawSourceExchangeRate = getRowValue(row, ['Source Exchange Rate', 'sourceExchangeRate', 'source exchange rate'])
     const rawSharedGroupExpense = getRowValue(row, [
       'Shared Friend Group',
       'sharedGroupExpense',
@@ -233,7 +247,14 @@ function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
     const category = normalizeExpenseCategory(rawCategory)
     const description = String(rawDescription || '').trim()
     const tripId = String(rawTripId || '').trim()
+    const sourceAmount = parseAmount(rawSourceAmount)
+    const sourceCurrency = normalizeCurrencyCode(rawSourceCurrency)
+    const sourceExchangeRate = parseAmount(rawSourceExchangeRate)
     const sharedGroupExpense = parseBooleanFlag(rawSharedGroupExpense)
+    const hasSourceAmountValue = rawSourceAmount !== undefined && String(rawSourceAmount).trim().length > 0
+    const hasSourceCurrencyValue = rawSourceCurrency !== undefined && normalizeTextValue(rawSourceCurrency).length > 0
+    const hasSourceExchangeRateValue = rawSourceExchangeRate !== undefined && String(rawSourceExchangeRate).trim().length > 0
+    const hasAnySourceMetadata = hasSourceAmountValue || hasSourceCurrencyValue || hasSourceExchangeRateValue
 
     if (amount === null || amount <= 0) {
       skippedRows++
@@ -257,7 +278,63 @@ function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
       return
     }
 
-    const fingerprint = buildFingerprint(date, amount, category, description, tripId, sharedGroupExpense)
+    if (hasAnySourceMetadata) {
+      if (!tripId) {
+        skippedRows++
+        issues.push({
+          level: 'error',
+          sheet: 'Expenses',
+          row: rowNumber,
+          message: 'Source currency fields require a Trip ID',
+        })
+        return
+      }
+
+      if (sourceAmount === null || sourceAmount <= 0) {
+        skippedRows++
+        issues.push({
+          level: 'error',
+          sheet: 'Expenses',
+          row: rowNumber,
+          message: 'Source Amount must be a number greater than 0',
+        })
+        return
+      }
+
+      if (!sourceCurrency) {
+        skippedRows++
+        issues.push({
+          level: 'error',
+          sheet: 'Expenses',
+          row: rowNumber,
+          message: 'Source Currency must be a valid 3-letter code',
+        })
+        return
+      }
+
+      if (sourceExchangeRate === null || sourceExchangeRate <= 0) {
+        skippedRows++
+        issues.push({
+          level: 'error',
+          sheet: 'Expenses',
+          row: rowNumber,
+          message: 'Source Exchange Rate must be a number greater than 0',
+        })
+        return
+      }
+    }
+
+    const fingerprint = buildFingerprint(
+      date,
+      amount,
+      category,
+      description,
+      tripId,
+      sharedGroupExpense,
+      hasAnySourceMetadata ? sourceAmount ?? undefined : undefined,
+      hasAnySourceMetadata ? sourceCurrency : undefined,
+      hasAnySourceMetadata ? sourceExchangeRate ?? undefined : undefined
+    )
     if (seen.has(fingerprint)) {
       duplicateRows++
       skippedRows++
@@ -279,6 +356,9 @@ function parseExpenseRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
       date,
       tripId: tripId || undefined,
       sharedGroupExpense: tripId ? sharedGroupExpense : undefined,
+      sourceAmount: hasAnySourceMetadata ? sourceAmount ?? undefined : undefined,
+      sourceCurrency: hasAnySourceMetadata ? sourceCurrency || undefined : undefined,
+      sourceExchangeRate: hasAnySourceMetadata ? sourceExchangeRate ?? undefined : undefined,
       createdAt: new Date().toISOString(),
     })
   })
@@ -369,6 +449,8 @@ function buildTripFingerprint(row: TripMutationInput): string {
     row.startDate,
     row.endDate,
     (row.destinations || '').trim().toLowerCase(),
+    (row.currency || '').trim().toUpperCase(),
+    row.exchangeRate ?? '',
     row.budget ?? '',
     (row.groupName || '').trim().toLowerCase(),
     row.groupSize ?? '',
@@ -399,6 +481,8 @@ function parseTripRows(rows: ExcelRow[], issues: ExcelImportIssue[]): {
       name: getRowValue(row, ['Name', 'Trip Name', 'name']),
       startDate: getRowValue(row, ['Start Date', 'startDate', 'start date']),
       endDate: getRowValue(row, ['End Date', 'endDate', 'end date']),
+      currency: getRowValue(row, ['Currency', 'currency', 'Trip Currency', 'destination currency']),
+      exchangeRate: getRowValue(row, ['Exchange Rate', 'exchangeRate', 'exchange rate']),
       budget: getRowValue(row, ['Budget', 'budget']),
       destinations: getRowValue(row, ['Destinations', 'Destination', 'destinations']),
       groupName: getRowValue(row, ['Group Name', 'groupName', 'group name']),
@@ -458,6 +542,9 @@ export function exportToExcel(
     'Category Key': item.category,
     Category: getCategoryLabel(item.category, 'en'),
     Amount: item.amount,
+    'Source Amount': item.sourceAmount ?? '',
+    'Source Currency': item.sourceCurrency ?? '',
+    'Source Exchange Rate': item.sourceExchangeRate ?? '',
     Description: item.description,
     'Trip ID': item.tripId || '',
     'Shared Friend Group': item.sharedGroupExpense ? 'Yes' : '',
@@ -478,9 +565,11 @@ export function exportToExcel(
   const summaryRows = [
     { Metric: 'Generated At', Value: format(new Date(), 'yyyy-MM-dd HH:mm:ss') },
     { Metric: 'Expense Rows', Value: expenseRows.length },
+    { Metric: 'Trip Currency Expense Rows', Value: expenses.filter((item) => typeof item.sourceAmount === 'number').length },
     { Metric: 'Shared Group Expense Rows', Value: expenses.filter((item) => item.sharedGroupExpense).length },
     { Metric: 'Income Rows', Value: incomeRows.length },
     { Metric: 'Trip Rows', Value: trips.length },
+    { Metric: 'Trips With Manual FX', Value: trips.filter((trip) => trip.currency && typeof trip.exchangeRate === 'number').length },
     {
       Metric: 'Trips With Shared Group Setup',
       Value: trips.filter((trip) => trip.groupName || typeof trip.groupSize === 'number' || typeof trip.groupFund === 'number').length,
@@ -573,6 +662,8 @@ export function exportToExcel(
     Name: trip.name,
     'Start Date': trip.startDate,
     'End Date': trip.endDate,
+    Currency: trip.currency ?? '',
+    'Exchange Rate': trip.exchangeRate ?? '',
     Budget: trip.budget ?? '',
     Destinations: trip.destinations ?? '',
     'Group Name': trip.groupName ?? '',
@@ -583,11 +674,25 @@ export function exportToExcel(
 
   const tripSpendMap = expenses.reduce<Record<string, number>>((acc, expense) => {
     if (!expense.tripId) return acc
+    const trip = trips.find((item) => item.id === expense.tripId)
+    acc[expense.tripId] = (acc[expense.tripId] || 0) + getExpenseAmountForTripCurrency(expense, trip)
+    return acc
+  }, {})
+
+  const tripSpendBaseMap = expenses.reduce<Record<string, number>>((acc, expense) => {
+    if (!expense.tripId) return acc
     acc[expense.tripId] = (acc[expense.tripId] || 0) + expense.amount
     return acc
   }, {})
 
   const sharedGroupTripSpendMap = expenses.reduce<Record<string, number>>((acc, expense) => {
+    if (!expense.tripId || !expense.sharedGroupExpense) return acc
+    const trip = trips.find((item) => item.id === expense.tripId)
+    acc[expense.tripId] = (acc[expense.tripId] || 0) + getExpenseAmountForTripCurrency(expense, trip)
+    return acc
+  }, {})
+
+  const sharedGroupTripSpendBaseMap = expenses.reduce<Record<string, number>>((acc, expense) => {
     if (!expense.tripId || !expense.sharedGroupExpense) return acc
     acc[expense.tripId] = (acc[expense.tripId] || 0) + expense.amount
     return acc
@@ -608,8 +713,12 @@ export function exportToExcel(
       return {
         'Trip ID': trip.id,
         Name: trip.name,
+        Currency: trip.currency ?? '',
+        'Exchange Rate': trip.exchangeRate ?? '',
         'Total Expense': totalExpense,
+        'App Currency Total Expense': tripSpendBaseMap[trip.id] || 0,
         'Shared Group Expense': sharedGroupExpense,
+        'App Currency Shared Group Expense': sharedGroupTripSpendBaseMap[trip.id] || 0,
         'Shared Group Transactions': sharedGroupTripCountMap[trip.id] || 0,
         Budget: trip.budget ?? '',
         'Budget Left': financialSummary.remainingBudget ?? '',
@@ -630,8 +739,12 @@ export function exportToExcel(
     .map(([tripId, total]) => ({
       'Trip ID': tripId,
       Name: '(Unlinked)',
+      Currency: '',
+      'Exchange Rate': '',
       'Total Expense': total,
+      'App Currency Total Expense': tripSpendBaseMap[tripId] || total,
       'Shared Group Expense': sharedGroupTripSpendMap[tripId] || '',
+      'App Currency Shared Group Expense': sharedGroupTripSpendBaseMap[tripId] || '',
       'Shared Group Transactions': sharedGroupTripCountMap[tripId] || '',
       Budget: '',
       'Budget Left': '',
@@ -651,6 +764,9 @@ export function exportToExcel(
     { wch: 16 },
     { wch: 18 },
     { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 },
     { wch: 40 },
     { wch: 20 },
     { wch: 18 },
@@ -688,6 +804,8 @@ export function exportToExcel(
         Name: 'No trips',
         'Start Date': '',
         'End Date': '',
+        Currency: '',
+        'Exchange Rate': '',
         Budget: '',
         Destinations: '',
         'Group Name': '',
@@ -701,6 +819,8 @@ export function exportToExcel(
     { wch: 24 },
     { wch: 12 },
     { wch: 12 },
+    { wch: 10 },
+    { wch: 14 },
     { wch: 12 },
     { wch: 30 },
     { wch: 22 },
@@ -715,8 +835,12 @@ export function exportToExcel(
       : [{
         'Trip ID': '-',
         Name: 'No trip expenses',
+        Currency: '',
+        'Exchange Rate': '',
         'Total Expense': 0,
+        'App Currency Total Expense': 0,
         'Shared Group Expense': 0,
+        'App Currency Shared Group Expense': 0,
         'Shared Group Transactions': 0,
         Budget: '',
         'Budget Left': '',
@@ -731,8 +855,12 @@ export function exportToExcel(
   tripSummaryWs['!cols'] = [
     { wch: 22 },
     { wch: 24 },
+    { wch: 10 },
+    { wch: 14 },
     { wch: 16 },
     { wch: 18 },
+    { wch: 18 },
+    { wch: 22 },
     { wch: 22 },
     { wch: 14 },
     { wch: 14 },
@@ -898,6 +1026,9 @@ export function downloadTemplate(): void {
       'Category Key': 'groceries',
       Category: 'Groceries',
       Amount: 1000,
+      'Source Amount': '',
+      'Source Currency': '',
+      'Source Exchange Rate': '',
       Description: 'Example expense entry',
       'Trip ID': '',
       'Shared Friend Group': '',
@@ -920,6 +1051,8 @@ export function downloadTemplate(): void {
       Name: 'Example Trip',
       'Start Date': format(new Date(), 'yyyy-MM-dd'),
       'End Date': format(new Date(Date.now() + 3 * 86400000), 'yyyy-MM-dd'),
+      Currency: 'THB',
+      'Exchange Rate': 0.04,
       Budget: 2500,
       Destinations: 'Bangkok',
       'Group Name': 'Friends Trip',
@@ -948,6 +1081,9 @@ export function downloadTemplate(): void {
     { wch: 16 },
     { wch: 18 },
     { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 18 },
     { wch: 40 },
     { wch: 20 },
     { wch: 18 },
@@ -976,6 +1112,8 @@ export function downloadTemplate(): void {
     { wch: 24 },
     { wch: 12 },
     { wch: 12 },
+    { wch: 10 },
+    { wch: 14 },
     { wch: 12 },
     { wch: 30 },
     { wch: 22 },

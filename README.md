@@ -1,6 +1,6 @@
 # Wallet App
 
-Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, authentication, trips, subscriptions, income tracking, savings goals, reports, calendar view, and AI insights.
+Wallet App is a Next.js 16 personal finance system with PocketBase backend, authentication, trips, budgets, liabilities, accounts, review workflows, household collaboration, subscriptions, savings goals, reports, calendar planning, and AI insights.
 
 ## Key Features
 
@@ -11,9 +11,16 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
 - Savings assets (insurance, crypto, stocks, personal saving funds) with live crypto market feeds and manual stock values
 - Crypto assets support quantity input and live conversion to app currency (for example SGD)
 - Stock assets use manual value entry
+- Manual accounts layer for cash, bank, credit card, e-wallet, investment, and other balances
+- Liabilities tracking with payoff projection, minimum-payment planning, and due-date visibility
+- Category budgets with monthly limits, rollovers, and month-by-month comparisons
+- Transaction review queue with tags, merchant cleanup, account assignment, and reusable transaction rules
+- Household workspaces with member roles and shared base currency
+- Bills center that combines subscriptions, liabilities, and recurring insurance contributions
 - Trips and subscriptions persisted in PocketBase
 - Trip plans support shared friend-group setup, pooled group fund tracking, and per-expense `Shared Friend Group` tagging
-- Trip plans now support participant tracking, payer-aware shared expenses, settle-up balances, and manual settlement records
+- Trip plans now support participant tracking, payer-aware shared expenses, settle-up balances, manual settlement records, and simplified debt suggestions
+- Trips can now store a manual destination currency + exchange rate so trip budgets, group funds, and trip-linked expense entry use that currency
 - Fund goals let users link savings assets, trip targets, and monthly savings toward named milestones
 - Reports and calendar now include cashflow forecasting and projected net worth views
 - User settings support custom currency display sign separate from the currency code used for FX/export
@@ -53,8 +60,16 @@ Auth:
 Data:
 - `/api/transactions`
 - `/api/transactions/[id]`
+- `/api/transactions/review`
+- `/api/transactions/review/[id]`
+- `/api/accounts`
+- `/api/accounts/[id]`
+- `/api/budgets`
+- `/api/budgets/[id]`
 - `/api/incomes`
 - `/api/incomes/[id]`
+- `/api/liabilities`
+- `/api/liabilities/[id]`
 - `/api/savings-goals`
 - `/api/savings-goals/[id]`
 - `/api/savings-assets`
@@ -71,6 +86,12 @@ Data:
 - `/api/trip-settlements/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
+- `/api/households`
+- `/api/households/[id]`
+- `/api/household-members`
+- `/api/household-members/[id]`
+- `/api/transaction-rules`
+- `/api/transaction-rules/[id]`
 - `/api/ai`
 
 ### Excel Data Tools
@@ -80,11 +101,12 @@ Import:
 - Accepted headers:
   - `Date`
   - `Amount`
+  - `Source Amount`, `Source Currency`, `Source Exchange Rate` (trip-linked expenses entered in destination currency)
   - `Category Key` (or `Category`)
   - `Description`
   - `Trip ID` (expenses only)
   - `Shared Friend Group` (expenses only, optional)
-  - `Name`, `Start Date`, `End Date`, `Budget`, `Destinations`, `Group Name`, `Total Travelers`, `Group Fund` (trips)
+  - `Name`, `Start Date`, `End Date`, `Currency`, `Exchange Rate`, `Budget`, `Destinations`, `Group Name`, `Total Travelers`, `Group Fund` (trips)
 - Invalid rows are skipped with issue reporting
 - Duplicate rows inside the same file are skipped automatically
 - Trips are imported first so exported `Trip ID` values can be remapped before expense import
@@ -102,7 +124,8 @@ Export:
   - `Expense Categories`
   - `Income Categories`
 - `Expenses` sheet includes optional `Shared Friend Group` column for trip-linked shared expenses
-- `Trip Summary` includes shared-group metrics such as shared spend, shared-group transaction count, group fund left, and per-person shared spend
+- `Expenses` sheet also includes optional `Source Amount`, `Source Currency`, and `Source Exchange Rate` for trip-currency round-trip import/export
+- `Trip Summary` includes currency-aware trip totals, app-currency reference totals, shared-group metrics, group fund left, and per-person shared spend
 - Export includes built-in categories plus custom categories detected from settings and data
 - Template download filename: `wallet_import_template.xlsx` and includes `Expenses`, `Incomes`, and `Trips` sheets
 
@@ -190,6 +213,8 @@ Managed migration files:
 - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
 - `pb_migrations/1775100000_add_recurring_insurance_fields.js`
 - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
+- `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
+- `pb_migrations/1775400000_planning_collaboration_collections.js`
 
 Expected collections:
 
@@ -199,10 +224,16 @@ Expected collections:
 - `savings_goals`
 - `savings_assets`
 - `user_preferences`
+- `accounts`
+- `liabilities`
+- `budgets`
 - `trips`
 - `trip_members`
 - `trip_settlements`
 - `fund_goals`
+- `transaction_rules`
+- `households`
+- `household_members`
 - `subscriptions`
 
 ## Kubernetes Deployment

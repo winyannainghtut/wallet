@@ -122,7 +122,10 @@ export default function SettingsPage() {
     category: string,
     description: string,
     tripId?: string,
-    sharedGroupExpense?: boolean
+    sharedGroupExpense?: boolean,
+    sourceAmount?: number,
+    sourceCurrency?: string,
+    sourceExchangeRate?: number
   ) =>
     [
       date,
@@ -131,6 +134,9 @@ export default function SettingsPage() {
       description.trim().toLowerCase(),
       (tripId || '').trim().toLowerCase(),
       sharedGroupExpense ? 'shared-group' : 'personal',
+      typeof sourceAmount === 'number' ? sourceAmount.toFixed(4) : '',
+      (sourceCurrency || '').trim().toUpperCase(),
+      typeof sourceExchangeRate === 'number' ? sourceExchangeRate.toFixed(8) : '',
     ].join('|')
 
   const buildTripFingerprint = (
@@ -139,6 +145,8 @@ export default function SettingsPage() {
       startDate: string
       endDate: string
       destinations?: string
+      currency?: string
+      exchangeRate?: number | null
       budget?: number | null
       groupName?: string
       groupSize?: number | null
@@ -150,6 +158,8 @@ export default function SettingsPage() {
       trip.startDate,
       trip.endDate,
       (trip.destinations || '').trim().toLowerCase(),
+      (trip.currency || '').trim().toUpperCase(),
+      trip.exchangeRate ?? '',
       trip.budget ?? '',
       (trip.groupName || '').trim().toLowerCase(),
       trip.groupSize ?? '',
@@ -176,7 +186,10 @@ export default function SettingsPage() {
           item.category,
           item.description || '',
           item.tripId,
-          item.sharedGroupExpense
+          item.sharedGroupExpense,
+          item.sourceAmount,
+          item.sourceCurrency,
+          item.sourceExchangeRate
         )
       )
     )
@@ -188,7 +201,10 @@ export default function SettingsPage() {
         item.category,
         item.description || '',
         item.tripId,
-        item.sharedGroupExpense
+        item.sharedGroupExpense,
+        item.sourceAmount,
+        item.sourceCurrency,
+        item.sourceExchangeRate
       )
       if (existing.has(fingerprint)) {
         return false
@@ -207,6 +223,9 @@ export default function SettingsPage() {
             date: item.date,
             tripId: item.tripId,
             sharedGroupExpense: item.sharedGroupExpense,
+            sourceAmount: item.sourceAmount,
+            sourceCurrency: item.sourceCurrency,
+            sourceExchangeRate: item.sourceExchangeRate,
           })
         )
       )
@@ -417,6 +436,9 @@ export default function SettingsPage() {
             ...item,
             tripId: undefined,
             sharedGroupExpense: false,
+            sourceAmount: undefined,
+            sourceCurrency: undefined,
+            sourceExchangeRate: undefined,
           }
         }
 

@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 const PUBLIC_ROUTES = new Set(['/login'])
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname.endsWith('/') && request.nextUrl.pathname !== '/'
     ? request.nextUrl.pathname.slice(0, -1)
     : request.nextUrl.pathname
@@ -24,4 +24,3 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)'],
 }
-

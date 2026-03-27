@@ -24,8 +24,16 @@ Browser -> Next.js API routes -> PocketBase
 
 - `/api/transactions`
 - `/api/transactions/[id]`
+- `/api/transactions/review`
+- `/api/transactions/review/[id]`
+- `/api/accounts`
+- `/api/accounts/[id]`
+- `/api/budgets`
+- `/api/budgets/[id]`
 - `/api/incomes`
 - `/api/incomes/[id]`
+- `/api/liabilities`
+- `/api/liabilities/[id]`
 - `/api/savings-goals`
 - `/api/savings-goals/[id]`
 - `/api/savings-assets`
@@ -42,6 +50,12 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/trip-settlements/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
+- `/api/households`
+- `/api/households/[id]`
+- `/api/household-members`
+- `/api/household-members/[id]`
+- `/api/transaction-rules`
+- `/api/transaction-rules/[id]`
 - `/api/ai` (server-side Z.AI calls; does not expose keys to browser)
 
 ### Market data integration for savings assets
@@ -54,10 +68,18 @@ Browser -> Next.js API routes -> PocketBase
   - stocks: manual value (`amount`)
 - Per-user settings, custom categories, and AI chat history are stored in `user_preferences` via `/api/preferences`.
 - `user_preferences` now carries settings such as `language`, `currency`, `currencySign`, `aiModel`, `theme`, `customCategories`, and `chatHistory`.
-- `transactions` can carry `tripId`, `sharedGroupExpense`, and `paidByMemberId` for trip-linked pooled friend-group spend and settle-up calculations.
+- `transactions` can carry `tripId`, `sharedGroupExpense`, `paidByMemberId`, `sourceAmount`, `sourceCurrency`, and `sourceExchangeRate` for trip-linked pooled friend-group spend and destination-currency expense capture.
+- `transactions` and `incomes` can also carry `merchantName`, `tagsJson`, `reviewStatus`, and `accountId` for the review queue and manual accounts layer.
+- `accounts` stores manual balance snapshots and account metadata used by expense/income entry.
+- `liabilities` stores debt balances, rates, minimum payments, linked accounts, and due-day planning fields.
+- `budgets` stores per-category monthly limits, rollover amounts, notes, and active state.
+- `trips` can carry manual `currency` and `exchangeRate` values for destination-currency budgets and group-fund tracking.
 - `trip_members` stores the participant list for each trip.
 - `trip_settlements` stores planned or paid settle-up records between trip members.
 - `fund_goals` stores linked savings/trip targets, status, and linked asset ids.
+- `transaction_rules` stores merchant-text rules that can rename, re-categorize, tag, and mark transactions reviewed.
+- `households` stores shared workspace metadata.
+- `household_members` stores member role/status by household.
 
 ## Schema and Migrations
 
@@ -75,6 +97,8 @@ Migration files:
 - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
 - `pb_migrations/1775100000_add_recurring_insurance_fields.js`
 - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
+- `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
+- `pb_migrations/1775400000_planning_collaboration_collections.js`
 
 Purpose summary:
 
@@ -90,6 +114,8 @@ Purpose summary:
 - `1775000000`: adds `transactions.sharedGroupExpense`
 - `1775100000`: adds recurring monthly insurance contribution fields to `savings_assets`
 - `1775200000`: adds `trip_members`, `trip_settlements`, `fund_goals`, and `transactions.paidByMemberId`
+- `1775300000`: adds `trips.currency`, `trips.exchangeRate`, and `transactions.source*` metadata for trip destination currency capture
+- `1775400000`: adds `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, `household_members`, and review/account metadata fields on `transactions` and `incomes`
 
 Expected collections:
 
@@ -99,10 +125,16 @@ Expected collections:
 - `savings_goals`
 - `savings_assets`
 - `user_preferences`
+- `accounts`
+- `liabilities`
+- `budgets`
 - `trips`
 - `trip_members`
 - `trip_settlements`
 - `fund_goals`
+- `transaction_rules`
+- `households`
+- `household_members`
 - `subscriptions`
 
 ## Kubernetes Auto Bootstrap
@@ -229,11 +261,13 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - `1775000000_add_shared_group_expense_to_transactions.js`
    - `1775100000_add_recurring_insurance_fields.js`
    - `1775200000_trip_settlements_and_fund_goals.js`
+   - `1775300000_trip_currency_and_source_metadata.js`
+   - `1775400000_planning_collaboration_collections.js`
 2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase if running in Kubernetes.
 3. In PocketBase Admin, verify:
-   - `trips` has `groupName`, `groupSize`, `groupFund`
+   - `trips` has `groupName`, `groupSize`, `groupFund`, `currency`, `exchangeRate`
    - `user_preferences` has `currencySign`
-   - `transactions` has `sharedGroupExpense`
+   - `transactions` has `sharedGroupExpense`, `sourceAmount`, `sourceCurrency`, `sourceExchangeRate`
 
 ### Trip settle-up or fund goals data missing
 
@@ -245,6 +279,15 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - `trip_members` collection exists
    - `trip_settlements` collection exists
    - `fund_goals` collection exists
+
+### Accounts, budgets, liabilities, or household data missing
+
+1. Confirm latest migration is applied:
+   - `1775400000_planning_collaboration_collections.js`
+2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
+3. In PocketBase Admin, verify:
+   - `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, and `household_members` collections exist
+   - `transactions` and `incomes` have `merchantName`, `tagsJson`, `reviewStatus`, and `accountId`
 
 ### App login works but data save fails
 

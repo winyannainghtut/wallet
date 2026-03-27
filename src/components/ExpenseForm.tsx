@@ -13,6 +13,12 @@ import { CATEGORIES, Category, Expense, TripMember, getCategoryLabel } from '@/t
 import { useApp } from '@/contexts/AppContext'
 import { isAiKeyNotConfiguredError, parseExpenseText, suggestCategory } from '@/lib/ai-client'
 import { t, getLanguage } from '@/i18n/config'
+import {
+  convertBaseAmountToTripCurrency,
+  getTripDisplayCurrency,
+  hasTripCurrencyConfig,
+} from '@/lib/trips'
+import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 interface ExpenseFormProps {
   initialData?: Expense
@@ -21,30 +27,106 @@ interface ExpenseFormProps {
   isSubmitting?: boolean
 }
 
+type AccountOption = {
+  id: string
+  name: string
+  currency: string
+  isActive: boolean
+}
+
+function formatEditableAmount(value: number): string {
+  if (!Number.isFinite(value)) {
+    return ''
+  }
+
+  return value
+    .toFixed(4)
+    .replace(/\.?0+$/, '')
+}
+
+function getHistoricalTripExchangeRate(
+  initialExpense: Expense | undefined,
+  tripId: string,
+  tripCurrency: string
+): number | null {
+  if (!initialExpense || initialExpense.tripId !== tripId) {
+    return null
+  }
+
+  if (
+    typeof initialExpense.sourceExchangeRate !== 'number' ||
+    !Number.isFinite(initialExpense.sourceExchangeRate) ||
+    initialExpense.sourceExchangeRate <= 0
+  ) {
+    return null
+  }
+
+  if (
+    typeof initialExpense.sourceCurrency === 'string' &&
+    initialExpense.sourceCurrency.trim().toUpperCase() !== tripCurrency.trim().toUpperCase()
+  ) {
+    return null
+  }
+
+  return initialExpense.sourceExchangeRate
+}
+
 export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = false }: ExpenseFormProps) {
   const { trips, settings, customCategories, addCustomCategory } = useApp()
   const expenseCustomCategories = customCategories.filter(c => c.type === 'expense')
+  const initialTrip = initialData?.tripId ? trips.find((trip) => trip.id === initialData.tripId) : undefined
   const [mode, setMode] = useState<'manual' | 'magic'>('manual')
   const [magicText, setMagicText] = useState('')
   const [isParsing, setIsParsing] = useState(false)
 
-  const [amount, setAmount] = useState(initialData?.amount?.toString() || '')
+  const [amount, setAmount] = useState(() => {
+    if (!initialData) {
+      return ''
+    }
+
+    if (hasTripCurrencyConfig(initialTrip)) {
+      const initialSourceAmount =
+        typeof initialData.sourceAmount === 'number' && Number.isFinite(initialData.sourceAmount) && initialData.sourceAmount > 0
+          ? initialData.sourceAmount
+          : convertBaseAmountToTripCurrency(initialData.amount, initialTrip)
+      return formatEditableAmount(initialSourceAmount)
+    }
+
+    return formatEditableAmount(initialData.amount)
+  })
   const [category, setCategory] = useState<Category | ''>(initialData?.category || '')
   const [description, setDescription] = useState(initialData?.description || '')
   const [date, setDate] = useState(initialData?.date || format(new Date(), 'yyyy-MM-dd'))
   const [tripId, setTripId] = useState(initialData?.tripId || '')
   const [sharedGroupExpense, setSharedGroupExpense] = useState(initialData?.sharedGroupExpense === true)
   const [paidByMemberId, setPaidByMemberId] = useState(initialData?.paidByMemberId || '')
+  const [accountId, setAccountId] = useState(initialData?.accountId || '')
   const [tripMembers, setTripMembers] = useState<TripMember[]>([])
   const [isTripMembersLoading, setIsTripMembersLoading] = useState(false)
+  const [accounts, setAccounts] = useState<AccountOption[]>([])
   const [isSuggesting, setIsSuggesting] = useState(false)
   
   const language = getLanguage()
+  const baseCurrencyLabel = getCurrencyDisplayLabel(settings)
   const selectedTrip = trips.find((trip) => trip.id === tripId)
+  const tripHasCurrencyConfig = hasTripCurrencyConfig(selectedTrip)
+  const tripCurrencyLabel = getTripDisplayCurrency(selectedTrip, settings.currency)
+  const effectiveTripExchangeRate =
+    tripHasCurrencyConfig
+      ? getHistoricalTripExchangeRate(initialData, tripId, tripCurrencyLabel) ?? selectedTrip?.exchangeRate ?? null
+      : null
   const selectedPayer = tripMembers.find((member) => member.id === paidByMemberId)
   const selectedPayerLabel = selectedPayer
     ? `${selectedPayer.name}${selectedPayer.isOwner ? ' (You)' : ''}`
     : undefined
+  const parsedDisplayedAmount = Number.parseFloat(amount)
+  const convertedBaseAmountPreview =
+    tripHasCurrencyConfig &&
+    typeof effectiveTripExchangeRate === 'number' &&
+    Number.isFinite(parsedDisplayedAmount) &&
+    parsedDisplayedAmount > 0
+      ? parsedDisplayedAmount * effectiveTripExchangeRate
+      : null
 
   useEffect(() => {
     let cancelled = false
@@ -122,9 +204,42 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
     }
   }, [tripId])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const loadAccounts = async () => {
+      try {
+        const response = await fetch('/api/accounts?perPage=200')
+        if (!response.ok) {
+          return
+        }
+
+        const data = await response.json() as { items?: AccountOption[] }
+        if (!cancelled) {
+          setAccounts((data.items ?? []).filter((account) => account.isActive !== false))
+        }
+      } catch {
+        if (!cancelled) {
+          setAccounts([])
+        }
+      }
+    }
+
+    void loadAccounts()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || !category || isSubmitting) return
+
+    const displayedAmount = Number.parseFloat(amount)
+    if (!Number.isFinite(displayedAmount) || displayedAmount <= 0) {
+      return
+    }
 
     const normalizedTripId = tripId.trim()
 
@@ -133,11 +248,19 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
       return
     }
 
+    const nextAmount = tripHasCurrencyConfig
+      ? displayedAmount * (effectiveTripExchangeRate ?? 1)
+      : displayedAmount
+
     onSubmit({
-      amount: parseFloat(amount),
+      amount: Number(nextAmount.toFixed(6)),
+      sourceAmount: tripHasCurrencyConfig ? displayedAmount : undefined,
+      sourceCurrency: tripHasCurrencyConfig ? tripCurrencyLabel : undefined,
+      sourceExchangeRate: tripHasCurrencyConfig ? effectiveTripExchangeRate ?? undefined : undefined,
       category: category as Category,
       description,
       date,
+      accountId: accountId || undefined,
       tripId: normalizedTripId,
       sharedGroupExpense: normalizedTripId ? sharedGroupExpense : false,
       paidByMemberId: normalizedTripId && sharedGroupExpense ? paidByMemberId : undefined,
@@ -179,7 +302,10 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
     try {
       const parsed = await parseExpenseText(magicText, settings.aiModel)
       if (parsed) {
-        setAmount(parsed.amount.toString())
+        const parsedAmount = tripHasCurrencyConfig
+          ? convertBaseAmountToTripCurrency(parsed.amount, selectedTrip)
+          : parsed.amount
+        setAmount(formatEditableAmount(parsedAmount))
         setCategory(parsed.category)
         setDate(parsed.date)
         setDescription(parsed.description)
@@ -275,12 +401,30 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                   step="0.01"
                   min="0"
                   inputMode="decimal"
-                  placeholder={t('expense.amountPlaceholder')}
+                  placeholder={tripHasCurrencyConfig ? `e.g. 150 ${tripCurrencyLabel}` : t('expense.amountPlaceholder')}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
                   className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
                 />
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    {selectedTrip && tripHasCurrencyConfig
+                      ? `Saved in ${tripCurrencyLabel} for ${selectedTrip.name}.`
+                      : `Saved in ${baseCurrencyLabel}.`}
+                  </p>
+                  {selectedTrip && tripHasCurrencyConfig && typeof selectedTrip.exchangeRate === 'number' && (
+                    <>
+                      <p>{`1 ${tripCurrencyLabel} = ${(effectiveTripExchangeRate ?? selectedTrip.exchangeRate).toFixed(4)} ${baseCurrencyLabel}`}</p>
+                      {convertedBaseAmountPreview !== null && (
+                        <p>{`Base amount preview: ${convertedBaseAmountPreview.toFixed(2)} ${baseCurrencyLabel}`}</p>
+                      )}
+                      {initialData && typeof effectiveTripExchangeRate === 'number' && typeof selectedTrip.exchangeRate === 'number' && Math.abs(effectiveTripExchangeRate - selectedTrip.exchangeRate) > 1e-9 && (
+                        <p>{`Editing keeps the saved historical rate instead of the trip's current rate (${selectedTrip.exchangeRate.toFixed(4)}).`}</p>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Date */}
@@ -356,6 +500,25 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
               </p>
             </div>
 
+            {accounts.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="expense-account" className="text-sm font-medium">Account</Label>
+                <Select value={accountId || 'none'} onValueChange={(value) => setAccountId(!value || value === 'none' ? '' : value)}>
+                  <SelectTrigger id="expense-account" className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
+                    <SelectValue placeholder="Select account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No account</SelectItem>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name} ({account.currency})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Trip Selection */}
             {trips.length > 0 && (
               <div className="space-y-2">
@@ -367,6 +530,19 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                   value={tripId || 'none'}
                   onValueChange={(value) => {
                     const nextTripId = value === 'none' ? '' : value || ''
+                    const nextTrip = trips.find((trip) => trip.id === nextTripId)
+                    const parsedAmount = Number.parseFloat(amount)
+
+                    if (Number.isFinite(parsedAmount) && parsedAmount > 0) {
+                      const currentBaseAmount = tripHasCurrencyConfig
+                        ? parsedAmount * (effectiveTripExchangeRate ?? 1)
+                        : parsedAmount
+                      const nextDisplayedAmount = hasTripCurrencyConfig(nextTrip)
+                        ? convertBaseAmountToTripCurrency(currentBaseAmount, nextTrip)
+                        : currentBaseAmount
+                      setAmount(formatEditableAmount(nextDisplayedAmount))
+                    }
+
                     if (nextTripId !== tripId) {
                       setSharedGroupExpense(false)
                       setPaidByMemberId('')
@@ -415,6 +591,11 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                     ? `This expense will count toward ${selectedTrip.groupName || 'the shared friend group fund'} for ${selectedTrip.name}.`
                     : `This expense stays as your personal cost inside ${selectedTrip.name}.`}
                 </p>
+                {tripHasCurrencyConfig && (
+                  <p className="text-xs text-muted-foreground">
+                    {`Trip spending is tracked in ${tripCurrencyLabel} using manual rate ${(effectiveTripExchangeRate ?? selectedTrip.exchangeRate ?? 0).toFixed(4)} ${baseCurrencyLabel} per ${tripCurrencyLabel}.`}
+                  </p>
+                )}
                 {sharedGroupExpense && (
                   <div className="space-y-2 pt-1">
                     <Label htmlFor="trip-paid-by" className="text-sm font-medium">

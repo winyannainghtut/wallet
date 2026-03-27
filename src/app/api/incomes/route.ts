@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
 import { escapeFilterValue } from '@/lib/transaction-payload'
+import { parseIncomePayload } from '@/lib/income-payload'
 
 type PocketBaseLikeError = {
   status?: number
   message?: string
-}
-
-type IncomeInput = {
-  amount?: number
-  category?: string
-  description?: string
-  date?: string
 }
 
 type IncomeRecord = {
@@ -51,26 +45,12 @@ function getAuthenticatedPb(request: NextRequest):
   return { pb, userId: pb.authStore.model.id }
 }
 
-function normalizeIncomeInput(input: IncomeInput) {
-  return {
-    amount: input.amount,
-    category: input.category,
-    description: input.description,
-    date: input.date,
-  }
-}
-
-function stripUndefined(obj: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined))
-}
-
 function compareByDateDesc(a: IncomeRecord, b: IncomeRecord): number {
   const dateA = typeof a.date === 'string' ? a.date : ''
   const dateB = typeof b.date === 'string' ? b.date : ''
   return dateB.localeCompare(dateA)
 }
 
-// GET - List incomes
 export async function GET(request: NextRequest) {
   try {
     const auth = getAuthenticatedPb(request)
@@ -134,7 +114,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create income
 export async function POST(request: NextRequest) {
   try {
     const auth = getAuthenticatedPb(request)
@@ -143,19 +122,20 @@ export async function POST(request: NextRequest) {
     }
     const { pb, userId } = auth
 
-    const body = (await request.json()) as IncomeInput
-    const normalized = normalizeIncomeInput(body)
-
-    const payload = stripUndefined({
-      user: userId,
-      amount: normalized.amount,
-      category: normalized.category,
-      description: normalized.description,
-      date: normalized.date,
-    })
+    const body = await request.json()
+    const parsed = await parseIncomePayload(body, { pb, userId })
+    if (!parsed.data) {
+      return NextResponse.json(
+        { error: parsed.error || 'Invalid income payload' },
+        { status: 400 }
+      )
+    }
 
     try {
-      const record = await pb.collection('incomes').create(payload)
+      const record = await pb.collection('incomes').create({
+        ...parsed.data.collectionData,
+        user: userId,
+      })
       return NextResponse.json(record)
     } catch (error: unknown) {
       if (!isMissingCollectionContext(error)) {
@@ -163,14 +143,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const fallbackRecord = await pb.collection('transactions').create(stripUndefined({
+    const fallbackRecord = await pb.collection('transactions').create({
+      ...parsed.data.legacyData,
       user: userId,
-      type: 'income',
-      amount: normalized.amount,
-      category: normalized.category,
-      description: normalized.description,
-      date: normalized.date,
-    }))
+    })
 
     return NextResponse.json(fallbackRecord)
   } catch (error: unknown) {

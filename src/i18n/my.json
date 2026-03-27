@@ -50,7 +50,13 @@
     "subscriptions": "ပုံမှန်ပေးသွင်းမှုများ",
     "calendar": "ပြက္ခဒိန်",
     "collapse": "ချုံ့မည်",
-    "expand": "ချဲ့မည်"
+    "expand": "ချဲ့မည်",
+    "budgets": "Budgets",
+    "bills": "Bills",
+    "liabilities": "Liabilities",
+    "accounts": "Accounts",
+    "review": "Review",
+    "household": "Household"
   },
   "dashboard": {
     "title": "ပင်မစာမျက်နှာ",

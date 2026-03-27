@@ -5,6 +5,8 @@ type TripPayloadInput = {
   destinations?: unknown
   startDate?: unknown
   endDate?: unknown
+  currency?: unknown
+  exchangeRate?: unknown
   budget?: unknown
   groupName?: unknown
   groupSize?: unknown
@@ -16,6 +18,8 @@ export type NormalizedTripInput = {
   destinations: string
   startDate: string
   endDate: string
+  currency: string
+  exchangeRate: number | null
   budget: number | null
   groupName: string
   groupSize: number | null
@@ -82,6 +86,12 @@ function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function normalizeCurrencyCode(value: unknown): string {
+  const normalized = normalizeText(value).toUpperCase()
+  if (!normalized) return ''
+  return /^[A-Z]{3}$/.test(normalized) ? normalized : ''
+}
+
 function parseOptionalNumber(
   value: unknown,
   { integer = false }: { integer?: boolean } = {}
@@ -136,6 +146,7 @@ export function parseTripInput(input: TripPayloadInput): {
   const destinations = normalizeText(input.destinations)
   const startDate = normalizeText(input.startDate)
   const endDate = normalizeText(input.endDate)
+  const currency = normalizeCurrencyCode(input.currency)
   const groupName = normalizeText(input.groupName)
 
   if (!name) {
@@ -159,6 +170,19 @@ export function parseTripInput(input: TripPayloadInput): {
     return { error: 'budget must be a non-negative number' }
   }
 
+  const exchangeRate = parseOptionalNumber(input.exchangeRate)
+  if (exchangeRate.invalid || (exchangeRate.value !== null && exchangeRate.value <= 0)) {
+    return { error: 'exchangeRate must be a positive number' }
+  }
+
+  if ((currency && exchangeRate.value === null) || (!currency && exchangeRate.value !== null)) {
+    return { error: 'currency and exchangeRate must be provided together' }
+  }
+
+  if (normalizeText(input.currency) && !currency) {
+    return { error: 'currency must be a valid 3-letter code' }
+  }
+
   const groupSize = parseOptionalNumber(input.groupSize, { integer: true })
   if (groupSize.invalid || (groupSize.value !== null && groupSize.value < 2)) {
     return { error: 'groupSize must be an integer of at least 2' }
@@ -175,6 +199,8 @@ export function parseTripInput(input: TripPayloadInput): {
       destinations,
       startDate,
       endDate,
+      currency,
+      exchangeRate: exchangeRate.value,
       budget: budget.value,
       groupName,
       groupSize: groupSize.value,
@@ -189,6 +215,8 @@ export function buildTripCreatePayload(input: NormalizedTripInput): Record<strin
       name: input.name,
       startDate: input.startDate,
       endDate: input.endDate,
+      currency: input.currency || undefined,
+      exchangeRate: input.exchangeRate ?? undefined,
       destinations: input.destinations || undefined,
       budget: input.budget ?? undefined,
       groupName: input.groupName || undefined,
@@ -204,11 +232,74 @@ export function buildTripUpdatePayload(input: NormalizedTripInput): Record<strin
     destinations: input.destinations,
     startDate: input.startDate,
     endDate: input.endDate,
+    currency: input.currency,
+    exchangeRate: input.exchangeRate,
     budget: input.budget,
     groupName: input.groupName,
     groupSize: input.groupSize,
     groupFund: input.groupFund,
   }
+}
+
+export function hasTripCurrencyConfig(trip: Pick<Trip, 'currency' | 'exchangeRate'> | null | undefined): boolean {
+  return Boolean(
+    trip &&
+    normalizeCurrencyCode(trip.currency) &&
+    typeof trip.exchangeRate === 'number' &&
+    Number.isFinite(trip.exchangeRate) &&
+    trip.exchangeRate > 0
+  )
+}
+
+export function getTripDisplayCurrency(
+  trip: Pick<Trip, 'currency' | 'exchangeRate'> | null | undefined,
+  fallbackCurrency: string
+): string {
+  return hasTripCurrencyConfig(trip)
+    ? normalizeCurrencyCode(trip?.currency) || fallbackCurrency
+    : fallbackCurrency
+}
+
+export function convertTripAmountToBaseCurrency(
+  amount: number,
+  trip: Pick<Trip, 'currency' | 'exchangeRate'> | null | undefined
+): number {
+  if (!hasTripCurrencyConfig(trip)) {
+    return amount
+  }
+
+  const exchangeRate = trip!.exchangeRate as number
+  return amount * exchangeRate
+}
+
+export function convertBaseAmountToTripCurrency(
+  amount: number,
+  trip: Pick<Trip, 'currency' | 'exchangeRate'> | null | undefined
+): number {
+  if (!hasTripCurrencyConfig(trip)) {
+    return amount
+  }
+
+  const exchangeRate = trip!.exchangeRate as number
+  return amount / exchangeRate
+}
+
+export function getExpenseAmountForTripCurrency(
+  expense: Pick<Expense, 'amount' | 'sourceAmount' | 'sourceCurrency'>,
+  trip: Pick<Trip, 'currency' | 'exchangeRate'> | null | undefined
+): number {
+  const tripCurrency = normalizeCurrencyCode(trip?.currency)
+  if (
+    tripCurrency &&
+    typeof expense.sourceAmount === 'number' &&
+    Number.isFinite(expense.sourceAmount) &&
+    expense.sourceAmount > 0 &&
+    normalizeCurrencyCode(expense.sourceCurrency) === tripCurrency
+  ) {
+    return expense.sourceAmount
+  }
+
+  return convertBaseAmountToTripCurrency(expense.amount, trip)
 }
 
 export function getTripFinancialSummary(

@@ -120,7 +120,35 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Calendar shows expense and income day-level breakdown.
    - Amount labels use your selected currency sign while FX/export still use the currency code.
 
-### 3.3 Savings assets + live market data
+### 3.3 Accounts + liabilities + bills
+
+1. Open `/accounts` and add:
+   - one bank account
+   - one credit card account
+2. Add one expense and one income linked to those accounts.
+3. Open `/liabilities` and add a liability with:
+   - type
+   - current balance
+   - interest rate
+   - minimum payment
+   - due day
+4. Open `/bills`.
+5. Verify:
+   - accounts are selectable in expense and income forms
+   - liabilities show projected payoff month and next due date
+   - bills center combines subscription renewals, liability due items, and recurring insurance contributions
+
+### 3.4 Budgets
+
+1. Open `/budgets`.
+2. Create at least one monthly budget with rollover amount.
+3. Add expenses in the matching category for the selected month.
+4. Verify:
+   - planned, spent, and remaining totals update
+   - category card shows rollover and previous-month leftover suggestion
+   - inactive budgets remain stored but are excluded from summary totals
+
+### 3.5 Savings assets + live market data
 
 1. Open `/savings`.
 2. Add one insurance asset and one personal saving funds asset with manual value.
@@ -131,29 +159,30 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Stock assets stay as manual values.
    - USD market price is converted to app currency via `/api/market/fx` (for example USD->SGD).
    - Savings + Assets values appear in dashboard/reporting summaries.
-   - Savings page shows the market live-feed banner only for crypto assets.
+- Savings page shows the market live-feed banner only for crypto assets.
 
-### 3.4 Trips + shared friend group expenses
+### 3.6 Trips + shared friend group expenses
 
-1. Open `/trips` and create a trip with optional `Group Name`, `Total Travelers`, and `Group Fund`.
+1. Open `/trips` and create a trip with optional `Destination Currency`, `Exchange Rate`, `Group Name`, `Total Travelers`, and `Group Fund`.
 2. Open `/add`, select that trip, and choose `Trip Expense Scope`.
 3. Save one `Personal` trip expense and one `Shared Friend Group` trip expense.
 4. Verify:
    - Trip card shows total trip spend separately from shared group spend.
-   - Group fund usage is based on `Shared Friend Group` expenses only.
-   - History list shows a `Shared Friend Group` badge for shared trip expenses.
+   - If destination currency is configured, budget/group fund/trip spend display in that currency with app-currency reference text.
+- Group fund usage is based on `Shared Friend Group` expenses only.
+- History list shows a `Shared Friend Group` badge for shared trip expenses.
 
-### 3.5 Trips settle-up
+### 3.7 Trips settle-up
 
 1. Open the same trip in `/trips`.
 2. Add at least two trip members.
 3. Record one shared trip expense and select which member paid it.
 4. Verify:
    - Trip page shows member balances.
-   - Settlement suggestions appear when one member owes another.
+   - Settlement suggestions appear as simplified debt payments when one member owes another.
    - Saving a settlement record updates the outstanding balance summary.
 
-### 3.6 Fund goals
+### 3.8 Fund goals
 
 1. Open `/savings`.
 2. Create a fund goal such as `Emergency Fund` or `Japan Trip`.
@@ -162,7 +191,34 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Goal card shows target amount, linked asset value, and projected completion status.
    - Dashboard shows active fund goals.
 
-### 3.7 Cashflow forecast + projected net worth
+### 3.9 Review queue + transaction rules
+
+1. Open `/review`.
+2. Confirm queue items load from both expenses and incomes.
+3. Edit one item:
+   - merchant
+   - category
+   - tags
+   - account
+   - review status
+4. Create one rule that matches merchant text and auto-applies category/tags.
+5. Click `Apply Rules`.
+6. Verify:
+   - review queue updates in place
+   - rules can rename merchants, assign categories, attach tags, and auto-mark reviewed
+   - `ignored` items stay visible only when the filter includes them
+
+### 3.10 Household collaboration
+
+1. Open `/household`.
+2. Create one household with a base currency.
+3. Add at least one member.
+4. Verify:
+   - household list loads
+   - member role and invitation status save successfully
+   - members are grouped under the correct household
+
+### 3.11 Cashflow forecast + projected net worth
 
 1. Open `/reports` and switch to `Forecast`.
 2. Open `/calendar` and inspect the forecast panel.
@@ -171,7 +227,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Upcoming scheduled cashflow entries are listed.
    - 6-month projected net worth reflects tracked assets plus forecasted cashflow.
 
-### 3.8 AI suggest category (auto custom category create)
+### 3.12 AI suggest category (auto custom category create)
 
 1. Open `/add` and enter a description that does not fit built-in categories.
 2. Click `Suggest Category`.
@@ -179,7 +235,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - AI returns either a built-in category or a custom category candidate.
    - When custom is returned, app auto-creates expense custom category and selects it.
 
-### 3.9 Excel import/export
+### 3.13 Excel import/export
 
 1. Open `/settings` -> `Excel`.
 2. Download template (`wallet_import_template.xlsx`) and inspect `Expenses`, `Incomes`, and `Trips` sheets.
@@ -188,7 +244,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Valid rows are imported through API-backed actions.
    - Duplicate rows in the same file are skipped.
    - Settings page shows top import warnings.
-   - Expenses sheet accepts optional `Shared Friend Group` column for trip-linked shared spend.
+   - Expenses sheet accepts optional `Shared Friend Group`, `Source Amount`, `Source Currency`, and `Source Exchange Rate` columns for trip-linked shared spend in destination currency.
    - Trips are imported before expenses so `Trip ID` references can be remapped safely.
 5. Export data and verify workbook contains:
    - `Summary`
@@ -200,10 +256,11 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - `Expense Categories`
    - `Income Categories`
 6. Verify exported trip workbook details:
-   - `Expenses` includes `Trip ID` and `Shared Friend Group`
-   - `Trip Summary` includes `Shared Group Expense`, `Shared Group Transactions`, `Group Fund Left`, and `Per Person Shared Spend`
+   - `Expenses` includes `Trip ID`, `Shared Friend Group`, `Source Amount`, `Source Currency`, and `Source Exchange Rate`
+   - `Trips` includes `Currency` and `Exchange Rate`
+   - `Trip Summary` includes trip-currency totals, app-currency reference totals, `Shared Group Expense`, `Shared Group Transactions`, `Group Fund Left`, and `Per Person Shared Spend`
 
-### 3.10 Collection bootstrap check
+### 3.14 Collection bootstrap check
 
 Expected collections:
 
@@ -213,10 +270,16 @@ Expected collections:
 - `savings_goals`
 - `savings_assets`
 - `user_preferences`
+- `accounts`
+- `liabilities`
+- `budgets`
 - `trips`
 - `trip_members`
 - `trip_settlements`
 - `fund_goals`
+- `transaction_rules`
+- `households`
+- `household_members`
 - `subscriptions`
 
 Migration files:
@@ -233,6 +296,8 @@ Migration files:
 - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
 - `pb_migrations/1775100000_add_recurring_insurance_fields.js`
 - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
+- `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
+- `pb_migrations/1775400000_planning_collaboration_collections.js`
 
 ## 4) Kubernetes Setup
 

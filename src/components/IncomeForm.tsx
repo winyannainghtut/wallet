@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +18,13 @@ interface IncomeFormProps {
   isSubmitting?: boolean
 }
 
+type AccountOption = {
+  id: string
+  name: string
+  currency: string
+  isActive: boolean
+}
+
 export function IncomeForm({ initialData, onSubmit, onCancel, isSubmitting = false }: IncomeFormProps) {
   const { customCategories } = useApp()
   const incomeCustomCategories = customCategories.filter(c => c.type === 'income')
@@ -26,8 +33,37 @@ export function IncomeForm({ initialData, onSubmit, onCancel, isSubmitting = fal
   const [category, setCategory] = useState<IncomeCategory>(initialData?.category || 'salary')
   const [description, setDescription] = useState(initialData?.description || '')
   const [date, setDate] = useState(initialData?.date || format(new Date(), 'yyyy-MM-dd'))
+  const [accountId, setAccountId] = useState(initialData?.accountId || '')
+  const [accounts, setAccounts] = useState<AccountOption[]>([])
   
   const language = getLanguage()
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadAccounts = async () => {
+      try {
+        const response = await fetch('/api/accounts?perPage=200')
+        if (!response.ok) {
+          return
+        }
+
+        const data = await response.json() as { items?: AccountOption[] }
+        if (!cancelled) {
+          setAccounts((data.items ?? []).filter((account) => account.isActive !== false))
+        }
+      } catch {
+        if (!cancelled) {
+          setAccounts([])
+        }
+      }
+    }
+
+    void loadAccounts()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,7 +73,8 @@ export function IncomeForm({ initialData, onSubmit, onCancel, isSubmitting = fal
       amount: parseFloat(amount),
       category,
       description,
-      date
+      date,
+      accountId: accountId || undefined,
     })
   }
 
@@ -82,6 +119,25 @@ export function IncomeForm({ initialData, onSubmit, onCancel, isSubmitting = fal
               />
             </div>
           </div>
+
+          {accounts.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="income-account" className="text-sm font-medium">Account</Label>
+              <Select value={accountId || 'none'} onValueChange={(value) => setAccountId(!value || value === 'none' ? '' : value)}>
+                <SelectTrigger id="income-account" className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
+                  <SelectValue placeholder="Select account" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No account</SelectItem>
+                  {accounts.map((account) => (
+                    <SelectItem key={account.id} value={account.id}>
+                      {account.name} ({account.currency})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Category */}
           <div className="space-y-2">

@@ -28,7 +28,11 @@ import { getCurrencyDisplayLabel } from '@/lib/settings'
 import {
   buildTripSettlementSuggestions,
   calculateTripMemberBalances,
+  convertTripAmountToBaseCurrency,
+  getExpenseAmountForTripCurrency,
+  getTripDisplayCurrency,
   getTripFinancialSummary,
+  hasTripCurrencyConfig,
 } from '@/lib/trips'
 import type { Trip, TripMember, TripSettlement } from '@/types'
 
@@ -181,6 +185,8 @@ export default function TripsPage() {
   const [destinations, setDestinations] = useState('')
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [endDate, setEndDate] = useState(format(new Date(Date.now() + 7 * 86400000), 'yyyy-MM-dd'))
+  const [currency, setCurrency] = useState('')
+  const [exchangeRate, setExchangeRate] = useState('')
   const [budget, setBudget] = useState('')
   const [groupName, setGroupName] = useState('')
   const [groupSize, setGroupSize] = useState('')
@@ -198,9 +204,12 @@ export default function TripsPage() {
   })
 
   const formatAmount = useCallback(
-    (value: number) => `${amountFormatter.format(value)} ${displayCurrency}`,
+    (value: number, currencyLabel = displayCurrency) => `${amountFormatter.format(value)} ${currencyLabel}`,
     [displayCurrency]
   )
+  const modalCurrencyLabel = /^[A-Z]{3}$/.test(currency.trim().toUpperCase())
+    ? currency.trim().toUpperCase()
+    : displayCurrency
 
   const fetchTripMembers = useCallback(async () => {
     try {
@@ -300,6 +309,9 @@ export default function TripsPage() {
 
   const settlementTrip = trips.find((trip) => trip.id === settlementForm.tripId) ?? null
   const settlementMembers = settlementTrip ? membersByTrip.get(settlementTrip.id) ?? [] : []
+  const settlementCurrencyLabel = settlementTrip && hasTripCurrencyConfig(settlementTrip)
+    ? getTripDisplayCurrency(settlementTrip, settings.currency)
+    : displayCurrency
   const selectedSettlementFromMember = settlementMembers.find((member) => member.id === settlementForm.fromMemberId)
   const selectedSettlementToMember = settlementMembers.find((member) => member.id === settlementForm.toMemberId)
 
@@ -309,6 +321,8 @@ export default function TripsPage() {
     setDestinations('')
     setStartDate(format(new Date(), 'yyyy-MM-dd'))
     setEndDate(format(new Date(Date.now() + 7 * 86400000), 'yyyy-MM-dd'))
+    setCurrency('')
+    setExchangeRate('')
     setBudget('')
     setGroupName('')
     setGroupSize('')
@@ -324,6 +338,8 @@ export default function TripsPage() {
       setDestinations(trip.destinations || '')
       setStartDate(trip.startDate)
       setEndDate(trip.endDate)
+      setCurrency(trip.currency || '')
+      setExchangeRate(trip.exchangeRate?.toString() || '')
       setBudget(trip.budget?.toString() || '')
       setGroupName(trip.groupName || '')
       setGroupSize(trip.groupSize?.toString() || '')
@@ -411,8 +427,28 @@ export default function TripsPage() {
     if (!name || !startDate || !endDate || isSaving) return
 
     const parsedBudget = budget.trim().length > 0 ? Number(budget) : null
+    const normalizedCurrency = currency.trim().toUpperCase()
+    const parsedExchangeRate = exchangeRate.trim().length > 0 ? Number(exchangeRate) : null
     const parsedGroupSize = groupSize.trim().length > 0 ? Number(groupSize) : null
     const parsedGroupFund = groupFund.trim().length > 0 ? Number(groupFund) : null
+
+    if (normalizedCurrency && !/^[A-Z]{3}$/.test(normalizedCurrency)) {
+      alert('Destination currency must be a valid 3-letter code')
+      return
+    }
+
+    if ((normalizedCurrency && parsedExchangeRate === null) || (!normalizedCurrency && parsedExchangeRate !== null)) {
+      alert('Destination currency and exchange rate must be provided together')
+      return
+    }
+
+    if (
+      parsedExchangeRate !== null &&
+      (!Number.isFinite(parsedExchangeRate) || parsedExchangeRate <= 0)
+    ) {
+      alert('Exchange rate must be a positive number')
+      return
+    }
 
     if (Number.isNaN(parsedBudget) || (parsedBudget !== null && parsedBudget < 0)) {
       alert('Budget must be a non-negative number')
@@ -442,6 +478,8 @@ export default function TripsPage() {
       destinations: destinations.trim(),
       startDate,
       endDate,
+      currency: normalizedCurrency || undefined,
+      exchangeRate: normalizedCurrency ? parsedExchangeRate : null,
       budget: parsedBudget,
       groupName: groupName.trim(),
       groupSize: parsedGroupSize,
@@ -648,18 +686,32 @@ export default function TripsPage() {
           {filteredTrips.map((trip) => {
             const tripExpenses = expenses.filter((expense) => expense.tripId === trip.id)
             const sharedGroupExpenses = tripExpenses.filter((expense) => expense.sharedGroupExpense)
-            const totalSpend = tripExpenses.reduce((sum, expense) => sum + expense.amount, 0)
-            const sharedGroupSpend = sharedGroupExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+            const tripUsesManualCurrency = hasTripCurrencyConfig(trip)
+            const tripCurrencyLabel = tripUsesManualCurrency
+              ? getTripDisplayCurrency(trip, settings.currency)
+              : displayCurrency
+            const tripExpensesInTripCurrency = tripExpenses.map((expense) => ({
+              ...expense,
+              amount: getExpenseAmountForTripCurrency(expense, trip),
+            }))
+            const sharedGroupExpensesInTripCurrency = tripExpensesInTripCurrency.filter((expense) => expense.sharedGroupExpense)
+            const totalSpend = tripExpensesInTripCurrency.reduce((sum, expense) => sum + expense.amount, 0)
+            const sharedGroupSpend = sharedGroupExpensesInTripCurrency.reduce((sum, expense) => sum + expense.amount, 0)
             const tripStartDate = parseISO(trip.startDate)
             const tripEndDate = parseISO(trip.endDate)
             const days = Math.max(1, differenceInDays(tripEndDate, tripStartDate) + 1)
             const financialSummary = getTripFinancialSummary(trip, totalSpend, sharedGroupSpend)
             const members = membersByTrip.get(trip.id) ?? []
             const settlements = settlementsByTrip.get(trip.id) ?? []
-            const balances = calculateTripMemberBalances(trip, members, sharedGroupExpenses, settlements)
+            const balances = calculateTripMemberBalances(trip, members, sharedGroupExpensesInTripCurrency, settlements)
             const settlementSuggestions = buildTripSettlementSuggestions(balances)
             const activeBalanceCount = balances.filter((member) => Math.abs(member.netBalance) > 0.009).length
             const recentSettlements = settlements.slice(0, 3)
+            const formatValue = (value: number) => formatAmount(value, tripCurrencyLabel)
+            const formatBaseReference = (value: number) =>
+              tripUsesManualCurrency
+                ? formatAmount(convertTripAmountToBaseCurrency(value, trip))
+                : null
 
             return (
               <Card
@@ -682,6 +734,11 @@ export default function TripsPage() {
                           {format(tripStartDate, 'MMM d')} to {format(tripEndDate, 'MMM d')}
                         </Badge>
                         <Badge variant="outline">{days} days</Badge>
+                        {tripUsesManualCurrency && typeof trip.exchangeRate === 'number' && (
+                          <Badge variant="outline">
+                            {`${tripCurrencyLabel} at ${trip.exchangeRate.toFixed(4)} ${displayCurrency}`}
+                          </Badge>
+                        )}
                         {trip.groupSize && <Badge variant="outline">{trip.groupSize} travelers</Badge>}
                         {members.length > 0 && <Badge variant="outline">{members.length} tracked members</Badge>}
                       </div>
@@ -716,16 +773,30 @@ export default function TripsPage() {
                     <div className="rounded-xl border border-border/40 bg-background/50 p-3">
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Total Spend</p>
                       <p className={`mt-2 text-lg font-semibold ${financialSummary.isOverBudget ? 'text-destructive' : ''}`}>
-                        {formatAmount(totalSpend)}
+                        {formatValue(totalSpend)}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{tripExpenses.length} trip transactions</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {tripUsesManualCurrency && formatBaseReference(totalSpend)
+                          ? `${formatBaseReference(totalSpend)} in app currency`
+                          : `${tripExpenses.length} trip transactions`}
+                      </p>
+                      {tripUsesManualCurrency && (
+                        <p className="mt-1 text-xs text-muted-foreground">{tripExpenses.length} trip transactions</p>
+                      )}
                     </div>
                     <div className="rounded-xl border border-border/40 bg-background/50 p-3">
                       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Shared Group Spend</p>
-                      <p className="mt-2 text-lg font-semibold">{formatAmount(sharedGroupSpend)}</p>
+                      <p className="mt-2 text-lg font-semibold">{formatValue(sharedGroupSpend)}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {sharedGroupExpenses.length} shared transactions
+                        {tripUsesManualCurrency && formatBaseReference(sharedGroupSpend)
+                          ? `${formatBaseReference(sharedGroupSpend)} in app currency`
+                          : `${sharedGroupExpenses.length} shared transactions`}
                       </p>
+                      {tripUsesManualCurrency && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {sharedGroupExpenses.length} shared transactions
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -734,7 +805,7 @@ export default function TripsPage() {
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Trip Budget</span>
                         <span className={`font-semibold ${financialSummary.isOverBudget ? 'text-destructive' : ''}`}>
-                          {formatAmount(trip.budget)}
+                          {formatValue(trip.budget)}
                         </span>
                       </div>
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
@@ -752,7 +823,12 @@ export default function TripsPage() {
                       {typeof financialSummary.remainingBudget === 'number' && (
                         <p className={`text-xs ${financialSummary.remainingBudget < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
                           {financialSummary.remainingBudget < 0 ? 'Over budget by ' : 'Budget left: '}
-                          {formatAmount(Math.abs(financialSummary.remainingBudget))}
+                          {formatValue(Math.abs(financialSummary.remainingBudget))}
+                        </p>
+                      )}
+                      {tripUsesManualCurrency && formatBaseReference(trip.budget) && (
+                        <p className="text-xs text-muted-foreground">
+                          {`${formatBaseReference(trip.budget)} budget reference in app currency`}
                         </p>
                       )}
                     </div>
@@ -778,7 +854,12 @@ export default function TripsPage() {
                               <DollarSign className="h-3 w-3" />
                               Group Fund
                             </p>
-                            <p className="mt-1 font-semibold">{formatAmount(trip.groupFund)}</p>
+                            <p className="mt-1 font-semibold">{formatValue(trip.groupFund)}</p>
+                            {tripUsesManualCurrency && formatBaseReference(trip.groupFund) && (
+                              <p className="mt-1 text-[11px] text-muted-foreground">
+                                {`${formatBaseReference(trip.groupFund)} in app currency`}
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -788,20 +869,20 @@ export default function TripsPage() {
                           <div className="space-y-1">
                             <p className="text-xs uppercase tracking-wide text-muted-foreground">Fund Left</p>
                             <p className={`font-semibold ${financialSummary.remainingGroupFund < 0 ? 'text-destructive' : ''}`}>
-                              {formatAmount(financialSummary.remainingGroupFund)}
+                              {formatValue(financialSummary.remainingGroupFund)}
                             </p>
                           </div>
                         )}
                         {typeof financialSummary.perPersonSharedSpend === 'number' && (
                           <div className="space-y-1">
                             <p className="text-xs uppercase tracking-wide text-muted-foreground">Per Person Shared Spend</p>
-                            <p className="font-semibold">{formatAmount(financialSummary.perPersonSharedSpend)}</p>
+                            <p className="font-semibold">{formatValue(financialSummary.perPersonSharedSpend)}</p>
                           </div>
                         )}
                         {typeof financialSummary.perPersonFundTarget === 'number' && (
                           <div className="space-y-1">
                             <p className="text-xs uppercase tracking-wide text-muted-foreground">Fund Per Person</p>
-                            <p className="font-semibold">{formatAmount(financialSummary.perPersonFundTarget)}</p>
+                            <p className="font-semibold">{formatValue(financialSummary.perPersonFundTarget)}</p>
                           </div>
                         )}
                         <div className="space-y-1">
@@ -890,7 +971,7 @@ export default function TripsPage() {
                                 <div>
                                   <p className="font-medium">{member.memberName}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    Paid {formatAmount(member.paidTotal)} and owes {formatAmount(member.shareOwed)}
+                                    Paid {formatValue(member.paidTotal)} and owes {formatValue(member.shareOwed)}
                                   </p>
                                 </div>
                                 <div className="text-right">
@@ -904,14 +985,14 @@ export default function TripsPage() {
                                     }`}
                                   >
                                     {member.netBalance > 0.009
-                                      ? `Gets ${formatAmount(member.netBalance)}`
+                                      ? `Gets ${formatValue(member.netBalance)}`
                                       : member.netBalance < -0.009
-                                        ? `Owes ${formatAmount(Math.abs(member.netBalance))}`
+                                        ? `Owes ${formatValue(Math.abs(member.netBalance))}`
                                         : 'Settled'}
                                   </p>
                                   {(member.settlementsIn > 0 || member.settlementsOut > 0) && (
                                     <p className="text-xs text-muted-foreground">
-                                      Transfers in {formatAmount(member.settlementsIn)} / out {formatAmount(member.settlementsOut)}
+                                      Transfers in {formatValue(member.settlementsIn)} / out {formatValue(member.settlementsOut)}
                                     </p>
                                   )}
                                 </div>
@@ -922,8 +1003,8 @@ export default function TripsPage() {
 
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold">Suggested transfers</p>
-                            <p className="text-xs text-muted-foreground">{settlementSuggestions.length} suggestion(s)</p>
+                            <p className="text-sm font-semibold">Simplify Debts</p>
+                            <p className="text-xs text-muted-foreground">{settlementSuggestions.length} optimized payment(s)</p>
                           </div>
                           {settlementSuggestions.length > 0 ? (
                             settlementSuggestions.map((suggestion, index) => (
@@ -935,7 +1016,7 @@ export default function TripsPage() {
                                   <p className="text-sm font-medium">
                                     {suggestion.fromMemberName} pays {suggestion.toMemberName}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">{formatAmount(suggestion.amount)}</p>
+                                  <p className="text-xs text-muted-foreground">{formatValue(suggestion.amount)}</p>
                                 </div>
                                 <Button
                                   type="button"
@@ -950,7 +1031,7 @@ export default function TripsPage() {
                             ))
                           ) : (
                             <p className="text-sm text-muted-foreground">
-                              No transfers needed. The group is currently settled.
+                              No transfers needed. The simplified debt graph is fully settled.
                             </p>
                           )}
                         </div>
@@ -981,7 +1062,7 @@ export default function TripsPage() {
                                       </Badge>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                      {formatDateLabel(settlement.date)} - {formatAmount(settlement.amount)}
+                                      {formatDateLabel(settlement.date)} - {formatValue(settlement.amount)}
                                       {settlement.note ? ` - ${settlement.note}` : ''}
                                     </p>
                                   </div>
@@ -1081,7 +1162,41 @@ export default function TripsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="budget">Total Budget (Optional)</Label>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Destination Currency</Label>
+                  <Input
+                    id="currency"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+                    placeholder="e.g. THB"
+                    maxLength={3}
+                    className="rounded-xl border-border/60 bg-muted/20 uppercase focus:bg-background"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="exchange-rate">{`Exchange Rate (${displayCurrency} per 1 unit)`}</Label>
+                  <Input
+                    id="exchange-rate"
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    value={exchangeRate}
+                    onChange={(e) => setExchangeRate(e.target.value)}
+                    placeholder={`e.g. 0.04 ${displayCurrency}`}
+                    className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                {currency.trim() && exchangeRate.trim()
+                  ? `Trip expenses, budget, and group fund will use ${modalCurrencyLabel}. The app will convert them back to ${displayCurrency} with this manual rate.`
+                  : `Optional: set a destination currency and manual exchange rate so trip expenses can be entered in that currency.`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="budget">{`Total Budget (${modalCurrencyLabel})`}</Label>
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -1134,7 +1249,7 @@ export default function TripsPage() {
                   <p className="text-[11px] text-muted-foreground">Include yourself in the count.</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="group-fund">Group Fund</Label>
+                  <Label htmlFor="group-fund">{`Group Fund (${modalCurrencyLabel})`}</Label>
                   <div className="relative">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -1201,6 +1316,9 @@ export default function TripsPage() {
             <div className="rounded-xl border border-border/40 bg-muted/20 p-3">
               <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Trip</p>
               <p className="mt-1 font-semibold">{settlementTrip?.name ?? 'Select a trip'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {`Settlement amounts are recorded in ${settlementCurrencyLabel}.`}
+              </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1248,7 +1366,7 @@ export default function TripsPage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="settlement-amount">Amount</Label>
+                <Label htmlFor="settlement-amount">{`Amount (${settlementCurrencyLabel})`}</Label>
                 <Input
                   id="settlement-amount"
                   type="number"

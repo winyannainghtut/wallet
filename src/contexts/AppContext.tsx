@@ -45,6 +45,13 @@ import { normalizeDateKey } from '@/lib/date-utils'
 type TransactionApiRecord = {
   id: string
   amount: number
+  sourceAmount?: number
+  sourceCurrency?: string
+  sourceExchangeRate?: number
+  merchantName?: string
+  tagsJson?: string
+  reviewStatus?: 'pending' | 'reviewed' | string
+  accountId?: string
   category: string
   description?: string
   date: string
@@ -61,6 +68,8 @@ type TripApiRecord = {
   name: string
   startDate: string
   endDate: string
+  currency?: string | null
+  exchangeRate?: number | null
   budget?: number | null
   destinations?: string | null
   groupName?: string | null
@@ -91,6 +100,29 @@ function mapExpenseRecord(item: TransactionApiRecord): Expense {
   return {
     id: item.id,
     amount: item.amount,
+    sourceAmount: typeof item.sourceAmount === 'number' ? item.sourceAmount : undefined,
+    sourceCurrency: typeof item.sourceCurrency === 'string' && item.sourceCurrency.trim().length > 0 ? item.sourceCurrency : undefined,
+    sourceExchangeRate: typeof item.sourceExchangeRate === 'number' ? item.sourceExchangeRate : undefined,
+    merchantName: item.merchantName || undefined,
+    tags: typeof item.tagsJson === 'string' && item.tagsJson.trim().length > 0
+      ? (() => {
+          try {
+            const parsed = JSON.parse(item.tagsJson)
+            return Array.isArray(parsed) ? parsed.filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0) : undefined
+          } catch {
+            return undefined
+          }
+        })()
+      : undefined,
+    reviewStatus:
+      item.reviewStatus === 'reviewed'
+        ? 'reviewed'
+        : item.reviewStatus === 'ignored'
+          ? 'ignored'
+          : item.reviewStatus === 'pending'
+            ? 'pending'
+            : undefined,
+    accountId: typeof item.accountId === 'string' && item.accountId.trim().length > 0 ? item.accountId : undefined,
     category: item.category as Category,
     description: item.description || '',
     date: normalizeDateKey(item.date),
@@ -109,6 +141,26 @@ function mapIncomeRecord(item: TransactionApiRecord): Income {
   return {
     id: item.id,
     amount: item.amount,
+    merchantName: item.merchantName || undefined,
+    tags: typeof item.tagsJson === 'string' && item.tagsJson.trim().length > 0
+      ? (() => {
+          try {
+            const parsed = JSON.parse(item.tagsJson)
+            return Array.isArray(parsed) ? parsed.filter((tag): tag is string => typeof tag === 'string' && tag.trim().length > 0) : undefined
+          } catch {
+            return undefined
+          }
+        })()
+      : undefined,
+    reviewStatus:
+      item.reviewStatus === 'reviewed'
+        ? 'reviewed'
+        : item.reviewStatus === 'ignored'
+          ? 'ignored'
+          : item.reviewStatus === 'pending'
+            ? 'pending'
+            : undefined,
+    accountId: typeof item.accountId === 'string' && item.accountId.trim().length > 0 ? item.accountId : undefined,
     category: (item.category || 'other') as IncomeCategory,
     description: item.description || '',
     date: normalizeDateKey(item.date),
@@ -123,6 +175,8 @@ function mapTripRecord(item: TripApiRecord): Trip {
     name: item.name,
     startDate: item.startDate,
     endDate: item.endDate,
+    currency: item.currency || undefined,
+    exchangeRate: typeof item.exchangeRate === 'number' ? item.exchangeRate : undefined,
     budget: typeof item.budget === 'number' ? item.budget : undefined,
     destinations: item.destinations || undefined,
     groupName: item.groupName || undefined,
@@ -534,6 +588,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         type: 'expense',
         category: expense.category,
         amount: expense.amount,
+        sourceAmount: expense.sourceAmount,
+        sourceCurrency: expense.sourceCurrency,
+        sourceExchangeRate: expense.sourceExchangeRate,
+        merchantName: expense.merchantName,
+        tagsJson: expense.tags ? JSON.stringify(expense.tags) : undefined,
+        reviewStatus: expense.reviewStatus,
+        accountId: expense.accountId,
         description: expense.description,
         date: expense.date,
         tripId: normalizedTripId,
@@ -571,6 +632,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const payload = {
       ...updates,
       ...(normalizedTripId !== undefined ? { tripId: normalizedTripId } : {}),
+      ...(updates.sourceAmount !== undefined ? { sourceAmount: updates.sourceAmount } : {}),
+      ...(updates.sourceCurrency !== undefined ? { sourceCurrency: updates.sourceCurrency } : {}),
+      ...(updates.sourceExchangeRate !== undefined ? { sourceExchangeRate: updates.sourceExchangeRate } : {}),
+      ...(updates.merchantName !== undefined ? { merchantName: updates.merchantName } : {}),
+      ...(updates.tags !== undefined ? { tagsJson: updates.tags ? JSON.stringify(updates.tags) : '' } : {}),
+      ...(updates.reviewStatus !== undefined ? { reviewStatus: updates.reviewStatus } : {}),
+      ...(updates.accountId !== undefined ? { accountId: updates.accountId } : {}),
       ...(normalizedTripId !== undefined
         ? { sharedGroupExpense: normalizedTripId ? updates.sharedGroupExpense === true : false }
         : {}),
@@ -632,6 +700,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({
         category: income.category,
         amount: income.amount,
+        merchantName: income.merchantName,
+        tagsJson: income.tags ? JSON.stringify(income.tags) : undefined,
+        reviewStatus: income.reviewStatus,
+        accountId: income.accountId,
         description: income.description,
         date: income.date,
       }),
@@ -656,7 +728,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const res = await fetch(`/api/incomes/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updates),
+      body: JSON.stringify({
+        ...updates,
+        ...(updates.tags !== undefined ? { tagsJson: updates.tags ? JSON.stringify(updates.tags) : '' } : {}),
+      }),
     })
 
     if (res.status === 404) {

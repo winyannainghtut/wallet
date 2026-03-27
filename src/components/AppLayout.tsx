@@ -19,7 +19,11 @@ import {
   CalendarDays,
   User,
   Landmark,
-  PiggyBank
+  PiggyBank,
+  CreditCard,
+  Receipt,
+  ScanSearch,
+  Users
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -35,10 +39,16 @@ const navItems = [
   { href: '/history', icon: History, labelKey: 'nav.history' },
   { href: '/income', icon: Landmark, labelKey: 'nav.income' },
   { href: '/savings', icon: PiggyBank, labelKey: 'nav.savings' },
+  { href: '/budgets', icon: PiggyBank, labelKey: 'nav.budgets' },
   { href: '/reports', icon: BarChart3, labelKey: 'nav.reports' },
   { href: '/calendar', icon: CalendarDays, labelKey: 'nav.calendar' },
   { href: '/trips', icon: Plane, labelKey: 'nav.trips' },
   { href: '/subscriptions', icon: Repeat, labelKey: 'nav.subscriptions' },
+  { href: '/bills', icon: Receipt, labelKey: 'nav.bills' },
+  { href: '/liabilities', icon: CreditCard, labelKey: 'nav.liabilities' },
+  { href: '/accounts', icon: Landmark, labelKey: 'nav.accounts' },
+  { href: '/review', icon: ScanSearch, labelKey: 'nav.review' },
+  { href: '/household', icon: Users, labelKey: 'nav.household' },
   { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ]
 

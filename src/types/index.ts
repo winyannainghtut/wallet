@@ -76,6 +76,13 @@ export function getIncomeCategoryLabel(category: string, language: AppLanguage):
 export interface Expense {
   id: string
   amount: number
+  sourceAmount?: number
+  sourceCurrency?: string
+  sourceExchangeRate?: number
+  merchantName?: string
+  tags?: string[]
+  reviewStatus?: 'pending' | 'reviewed' | 'ignored'
+  accountId?: string
   category: Category
   description: string
   date: string // YYYY-MM-DD
@@ -89,6 +96,10 @@ export interface Expense {
 export interface Income {
   id: string
   amount: number
+  merchantName?: string
+  tags?: string[]
+  reviewStatus?: 'pending' | 'reviewed' | 'ignored'
+  accountId?: string
   category: IncomeCategory
   description: string
   date: string // YYYY-MM-DD
@@ -159,6 +170,8 @@ export interface Trip {
   name: string
   startDate: string
   endDate: string
+  currency?: string
+  exchangeRate?: number
   budget?: number
   destinations?: string
   groupName?: string
@@ -171,6 +184,8 @@ export interface TripMutationInput {
   name: string
   startDate: string
   endDate: string
+  currency?: string
+  exchangeRate?: number | null
   destinations?: string
   budget?: number | null
   groupName?: string
@@ -213,6 +228,90 @@ export interface FundGoal {
   note?: string
   status: 'active' | 'completed' | 'archived'
   color?: string
+  createdAt: string
+  updatedAt?: string
+}
+
+export type AccountType = 'cash' | 'bank' | 'credit_card' | 'investment' | 'ewallet' | 'other'
+
+export interface Account {
+  id: string
+  name: string
+  type: AccountType
+  institution?: string
+  currency: string
+  balance: number
+  note?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
+export type LiabilityType = 'credit_card' | 'personal_loan' | 'mortgage' | 'bnpl' | 'other'
+
+export interface Liability {
+  id: string
+  name: string
+  type: LiabilityType
+  accountId?: string
+  balance: number
+  interestRate?: number
+  minimumPayment?: number
+  dueDay?: number
+  extraPayment?: number
+  startDate?: string
+  targetPayoffDate?: string
+  note?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface BudgetPlan {
+  id: string
+  month: string
+  category: Category
+  limitAmount: number
+  rolloverAmount?: number
+  note?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface TransactionRule {
+  id: string
+  name: string
+  matchText: string
+  renameTo?: string
+  category?: Category
+  tags: string[]
+  markReviewed?: boolean
+  isActive: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
+export type HouseholdMemberRole = 'owner' | 'member' | 'viewer'
+export type HouseholdMemberStatus = 'active' | 'invited'
+
+export interface Household {
+  id: string
+  name: string
+  baseCurrency?: string
+  note?: string
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface HouseholdMember {
+  id: string
+  householdId: string
+  email: string
+  name: string
+  role: HouseholdMemberRole
+  status: HouseholdMemberStatus
+  userId?: string
   createdAt: string
   updatedAt?: string
 }

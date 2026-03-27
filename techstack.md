@@ -25,6 +25,8 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
   - `pb_migrations/1775100000_add_recurring_insurance_fields.js`
   - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
+  - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
+  - `pb_migrations/1775400000_planning_collaboration_collections.js`
 - **Main collections:**
   - `users`
   - `transactions`
@@ -32,21 +34,33 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `savings_goals`
   - `savings_assets`
   - `user_preferences`
+  - `accounts`
+  - `liabilities`
+  - `budgets`
   - `trips`
   - `trip_members`
   - `trip_settlements`
   - `fund_goals`
+  - `transaction_rules`
+  - `households`
+  - `household_members`
   - `subscriptions`
 
 ## Product Data Domains
 
-- **Expenses**
+- **Expenses** with optional source currency metadata for trip-linked destination-currency capture
 - **Income**
+- **Manual accounts** with account-linked expenses and incomes
+- **Liabilities / debts** with payoff projection and due planning
+- **Budgets** with category limits and rollover amounts
 - **Savings goals**
 - **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)** with live ticker pricing for crypto and manual stock values
-- **Trips** with optional shared friend-group pooled spend metadata
+- **Trips** with optional shared friend-group pooled spend metadata and manual destination currency / exchange rate
 - **Trip members and settle-up records** for payer-aware group trip accounting
+- **Transaction rules + review queue** with merchant cleanup, tags, review states, and account assignment
+- **Household collaboration** with member roles and shared base currency
 - **Subscriptions (recurring cost modeled into reports/calendar)**
+- **Bills center** that consolidates recurring subscriptions, liabilities, and recurring insurance contributions
 - **Fund goals** linked to trips, savings assets, and monthly savings progress
 - **Cashflow forecast / projected net worth** derived from expenses, incomes, subscriptions, and recurring insurance contributions
 
@@ -66,7 +80,7 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **xlsx** for Excel import/export.
 - **Coinbase Advanced Trade WebSocket** for live crypto pricing.
 - **uuid** for local identifier generation where needed.
-- **Next.js middleware** for auth-first route protection.
+- **Next.js proxy** for auth-first route protection.
 
 ## AI
 

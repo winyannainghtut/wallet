@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { parseIncomePayload } from '@/lib/income-payload'
 
 type PocketBaseLikeError = {
   status?: number
   message?: string
 }
 
-type IncomeInput = {
-  amount?: number
-  category?: string
-  description?: string
-  date?: string
-}
-
 type IncomeRecord = {
   id: string
   user?: string
   type?: string
+  amount?: unknown
+  merchantName?: unknown
+  tagsJson?: unknown
+  reviewStatus?: unknown
+  accountId?: unknown
+  category?: unknown
+  description?: unknown
+  date?: unknown
 }
 
 type IncomeSource = 'incomes' | 'transactions'
@@ -55,19 +57,6 @@ function getAuthenticatedPb(request: NextRequest):
   return { pb, userId: pb.authStore.model.id }
 }
 
-function normalizeIncomeInput(input: IncomeInput) {
-  return {
-    amount: input.amount,
-    category: input.category,
-    description: input.description,
-    date: input.date,
-  }
-}
-
-function stripUndefined(obj: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined))
-}
-
 async function resolveIncomeRecord(
   pb: ReturnType<typeof createPbServer>,
   userId: string,
@@ -95,7 +84,6 @@ async function resolveIncomeRecord(
   }
 }
 
-// GET - Get single income
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -123,7 +111,6 @@ export async function GET(
   }
 }
 
-// PUT - Update income
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -141,17 +128,27 @@ export async function PUT(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const body = (await request.json()) as IncomeInput
-    const normalized = normalizeIncomeInput(body)
-    const payload = stripUndefined({
-      amount: normalized.amount,
-      category: normalized.category,
-      description: normalized.description,
-      date: normalized.date,
-      ...(resolved.source === 'transactions' ? { type: 'income' } : {}),
+    const body = await request.json()
+    const parsed = await parseIncomePayload(body, {
+      pb,
+      userId,
+      partial: true,
+      existing: resolved.record,
     })
+    if (!parsed.data) {
+      return NextResponse.json(
+        { error: parsed.error || 'Invalid income payload' },
+        { status: 400 }
+      )
+    }
 
-    const updated = await pb.collection(resolved.source).update(id, payload)
+    const updated = await pb.collection(resolved.source).update(
+      id,
+      resolved.source === 'transactions'
+        ? parsed.data.legacyData
+        : parsed.data.collectionData
+    )
+
     return NextResponse.json(updated)
   } catch (error: unknown) {
     console.error('Update income error:', error)
@@ -162,7 +159,6 @@ export async function PUT(
   }
 }
 
-// DELETE - Delete income
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

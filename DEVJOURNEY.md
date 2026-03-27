@@ -4,31 +4,46 @@
 
 ### Completed
 
-- **Trip settle-up flow:**
-  - Added trip participants (`trip_members`) and settlement records (`trip_settlements`).
-  - Shared trip expenses now store the group payer via `paidByMemberId`.
-  - Trips page now calculates member balances, suggests who should pay whom, and allows settlement tracking.
-- **Fund goals feature:**
-  - Added `fund_goals` collection, API routes, and savings/dashboard UI.
-  - Goals can link to savings assets and trip targets to show progress and projected completion.
-- **Forecasting upgrade:**
-  - Added cashflow forecast utilities and surfaced them in Reports and Calendar.
-  - Added projected net worth view based on tracked assets, forecasted net cashflow, and recurring insurance contributions.
-- **Savings assets live pricing upgrade:**
-  - Rolled back stock live pricing and returned stocks to manual-value tracking only.
-  - Crypto live pricing remains on Coinbase with FX conversion.
-- **Trips and savings UI fixes:**
-  - Fixed trip expense and settlement selectors to show names instead of raw IDs.
-  - Reworked shared trip settle-up math to use exact cents and avoid residual balance drift after recording settlements.
-  - Removed duplicate `Fund Goals` section from the savings page.
-- **Framework/runtime cleanup:**
-  - Renamed `src/proxy.ts` to `src/middleware.ts` for Next.js 16 compatibility.
-  - Added shared date utilities and hardened dashboard loading guard ordering.
-- **Backend/migration updates:**
-  - Added migration `1775200000_trip_settlements_and_fund_goals.js`.
-  - Updated `k8s/pocketbase-bootstrap.yaml` to bootstrap new collections and transaction field extensions.
-- **Documentation sync:**
-  - Updated README, setup guide, PocketBase backend doc, tech stack summary, and this journey log.
+- Added trip-level destination currency support:
+  - `trips.currency`
+  - `trips.exchangeRate`
+- Added transaction source metadata for trip-linked expenses:
+  - `transactions.sourceAmount`
+  - `transactions.sourceCurrency`
+  - `transactions.sourceExchangeRate`
+- Updated trip create/edit UI so budgets and group funds can be managed in manual destination currency.
+- Updated expense form so trip-linked expenses can be entered in destination currency and converted to app currency on save.
+- Updated trip cards and settle-up views to render trip totals in destination currency with app-currency reference text.
+- Updated Excel import/export and template files for trip currency round-trip support.
+- Added trip participant and settlement support:
+  - `trip_members`
+  - `trip_settlements`
+  - `transactions.paidByMemberId`
+- Added fund goals:
+  - `fund_goals`
+  - savings/dashboard wiring
+- Added forecast and projected net worth views in Reports and Calendar.
+- Added manual planning and collaboration layers:
+  - `accounts`
+  - `liabilities`
+  - `budgets`
+  - `transaction_rules`
+  - `households`
+  - `household_members`
+- Added transaction review queue with merchant cleanup, tags, review states, and account assignment across expenses and incomes.
+- Added bills center that consolidates subscriptions, liabilities, and recurring insurance contributions.
+- Improved trip settle-up UX:
+  - selectors now show names instead of raw ids
+  - simplified debt wording
+  - exact-cent split math to avoid rounding residue after settlement recording
+- Rolled back experimental stock live pricing and kept stocks manual-only while crypto live pricing remains.
+- Added PocketBase migration:
+  - `1775300000_trip_currency_and_source_metadata.js`
+- Added PocketBase migration:
+  - `1775400000_planning_collaboration_collections.js`
+- Synced bootstrap ConfigMap:
+  - `k8s/pocketbase-bootstrap.yaml`
+- Synced docs for trip currency, planning/collaboration features, and migration updates.
 
 ## 2026-03-26
 
@@ -162,12 +177,14 @@ Browser -> Next.js API routes -> PocketBase
 - `1775000000_add_shared_group_expense_to_transactions.js`
 - `1775100000_add_recurring_insurance_fields.js`
 - `1775200000_trip_settlements_and_fund_goals.js`
+- `1775300000_trip_currency_and_source_metadata.js`
+- `1775400000_planning_collaboration_collections.js`
 
 ## Next Practical Tasks
 
-1. Add Myanmar translation coverage for newly added report/dashboard/savings labels.
-2. Add CI check to validate migration applies on a clean PocketBase data dir.
-3. Add end-to-end smoke test for login -> add income -> set goal -> report/calendar comparison.
+1. Expand Myanmar translation coverage for the new accounts, budgets, liabilities, review, and household screens.
+2. Add CI coverage for migration bootstraps plus the new accounts/budgets/liabilities/household routes.
+3. Add end-to-end smoke tests for review queue, budgets, and trip settle-up flows.
 
 ---
 
