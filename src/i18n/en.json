@@ -49,7 +49,14 @@
     "yes": "Yes",
     "no": "No",
     "items": "items",
-    "entriesMatched": "entries matched"
+    "entriesMatched": "entries matched",
+    "balance": "Balance",
+    "type": "Type",
+    "select": "Select",
+    "email": "Email",
+    "role": "Role",
+    "noResults": "No results found.",
+    "switchLanguageTo": "Switch to {language}"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -57,14 +64,12 @@
     "history": "History",
     "income": "Income",
     "savings": "Savings",
-    "budgets": "Budgets",
     "reports": "Reports",
     "settings": "Settings",
     "aiAssistant": "AI Assistant",
     "trips": "Trips",
     "subscriptions": "Subscriptions",
     "bills": "Bills",
-    "liabilities": "Liabilities",
     "accounts": "Accounts",
     "review": "Review",
     "household": "Household",
@@ -227,7 +232,10 @@
     "historyDesc": "Review your salary, freelance and other incoming cash flow.",
     "searchPlaceholder": "Search by description or category...",
     "noIncome": "No income records yet.",
-    "descriptionPlaceholder": "Salary from company, side project payout, etc."
+    "descriptionPlaceholder": "Salary from company, side project payout, etc.",
+    "account": "Account",
+    "selectAccount": "Select account",
+    "noAccount": "No account"
   },
   "savings": {
     "title": "Savings",
@@ -303,7 +311,8 @@
     "manageData": "Manage language, AI, and data tools.",
     "importWarnings": "Import Warnings",
     "excel": "Excel",
-    "excelDesc": "Import and export expenses, incomes, savings assets, and trips data."
+    "excelDesc": "Import and export expenses, incomes, savings assets, and trips data.",
+    "clearData": "Clear Data"
   },
   "ai": {
     "title": "AI Assistant",
@@ -334,12 +343,6 @@
     "importError": "Failed to import data",
     "invalidFormat": "Invalid file format",
     "downloadTemplate": "Download Template"
-  },
-  "budget": {
-    "title": "Budget Progress",
-    "left": "left",
-    "overBudget": "Over Budget",
-    "of": "of"
   },
   "subscriptions": {
     "title": "Subscriptions",
@@ -417,42 +420,6 @@
     "dailyAverage": "Daily Average",
     "thisWeek": "This Week"
   },
-  "liabilities": {
-    "title": "Liabilities",
-    "subtitle": "Manage debt balances, due dates, and payoff scenarios in one place.",
-    "addLiability": "Add Liability",
-    "editLiability": "Edit Liability",
-    "outstanding": "Outstanding",
-    "monthlyPayment": "Monthly Payment",
-    "highestApr": "Highest APR",
-    "activeDebts": "Active Debts",
-    "simulatorTitle": "Debt Payoff Simulator",
-    "extraMonthlyPayment": "Extra Monthly Payment",
-    "currentPlan": "Current Plan",
-    "withExtraPayment": "With Extra Payment",
-    "potentialSavings": "Potential Savings",
-    "interestAvoided": "Interest avoided",
-    "monthsFaster": "months faster",
-    "paymentTooLow": "Payment too low",
-    "noActiveLiabilityHint": "Add an active liability to simulate a payoff plan.",
-    "noLiabilitiesTitle": "No liabilities yet",
-    "noLiabilitiesDesc": "Add a debt to track due dates, minimum payments, and payoff timelines.",
-    "deleteConfirm": "Delete {name}?",
-    "nextDue": "Next due",
-    "dueDay": "Due day",
-    "paidFrom": "Paid from",
-    "projectedPayoff": "Projected payoff",
-    "targetPayoff": "Target payoff",
-    "activeLiability": "Active liability",
-    "activeLiabilityDesc": "Inactive debts stay in history but drop out of active totals.",
-    "type": {
-      "credit_card": "Credit Card",
-      "personal_loan": "Personal Loan",
-      "mortgage": "Mortgage",
-      "bnpl": "BNPL",
-      "other": "Other"
-    }
-  },
   "household": {
     "title": "Household",
     "subtitle": "Create shared spaces for partners or family and manage member access.",
@@ -526,42 +493,47 @@
     "autoMarkReviewed": "Auto mark reviewed",
     "autoReviewed": "Auto reviewed",
     "renameTo": "Rename",
-    "ruleActive": "Rule active"
+    "ruleActive": "Rule active",
+    "loadFailed": "Failed to load review data",
+    "saveFailed": "Failed to save review item",
+    "applyRulesFailed": "Failed to apply transaction rules",
+    "saveRuleFailed": "Failed to save rule",
+    "deleteRuleFailed": "Failed to delete rule",
+    "matchPlaceholder": "e.g. ntuc, netflix, grab",
+    "categoryOptional": "Optional",
+    "noCategoryChange": "No category change",
+    "tagsPlaceholder": "comma, separated, tags",
+    "typeIncome": "Income",
+    "typeExpense": "Expense"
   },
   "bills": {
     "title": "Bills Center",
-    "subtitle": "One timeline for subscriptions and debt payments, so upcoming obligations stay visible.",
+    "subtitle": "One timeline for subscriptions and recurring insurance contributions.",
     "dueNext30Days": "Due Next 30 Days",
     "monthlyCommitments": "Monthly Commitments",
     "activeBills": "Active Bills",
     "nextDue": "Next Due",
     "dueThisWeek": "Due This Week",
-    "dueThisWeekDesc": "Immediate obligations from both subscriptions and liabilities.",
+    "dueThisWeekDesc": "Upcoming subscriptions and recurring insurance due in the next 7 days.",
     "laterThisMonth": "Later This Month",
-    "laterThisMonthDesc": "Active bills still coming before the month closes.",
+    "laterThisMonthDesc": "Active recurring obligations still coming before the month closes.",
     "beyondThisMonth": "Beyond This Month",
-    "beyondThisMonthDesc": "Future-dated bills, useful for forward planning.",
+    "beyondThisMonthDesc": "Future-dated subscriptions and insurance contributions.",
     "noActiveBills": "No active bills yet",
-    "noActiveBillsDesc": "Activate subscriptions or liabilities to see them in the bills center.",
+    "noActiveBillsDesc": "Activate subscriptions or add recurring insurance contributions to see them here.",
     "pausedOrInactive": "Paused or Inactive",
-    "liabilityHint": "Liabilities are shown with minimum payment plus extra payment.",
     "subscriptionHint": "Subscriptions keep their own recurrence schedule and amount.",
     "insuranceHint": "Recurring insurance savings are treated as monthly obligations too.",
     "nothingHere": "Nothing here right now.",
     "cadence": {
-      "monthlyDay": "Every month on day {day}",
       "monthlyInsurance": "Monthly recurring contribution"
     },
-    "liability": "Liability",
     "insurance": "Insurance",
     "subscription": "Subscription",
     "dueOn": "Due {date} / {cadence}",
     "detail": {
       "insurance": "Insurance savings contribution since {date}",
-      "minimum": "Minimum {amount}",
-      "extra": "+ extra {amount}",
       "starts": "Starts {date}"
     }
   }
 }
-

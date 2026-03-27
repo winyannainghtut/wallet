@@ -13,7 +13,10 @@ import {
   Repeat,
   CalendarDays,
   Landmark,
-  PiggyBank
+  PiggyBank,
+  Receipt,
+  ScanSearch,
+  Users
 } from 'lucide-react'
 
 import {
@@ -55,7 +58,7 @@ export function CommandPalette() {
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput placeholder={t('common.commandPalette')} />
       <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
+        <CommandEmpty>{t('common.noResults')}</CommandEmpty>
         <CommandGroup heading={t('common.navigation')}>
           <CommandItem onSelect={() => runCommand(() => router.push('/'))}>
             <Home className="mr-2 h-4 w-4" />
@@ -93,6 +96,22 @@ export function CommandPalette() {
             <Repeat className="mr-2 h-4 w-4" />
             <span>{t('nav.subscriptions')}</span>
           </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/bills'))}>
+            <Receipt className="mr-2 h-4 w-4" />
+            <span>{t('nav.bills')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/accounts'))}>
+            <Landmark className="mr-2 h-4 w-4" />
+            <span>{t('nav.accounts')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/review'))}>
+            <ScanSearch className="mr-2 h-4 w-4" />
+            <span>{t('nav.review')}</span>
+          </CommandItem>
+          <CommandItem onSelect={() => runCommand(() => router.push('/household'))}>
+            <Users className="mr-2 h-4 w-4" />
+            <span>{t('nav.household')}</span>
+          </CommandItem>
           <CommandItem onSelect={() => runCommand(() => router.push('/settings'))}>
             <Settings className="mr-2 h-4 w-4" />
             <span>{t('nav.settings')}</span>
@@ -105,7 +124,9 @@ export function CommandPalette() {
             void setLanguage(nextLang)
           })}>
             <Languages className="mr-2 h-4 w-4" />
-            <span>Switch to {language === 'en' ? 'Myanmar' : 'English'}</span>
+            <span>{t('common.switchLanguageTo', {
+              language: language === 'en' ? t('settings.myanmar') : t('settings.english'),
+            })}</span>
           </CommandItem>
         </CommandGroup>
       </CommandList>

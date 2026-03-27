@@ -35,6 +35,7 @@ export function IncomeForm({ initialData, onSubmit, onCancel, isSubmitting = fal
   const [date, setDate] = useState(initialData?.date || format(new Date(), 'yyyy-MM-dd'))
   const [accountId, setAccountId] = useState(initialData?.accountId || '')
   const [accounts, setAccounts] = useState<AccountOption[]>([])
+  const selectableAccounts = accounts.filter((account) => account.isActive !== false || account.id === accountId)
   
   const language = getLanguage()
 
@@ -50,7 +51,7 @@ export function IncomeForm({ initialData, onSubmit, onCancel, isSubmitting = fal
 
         const data = await response.json() as { items?: AccountOption[] }
         if (!cancelled) {
-          setAccounts((data.items ?? []).filter((account) => account.isActive !== false))
+          setAccounts(data.items ?? [])
         }
       } catch {
         if (!cancelled) {
@@ -120,18 +121,18 @@ export function IncomeForm({ initialData, onSubmit, onCancel, isSubmitting = fal
             </div>
           </div>
 
-          {accounts.length > 0 && (
+          {(selectableAccounts.length > 0 || Boolean(accountId)) && (
             <div className="space-y-2">
-              <Label htmlFor="income-account" className="text-sm font-medium">Account</Label>
+              <Label htmlFor="income-account" className="text-sm font-medium">{t('income.account')}</Label>
               <Select value={accountId || 'none'} onValueChange={(value) => setAccountId(!value || value === 'none' ? '' : value)}>
                 <SelectTrigger id="income-account" className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
-                  <SelectValue placeholder="Select account" />
+                  <SelectValue placeholder={t('income.selectAccount')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No account</SelectItem>
-                  {accounts.map((account) => (
+                  <SelectItem value="none">{t('income.noAccount')}</SelectItem>
+                  {selectableAccounts.map((account) => (
                     <SelectItem key={account.id} value={account.id}>
-                      {account.name} ({account.currency})
+                      {account.name} ({account.currency}){account.isActive === false ? ` - ${t('common.inactive')}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

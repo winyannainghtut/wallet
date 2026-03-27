@@ -28,12 +28,8 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/transactions/review/[id]`
 - `/api/accounts`
 - `/api/accounts/[id]`
-- `/api/budgets`
-- `/api/budgets/[id]`
 - `/api/incomes`
 - `/api/incomes/[id]`
-- `/api/liabilities`
-- `/api/liabilities/[id]`
 - `/api/savings-goals`
 - `/api/savings-goals/[id]`
 - `/api/savings-assets`
@@ -71,9 +67,6 @@ Browser -> Next.js API routes -> PocketBase
 - `transactions` can carry `tripId`, `sharedGroupExpense`, `paidByMemberId`, `sourceAmount`, `sourceCurrency`, and `sourceExchangeRate` for trip-linked pooled friend-group spend and destination-currency expense capture.
 - `transactions` and `incomes` can also carry `merchantName`, `tagsJson`, `reviewStatus`, and `accountId` for the review queue and manual accounts layer.
 - `accounts` stores manual balance snapshots and account metadata used by expense/income entry.
-- `liabilities` stores debt balances, rates, minimum payments, linked accounts, and due-day planning fields.
-- `budgets` stores per-category monthly limits, rollover amounts, notes, and active state.
-  Duplicate `(user, month, category)` rows are rejected by the API and backed by a uniqueness index.
 - `trips` can carry manual `currency` and `exchangeRate` values for destination-currency budgets and group-fund tracking.
 - `trip_members` stores the participant list for each trip.
 - `trip_settlements` stores planned or paid settle-up records between trip members.
@@ -102,6 +95,7 @@ Migration files:
 - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
 - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
+- `pb_migrations/1775600000_remove_budget_and_liability_features.js`
 
 Purpose summary:
 
@@ -119,7 +113,8 @@ Purpose summary:
 - `1775200000`: adds `trip_members`, `trip_settlements`, `fund_goals`, and `transactions.paidByMemberId`
 - `1775300000`: adds `trips.currency`, `trips.exchangeRate`, and `transactions.source*` metadata for trip destination currency capture
 - `1775400000`: adds `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, `household_members`, and review/account metadata fields on `transactions` and `incomes`
-- `1775500000`: tightens household visibility/management rules, adds household membership uniqueness indexes, and adds a unique budget index for `(user, month, category)`
+- `1775500000`: tightens household visibility/management rules and adds household membership uniqueness indexes
+- `1775600000`: destructively removes the legacy `budgets` and `liabilities` collections from PocketBase
 
 Expected collections:
 
@@ -130,8 +125,6 @@ Expected collections:
 - `savings_assets`
 - `user_preferences`
 - `accounts`
-- `liabilities`
-- `budgets`
 - `trips`
 - `trip_members`
 - `trip_settlements`
@@ -284,18 +277,24 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - `trip_settlements` collection exists
    - `fund_goals` collection exists
 
-### Accounts, budgets, liabilities, or household data missing
+### Accounts, review queue, or household data missing
 
 1. Confirm latest migration is applied:
    - `1775400000_planning_collaboration_collections.js`
    - `1775500000_fix_household_rules_and_budget_indexes.js`
+   - `1775600000_remove_budget_and_liability_features.js`
 2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
 3. In PocketBase Admin, verify:
-   - `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, and `household_members` collections exist
+   - `accounts`, `transaction_rules`, `households`, and `household_members` collections exist
    - `transactions` and `incomes` have `merchantName`, `tagsJson`, `reviewStatus`, and `accountId`
-   - `budgets` has a uniqueness index for `(user, month, category)`
    - `households` read rules are membership-based and write rules are owner-only
    - `household_members` stores invite `email` and can populate `userId` for the matching signed-in member
+
+### Budgets or liabilities still appear in PocketBase
+
+1. Confirm `1775600000_remove_budget_and_liability_features.js` has run.
+2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
+3. Check PocketBase logs for the destructive collection removal during bootstrap.
 
 ### App login works but data save fails
 

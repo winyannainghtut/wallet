@@ -1,13 +1,12 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { addMonths, addWeeks, differenceInCalendarDays, endOfMonth, format, isBefore, isValid, parseISO, setDate, startOfToday } from 'date-fns'
-import { CalendarClock, CreditCard, Repeat, Wallet } from 'lucide-react'
+import { CalendarClock, Repeat, Wallet } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useApp } from '@/contexts/AppContext'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
-import { LiabilityRecord, getLiabilityNextDueDate, getLiabilityTypeLabel, getMonthlyLiabilityPayment, mapLiabilityRecord } from '@/lib/liabilities'
 import { getNextRecurringContributionDate, isValidDateOnly } from '@/lib/savings-assets'
 import { t } from '@/i18n/config'
 import type { BillingCycle, SavingsAsset, Subscription } from '@/types'
@@ -19,7 +18,7 @@ type ApiListResponse<T> = {
 
 type BillItem = {
   id: string
-  source: 'subscription' | 'liability' | 'insurance'
+  source: 'subscription' | 'insurance'
   name: string
   dueDate: string
   amount: number
@@ -149,8 +148,8 @@ function BillsSection({
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{item.name}</p>
-                    <Badge variant={item.source === 'liability' ? 'outline' : 'secondary'}>
-                      {item.source === 'liability' ? t('bills.liability') : item.source === 'insurance' ? t('bills.insurance') : t('bills.subscription')}
+                    <Badge variant="secondary">
+                      {item.source === 'insurance' ? t('bills.insurance') : t('bills.subscription')}
                     </Badge>
                     {!item.isActive && <Badge variant="secondary">{t('common.inactive')}</Badge>}
                   </div>
@@ -175,7 +174,6 @@ export default function BillsPage() {
   const { subscriptions, settings } = useApp()
   const displayCurrency = getCurrencyDisplayLabel(settings)
   const today = startOfToday()
-  const [liabilities, setLiabilities] = useState<LiabilityRecord[]>([])
   const [insuranceAssets, setInsuranceAssets] = useState<SavingsAsset[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -184,33 +182,22 @@ export default function BillsPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const [liabilitiesResponse, savingsAssetsResponse] = await Promise.all([
-        fetch('/api/liabilities?perPage=500'),
-        fetch('/api/savings-assets?perPage=500'),
-      ])
-      const liabilitiesData = await liabilitiesResponse.json() as ApiListResponse<Record<string, unknown>>
+
+      const savingsAssetsResponse = await fetch('/api/savings-assets?perPage=500')
       const savingsAssetsData = await savingsAssetsResponse.json() as ApiListResponse<SavingsAssetApiRecord>
-      if (!liabilitiesResponse.ok) {
-        throw new Error(liabilitiesData.error || t('common.error'))
-      }
       if (!savingsAssetsResponse.ok) {
         throw new Error(savingsAssetsData.error || t('common.error'))
       }
 
-      const mappedLiabilities = (liabilitiesData.items ?? [])
-        .map((item) => mapLiabilityRecord(item))
-        .filter((item): item is LiabilityRecord => item !== null)
       const mappedInsuranceAssets = (savingsAssetsData.items ?? [])
         .map((item) => mapSavingsAssetRecord(item))
         .filter((item): item is SavingsAsset => item !== null)
         .filter((item) => item.type === 'insurance' && typeof item.recurringMonthlyAmount === 'number' && item.recurringMonthlyAmount > 0 && item.recurringStartDate)
 
-      setLiabilities(mappedLiabilities.sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.dueDay - b.dueDay))
       setInsuranceAssets(mappedInsuranceAssets.sort((a, b) => a.name.localeCompare(b.name)))
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : t('common.error')
       setError(message)
-      setLiabilities([])
       setInsuranceAssets([])
     } finally {
       setIsLoading(false)
@@ -222,17 +209,6 @@ export default function BillsPage() {
   }, [loadBillsData])
 
   const billItems = useMemo(() => {
-    const liabilityBills: BillItem[] = liabilities.map((liability) => ({
-      id: liability.id,
-      source: 'liability',
-      name: liability.name,
-      dueDate: getLiabilityNextDueDate(liability),
-      amount: getMonthlyLiabilityPayment(liability),
-      cadenceLabel: t('bills.cadence.monthlyDay', { day: liability.dueDay }),
-      detail: `${getLiabilityTypeLabel(liability.type)} / ${t('bills.detail.minimum', { amount: liability.minimumPayment.toFixed(2) })} ${displayCurrency}${liability.extraPayment > 0 ? ` ${t('bills.detail.extra', { amount: liability.extraPayment.toFixed(2) })} ${displayCurrency}` : ''}`,
-      isActive: liability.isActive,
-    }))
-
     const subscriptionBills: BillItem[] = subscriptions.map((subscription) => ({
       id: subscription.id,
       source: 'subscription',
@@ -255,8 +231,8 @@ export default function BillsPage() {
       isActive: true,
     }))
 
-    return [...liabilityBills, ...subscriptionBills, ...insuranceBills].sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.amount - b.amount)
-  }, [displayCurrency, insuranceAssets, liabilities, subscriptions, today])
+    return [...subscriptionBills, ...insuranceBills].sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.amount - b.amount)
+  }, [insuranceAssets, subscriptions, today])
 
   const activeBills = useMemo(() => billItems.filter((item) => item.isActive), [billItems])
   const inactiveBills = useMemo(() => billItems.filter((item) => !item.isActive), [billItems])
@@ -309,17 +285,13 @@ export default function BillsPage() {
       .filter((subscription) => subscription.isActive)
       .reduce((sum, subscription) => sum + getSubscriptionMonthlyEquivalent(subscription), 0)
 
-    const monthlyLiabilities = liabilities
-      .filter((liability) => liability.isActive)
-      .reduce((sum, liability) => sum + getMonthlyLiabilityPayment(liability), 0)
-
     return {
       dueNext30Days,
-      monthlyCommitted: monthlySubscriptions + monthlyLiabilities + insuranceAssets.reduce((sum, asset) => sum + (asset.recurringMonthlyAmount ?? 0), 0),
+      monthlyCommitted: monthlySubscriptions + insuranceAssets.reduce((sum, asset) => sum + (asset.recurringMonthlyAmount ?? 0), 0),
       activeCount: activeBills.length,
       nextDueDate: activeBills[0]?.dueDate ?? null,
     }
-  }, [activeBills, insuranceAssets, liabilities, subscriptions, today])
+  }, [activeBills, insuranceAssets, subscriptions, today])
 
   return (
     <div className="space-y-6">
@@ -425,7 +397,7 @@ export default function BillsPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold">{item.name}</p>
-                      <Badge variant="secondary">{item.source === 'liability' ? t('bills.liability') : t('bills.subscription')}</Badge>
+                      <Badge variant="secondary">{t('bills.subscription')}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">{item.detail}</p>
                   </div>
@@ -442,13 +414,9 @@ export default function BillsPage() {
         </div>
       )}
 
-      {!isLoading && (subscriptions.length > 0 || liabilities.length > 0 || insuranceAssets.length > 0) && (
+      {!isLoading && (subscriptions.length > 0 || insuranceAssets.length > 0) && (
         <Card className="border-border/40">
           <CardContent className="flex flex-col gap-3 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-primary" />
-              {t('bills.liabilityHint')}
-            </div>
             <div className="flex items-center gap-2">
               <Wallet className="h-4 w-4 text-primary" />
               {t('bills.subscriptionHint')}
@@ -463,4 +431,3 @@ export default function BillsPage() {
     </div>
   )
 }
-

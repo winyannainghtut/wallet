@@ -247,38 +247,6 @@ export interface Account {
   updatedAt?: string
 }
 
-export type LiabilityType = 'credit_card' | 'personal_loan' | 'mortgage' | 'bnpl' | 'other'
-
-export interface Liability {
-  id: string
-  name: string
-  type: LiabilityType
-  accountId?: string
-  balance: number
-  interestRate?: number
-  minimumPayment?: number
-  dueDay?: number
-  extraPayment?: number
-  startDate?: string
-  targetPayoffDate?: string
-  note?: string
-  isActive: boolean
-  createdAt: string
-  updatedAt?: string
-}
-
-export interface BudgetPlan {
-  id: string
-  month: string
-  category: Category
-  limitAmount: number
-  rolloverAmount?: number
-  note?: string
-  isActive: boolean
-  createdAt: string
-  updatedAt?: string
-}
-
 export interface TransactionRule {
   id: string
   name: string

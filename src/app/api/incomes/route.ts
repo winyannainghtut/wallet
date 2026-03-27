@@ -15,6 +15,14 @@ type IncomeRecord = {
   date?: string
 }
 
+type PocketBaseListResult<T> = {
+  items: T[]
+  totalItems: number
+  totalPages: number
+  page: number
+  perPage: number
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (typeof error === 'object' && error !== null && 'message' in error) {
     const message = (error as PocketBaseLikeError).message
@@ -51,6 +59,36 @@ function compareByDateDesc(a: IncomeRecord, b: IncomeRecord): number {
   return dateB.localeCompare(dateA)
 }
 
+function buildUserFilter(userId: string): string {
+  return `user = "${escapeFilterValue(userId)}"`
+}
+
+async function getCollectionPage<T extends IncomeRecord>(
+  pb: ReturnType<typeof createPbServer>,
+  collectionName: 'incomes' | 'transactions',
+  page: number,
+  perPage: number,
+  filter: string,
+): Promise<PocketBaseListResult<T>> {
+  try {
+    return await pb.collection(collectionName).getList<T>(page, perPage, {
+      sort: '-date',
+      filter,
+    })
+  } catch (error: unknown) {
+    if (collectionName === 'incomes' && isMissingCollectionContext(error)) {
+      return {
+        items: [],
+        totalItems: 0,
+        totalPages: 1,
+        page,
+        perPage,
+      }
+    }
+    throw error
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = getAuthenticatedPb(request)
@@ -62,44 +100,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
     const perPage = Math.max(1, parseInt(searchParams.get('perPage') || '100', 10))
-    let incomesItems: IncomeRecord[] = []
-    try {
-      incomesItems = await pb.collection('incomes').getFullList<IncomeRecord>({
-        sort: '-date',
-        filter: `user = "${escapeFilterValue(userId)}"`,
-      })
-    } catch (error: unknown) {
-      if (!isMissingCollectionContext(error)) {
-        throw error
-      }
-    }
+    const fetchLimit = page * perPage
+    const userFilter = buildUserFilter(userId)
 
-    let legacyItems: IncomeRecord[] = []
-    try {
-      legacyItems = await pb.collection('transactions').getFullList<IncomeRecord>({
-        sort: '-date',
-        filter: `user = "${escapeFilterValue(userId)}" && type = "income"`,
-      })
-    } catch (error: unknown) {
-      if (!isMissingCollectionContext(error)) {
-        throw error
-      }
-    }
+    const [incomesResult, legacyResult] = await Promise.all([
+      getCollectionPage<IncomeRecord>(pb, 'incomes', 1, fetchLimit, userFilter),
+      getCollectionPage<IncomeRecord>(pb, 'transactions', 1, fetchLimit, `${userFilter} && type = "income"`),
+    ])
 
-    const mergedMap = new Map<string, IncomeRecord>()
-    for (const item of incomesItems) mergedMap.set(item.id, item)
-    for (const item of legacyItems) {
-      if (!mergedMap.has(item.id)) mergedMap.set(item.id, item)
-    }
-
-    const mergedItems = Array.from(mergedMap.values()).sort(compareByDateDesc)
-    const totalItems = mergedItems.length
+    const mergedItems = [...incomesResult.items, ...legacyResult.items].sort(compareByDateDesc)
+    const totalItems = incomesResult.totalItems + legacyResult.totalItems
     const totalPages = Math.max(1, Math.ceil(totalItems / perPage))
-    const offset = (page - 1) * perPage
+    const safePage = Math.min(page, totalPages)
+    const offset = (safePage - 1) * perPage
     const items = mergedItems.slice(offset, offset + perPage)
 
     return NextResponse.json({
-      page,
+      page: safePage,
       perPage,
       totalItems,
       totalPages,

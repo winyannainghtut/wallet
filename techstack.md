@@ -28,6 +28,7 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
   - `pb_migrations/1775400000_planning_collaboration_collections.js`
   - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
+  - `pb_migrations/1775600000_remove_budget_and_liability_features.js`
 - **Main collections:**
   - `users`
   - `transactions`
@@ -36,8 +37,6 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `savings_assets`
   - `user_preferences`
   - `accounts`
-  - `liabilities`
-  - `budgets`
   - `trips`
   - `trip_members`
   - `trip_settlements`
@@ -52,8 +51,6 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Expenses** with optional source currency metadata for trip-linked destination-currency capture
 - **Income**
 - **Manual accounts** with account-linked expenses and incomes
-- **Liabilities / debts** with payoff projection and due planning
-- **Budgets** with category limits, rollover amounts, and duplicate month/category protection
 - **Savings goals**
 - **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)** with live ticker pricing for crypto and manual stock values
 - **Trips** with optional shared friend-group pooled spend metadata and manual destination currency / exchange rate
@@ -61,7 +58,7 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Transaction rules + review queue** with merchant cleanup, tags, review states, and account assignment
 - **Household collaboration** with member roles, shared base currency, owner-only management, and email invite auto-binding
 - **Subscriptions (recurring cost modeled into reports/calendar)**
-- **Bills center** that consolidates recurring subscriptions, liabilities, and recurring insurance contributions
+- **Bills center** that consolidates recurring subscriptions and recurring insurance contributions
 - **Fund goals** linked to trips, savings assets, and monthly savings progress
 - **Cashflow forecast / projected net worth** derived from expenses, incomes, subscriptions, and recurring insurance contributions
 
@@ -99,7 +96,6 @@ This document summarizes the current technologies used in the Wallet App codebas
   - client keeps a local cache only for fast bootstrap/theme hydration
 - **PocketBase rule/index hardening:**
   - household reads are membership-based while management stays owner-only
-  - budgets are protected by a unique `(user, month, category)` index
 - **API-backed domain hooks:**
   - `useSavingsAssetsPortfolio`
   - `useFundGoals`

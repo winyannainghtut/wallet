@@ -1,6 +1,6 @@
 # Wallet App
 
-Wallet App is a Next.js 16 personal finance system with PocketBase backend, authentication, trips, budgets, liabilities, accounts, review workflows, household collaboration, subscriptions, savings goals, reports, calendar planning, and AI insights.
+Wallet App is a Next.js 16 personal finance system with PocketBase backend, authentication, trips, accounts, review workflows, household collaboration, subscriptions, savings goals, reports, calendar planning, and AI insights.
 
 ## Key Features
 
@@ -12,11 +12,9 @@ Wallet App is a Next.js 16 personal finance system with PocketBase backend, auth
 - Crypto assets support quantity input and live conversion to app currency (for example SGD)
 - Stock assets use manual value entry
 - Manual accounts layer for cash, bank, credit card, e-wallet, investment, and other balances
-- Liabilities tracking with payoff projection, minimum-payment planning, and due-date visibility
-- Category budgets with monthly limits, rollovers, month-by-month comparisons, and duplicate month/category protection
 - Transaction review queue with tags, merchant cleanup, account assignment, and reusable transaction rules
 - Household workspaces with member roles, shared base currency, owner-only management, and email-based invite auto-binding
-- Bills center that combines subscriptions, liabilities, and recurring insurance contributions
+- Bills center that combines subscriptions and recurring insurance contributions
 - Trips and subscriptions persisted in PocketBase
 - Trip plans support shared friend-group setup, pooled group fund tracking, and per-expense `Shared Friend Group` tagging
 - Trip plans now support participant tracking, payer-aware shared expenses, settle-up balances, manual settlement records, and simplified debt suggestions
@@ -64,12 +62,8 @@ Data:
 - `/api/transactions/review/[id]`
 - `/api/accounts`
 - `/api/accounts/[id]`
-- `/api/budgets`
-- `/api/budgets/[id]`
 - `/api/incomes`
 - `/api/incomes/[id]`
-- `/api/liabilities`
-- `/api/liabilities/[id]`
 - `/api/savings-goals`
 - `/api/savings-goals/[id]`
 - `/api/savings-assets`
@@ -216,6 +210,9 @@ Managed migration files:
 - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
 - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
+- `pb_migrations/1775600000_remove_budget_and_liability_features.js`
+
+`1775600000_remove_budget_and_liability_features.js` is destructive and deletes the legacy `budgets` and `liabilities` collections from PocketBase.
 
 Expected collections:
 
@@ -226,8 +223,6 @@ Expected collections:
 - `savings_assets`
 - `user_preferences`
 - `accounts`
-- `liabilities`
-- `budgets`
 - `trips`
 - `trip_members`
 - `trip_settlements`

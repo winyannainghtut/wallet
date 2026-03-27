@@ -3464,21 +3464,23 @@ data:
       const HOUSEHOLD_EMAIL_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_email_unique` ON `household_members` (`householdId`, LOWER(`email`))';
       const HOUSEHOLD_USER_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_userid_unique` ON `household_members` (`householdId`, `userId`) WHERE `userId` != ""';
     
-      const updateCollection = (name, updater) => {
-        const collection = app.findCollectionByNameOrId(name);
-        const json = JSON.parse(JSON.stringify(collection));
-        updater(json);
-        app.importCollections([json], false);
+      const updateCollectionIfExists = (name, updater) => {
+        try {
+          const collection = app.findCollectionByNameOrId(name);
+          const json = JSON.parse(JSON.stringify(collection));
+          updater(json);
+          app.importCollections([json], false);
+        } catch {}
       };
     
-      updateCollection("households", (json) => {
+      updateCollectionIfExists("households", (json) => {
         json.listRule = HOUSEHOLD_VIEW_RULE;
         json.viewRule = HOUSEHOLD_VIEW_RULE;
         json.updateRule = HOUSEHOLD_OWNER_RULE;
         json.deleteRule = HOUSEHOLD_OWNER_RULE;
       });
     
-      updateCollection("household_members", (json) => {
+      updateCollectionIfExists("household_members", (json) => {
         const indexes = Array.isArray(json.indexes) ? json.indexes : [];
         if (!indexes.includes(HOUSEHOLD_EMAIL_INDEX)) {
           indexes.push(HOUSEHOLD_EMAIL_INDEX);
@@ -3495,7 +3497,7 @@ data:
         json.deleteRule = HOUSEHOLD_MEMBER_OWNER_RULE;
       });
     
-      updateCollection("budgets", (json) => {
+      updateCollectionIfExists("budgets", (json) => {
         const indexes = Array.isArray(json.indexes) ? json.indexes : [];
         if (!indexes.includes(BUDGET_UNIQUE_INDEX)) {
           indexes.push(BUDGET_UNIQUE_INDEX);
@@ -3509,21 +3511,23 @@ data:
       const HOUSEHOLD_EMAIL_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_email_unique` ON `household_members` (`householdId`, LOWER(`email`))';
       const HOUSEHOLD_USER_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_userid_unique` ON `household_members` (`householdId`, `userId`) WHERE `userId` != ""';
     
-      const updateCollection = (name, updater) => {
-        const collection = app.findCollectionByNameOrId(name);
-        const json = JSON.parse(JSON.stringify(collection));
-        updater(json);
-        app.importCollections([json], false);
+      const updateCollectionIfExists = (name, updater) => {
+        try {
+          const collection = app.findCollectionByNameOrId(name);
+          const json = JSON.parse(JSON.stringify(collection));
+          updater(json);
+          app.importCollections([json], false);
+        } catch {}
       };
     
-      updateCollection("households", (json) => {
+      updateCollectionIfExists("households", (json) => {
         json.listRule = ORIGINAL_HOUSEHOLD_RULE;
         json.viewRule = ORIGINAL_HOUSEHOLD_RULE;
         json.updateRule = ORIGINAL_HOUSEHOLD_RULE;
         json.deleteRule = ORIGINAL_HOUSEHOLD_RULE;
       });
     
-      updateCollection("household_members", (json) => {
+      updateCollectionIfExists("household_members", (json) => {
         const indexes = Array.isArray(json.indexes) ? json.indexes : [];
         json.indexes = indexes.filter((index) => ![HOUSEHOLD_EMAIL_INDEX, HOUSEHOLD_USER_INDEX].includes(index));
         json.listRule = ORIGINAL_HOUSEHOLD_MEMBER_RULE;
@@ -3533,12 +3537,375 @@ data:
         json.deleteRule = ORIGINAL_HOUSEHOLD_MEMBER_RULE;
       });
     
-      updateCollection("budgets", (json) => {
+      updateCollectionIfExists("budgets", (json) => {
         const indexes = Array.isArray(json.indexes) ? json.indexes : [];
         json.indexes = indexes.filter((index) => index !== BUDGET_UNIQUE_INDEX);
       });
     });
+  1775600000_remove_budget_and_liability_features.js: |
+    const BUDGET_UNIQUE_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_budgets_user_month_category_unique` ON `budgets` (`user`, `month`, `category`)';
     
-
-
-
+    const LIABILITY_COLLECTION = {
+      createRule: '@request.auth.id != ""',
+      deleteRule: 'user = @request.auth.id',
+      fields: [
+        {
+          autogeneratePattern: '[a-z0-9]{15}',
+          hidden: false,
+          id: 'text3208210256',
+          max: 15,
+          min: 15,
+          name: 'id',
+          pattern: '^[a-z0-9]+$',
+          presentable: false,
+          primaryKey: true,
+          required: true,
+          system: true,
+          type: 'text',
+        },
+        {
+          cascadeDelete: false,
+          collectionId: '_pb_users_auth_',
+          hidden: false,
+          id: 'relation1775400201',
+          maxSelect: 1,
+          minSelect: 0,
+          name: 'user',
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'relation',
+        },
+        {
+          autogeneratePattern: '',
+          hidden: false,
+          id: 'text1775400202',
+          max: 0,
+          min: 1,
+          name: 'name',
+          pattern: '',
+          presentable: false,
+          primaryKey: false,
+          required: true,
+          system: false,
+          type: 'text',
+        },
+        {
+          hidden: false,
+          id: 'select1775400203',
+          maxSelect: 1,
+          name: 'type',
+          presentable: false,
+          required: true,
+          system: false,
+          type: 'select',
+          values: ['credit_card', 'personal_loan', 'mortgage', 'bnpl', 'other'],
+        },
+        {
+          cascadeDelete: false,
+          collectionId: 'pbc_1775400001',
+          hidden: false,
+          id: 'relation1775400204',
+          maxSelect: 1,
+          minSelect: 0,
+          name: 'accountId',
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'relation',
+        },
+        {
+          hidden: false,
+          id: 'number1775400205',
+          max: null,
+          min: 0,
+          name: 'balance',
+          onlyInt: false,
+          presentable: false,
+          required: true,
+          system: false,
+          type: 'number',
+        },
+        {
+          hidden: false,
+          id: 'number1775400206',
+          max: null,
+          min: 0,
+          name: 'interestRate',
+          onlyInt: false,
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'number',
+        },
+        {
+          hidden: false,
+          id: 'number1775400207',
+          max: null,
+          min: 0,
+          name: 'minimumPayment',
+          onlyInt: false,
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'number',
+        },
+        {
+          hidden: false,
+          id: 'number1775400208',
+          max: 31,
+          min: 1,
+          name: 'dueDay',
+          onlyInt: true,
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'number',
+        },
+        {
+          hidden: false,
+          id: 'number1775400209',
+          max: null,
+          min: 0,
+          name: 'extraPayment',
+          onlyInt: false,
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'number',
+        },
+        {
+          hidden: false,
+          id: 'date1775400210',
+          max: '',
+          min: '',
+          name: 'startDate',
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'date',
+        },
+        {
+          hidden: false,
+          id: 'date1775400211',
+          max: '',
+          min: '',
+          name: 'targetPayoffDate',
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'date',
+        },
+        {
+          autogeneratePattern: '',
+          hidden: false,
+          id: 'text1775400212',
+          max: 0,
+          min: 0,
+          name: 'note',
+          pattern: '',
+          presentable: false,
+          primaryKey: false,
+          required: false,
+          system: false,
+          type: 'text',
+        },
+        {
+          hidden: false,
+          id: 'bool1775400213',
+          name: 'isActive',
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'bool',
+        },
+        {
+          hidden: false,
+          id: 'autodate2990389176',
+          name: 'created',
+          onCreate: true,
+          onUpdate: false,
+          presentable: false,
+          system: false,
+          type: 'autodate',
+        },
+        {
+          hidden: false,
+          id: 'autodate3332085495',
+          name: 'updated',
+          onCreate: true,
+          onUpdate: true,
+          presentable: false,
+          system: false,
+          type: 'autodate',
+        },
+      ],
+      id: 'pbc_1775400002',
+      indexes: [],
+      listRule: 'user = @request.auth.id',
+      name: 'liabilities',
+      system: false,
+      type: 'base',
+      updateRule: 'user = @request.auth.id',
+      viewRule: 'user = @request.auth.id',
+    };
+    
+    const BUDGET_COLLECTION = {
+      createRule: '@request.auth.id != ""',
+      deleteRule: 'user = @request.auth.id',
+      fields: [
+        {
+          autogeneratePattern: '[a-z0-9]{15}',
+          hidden: false,
+          id: 'text3208210256',
+          max: 15,
+          min: 15,
+          name: 'id',
+          pattern: '^[a-z0-9]+$',
+          presentable: false,
+          primaryKey: true,
+          required: true,
+          system: true,
+          type: 'text',
+        },
+        {
+          cascadeDelete: false,
+          collectionId: '_pb_users_auth_',
+          hidden: false,
+          id: 'relation1775400301',
+          maxSelect: 1,
+          minSelect: 0,
+          name: 'user',
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'relation',
+        },
+        {
+          autogeneratePattern: '',
+          hidden: false,
+          id: 'text1775400302',
+          max: 7,
+          min: 7,
+          name: 'month',
+          pattern: '^\\d{4}-\\d{2}$',
+          presentable: false,
+          primaryKey: false,
+          required: true,
+          system: false,
+          type: 'text',
+        },
+        {
+          autogeneratePattern: '',
+          hidden: false,
+          id: 'text1775400303',
+          max: 0,
+          min: 1,
+          name: 'category',
+          pattern: '',
+          presentable: false,
+          primaryKey: false,
+          required: true,
+          system: false,
+          type: 'text',
+        },
+        {
+          hidden: false,
+          id: 'number1775400304',
+          max: null,
+          min: 0,
+          name: 'limitAmount',
+          onlyInt: false,
+          presentable: false,
+          required: true,
+          system: false,
+          type: 'number',
+        },
+        {
+          hidden: false,
+          id: 'number1775400305',
+          max: null,
+          min: null,
+          name: 'rolloverAmount',
+          onlyInt: false,
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'number',
+        },
+        {
+          autogeneratePattern: '',
+          hidden: false,
+          id: 'text1775400306',
+          max: 0,
+          min: 0,
+          name: 'note',
+          pattern: '',
+          presentable: false,
+          primaryKey: false,
+          required: false,
+          system: false,
+          type: 'text',
+        },
+        {
+          hidden: false,
+          id: 'bool1775400307',
+          name: 'isActive',
+          presentable: false,
+          required: false,
+          system: false,
+          type: 'bool',
+        },
+        {
+          hidden: false,
+          id: 'autodate2990389176',
+          name: 'created',
+          onCreate: true,
+          onUpdate: false,
+          presentable: false,
+          system: false,
+          type: 'autodate',
+        },
+        {
+          hidden: false,
+          id: 'autodate3332085495',
+          name: 'updated',
+          onCreate: true,
+          onUpdate: true,
+          presentable: false,
+          system: false,
+          type: 'autodate',
+        },
+      ],
+      id: 'pbc_1775400003',
+      indexes: [BUDGET_UNIQUE_INDEX],
+      listRule: 'user = @request.auth.id',
+      name: 'budgets',
+      system: false,
+      type: 'base',
+      updateRule: 'user = @request.auth.id',
+      viewRule: 'user = @request.auth.id',
+    };
+    
+    migrate((app) => {
+      const deleteCollection = (name) => {
+        try {
+          const collection = app.findCollectionByNameOrId(name);
+          app.delete(collection);
+        } catch {}
+      };
+    
+      deleteCollection('budgets');
+      deleteCollection('liabilities');
+    }, (app) => {
+      const ensureCollection = (name, collectionJson) => {
+        try {
+          app.findCollectionByNameOrId(name);
+        } catch {
+          app.importCollections([collectionJson], false);
+        }
+      };
+    
+      ensureCollection('liabilities', LIABILITY_COLLECTION);
+      ensureCollection('budgets', BUDGET_COLLECTION);
+    });

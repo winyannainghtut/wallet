@@ -120,36 +120,21 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Calendar shows expense and income day-level breakdown.
    - Amount labels use your selected currency sign while FX/export still use the currency code.
 
-### 3.3 Accounts + liabilities + bills
+### 3.3 Accounts + bills
 
 1. Open `/accounts` and add:
    - one bank account
    - one credit card account
 2. Add one expense and one income linked to those accounts.
-3. Open `/liabilities` and add a liability with:
-   - type
-   - current balance
-   - interest rate
-   - minimum payment
-   - due day
-4. Open `/bills`.
-5. Verify:
+3. Open `/subscriptions` and add one recurring subscription.
+4. Open `/savings` and add one insurance asset with recurring monthly contribution + start date.
+5. Open `/bills`.
+6. Verify:
    - accounts are selectable in expense and income forms
-   - liabilities show projected payoff month and next due date
-   - bills center combines subscription renewals, liability due items, and recurring insurance contributions
+   - bills center combines subscription renewals and recurring insurance contributions
+   - recurring insurance entries appear with the saved monthly cadence and start date
 
-### 3.4 Budgets
-
-1. Open `/budgets`.
-2. Create at least one monthly budget with rollover amount.
-3. Add expenses in the matching category for the selected month.
-4. Verify:
-   - planned, spent, and remaining totals update
-   - category card shows rollover and previous-month leftover suggestion
-   - inactive budgets remain stored but are excluded from summary totals
-   - duplicate month/category budget creation is rejected
-
-### 3.5 Savings assets + live market data
+### 3.4 Savings assets + live market data
 
 1. Open `/savings`.
 2. Add one insurance asset and one personal saving funds asset with manual value.
@@ -162,7 +147,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Savings + Assets values appear in dashboard/reporting summaries.
 - Savings page shows the market live-feed banner only for crypto assets.
 
-### 3.6 Trips + shared friend group expenses
+### 3.5 Trips + shared friend group expenses
 
 1. Open `/trips` and create a trip with optional `Destination Currency`, `Exchange Rate`, `Group Name`, `Total Travelers`, and `Group Fund`.
 2. Open `/add`, select that trip, and choose `Trip Expense Scope`.
@@ -173,7 +158,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
 - Group fund usage is based on `Shared Friend Group` expenses only.
 - History list shows a `Shared Friend Group` badge for shared trip expenses.
 
-### 3.7 Trips settle-up
+### 3.6 Trips settle-up
 
 1. Open the same trip in `/trips`.
 2. Add at least two trip members.
@@ -183,7 +168,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Settlement suggestions appear as simplified debt payments when one member owes another.
    - Saving a settlement record updates the outstanding balance summary.
 
-### 3.8 Fund goals
+### 3.7 Fund goals
 
 1. Open `/savings`.
 2. Create a fund goal such as `Emergency Fund` or `Japan Trip`.
@@ -192,7 +177,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Goal card shows target amount, linked asset value, and projected completion status.
    - Dashboard shows active fund goals.
 
-### 3.9 Review queue + transaction rules
+### 3.8 Review queue + transaction rules
 
 1. Open `/review`.
 2. Confirm queue items load from both expenses and incomes.
@@ -209,7 +194,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - rules can rename merchants, assign categories, attach tags, and auto-mark reviewed
    - `ignored` items stay visible only when the filter includes them
 
-### 3.10 Household collaboration
+### 3.9 Household collaboration
 
 1. Open `/household`.
 2. Create one household with a base currency.
@@ -221,7 +206,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - invited member rows save by email and auto-bind to the matching signed-in user
    - members are grouped under the correct household
 
-### 3.11 Cashflow forecast + projected net worth
+### 3.10 Cashflow forecast + projected net worth
 
 1. Open `/reports` and switch to `Forecast`.
 2. Open `/calendar` and inspect the forecast panel.
@@ -230,7 +215,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Upcoming scheduled cashflow entries are listed.
    - 6-month projected net worth reflects tracked assets plus forecasted cashflow.
 
-### 3.12 AI suggest category (auto custom category create)
+### 3.11 AI suggest category (auto custom category create)
 
 1. Open `/add` and enter a description that does not fit built-in categories.
 2. Click `Suggest Category`.
@@ -238,7 +223,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - AI returns either a built-in category or a custom category candidate.
    - When custom is returned, app auto-creates expense custom category and selects it.
 
-### 3.13 Excel import/export
+### 3.12 Excel import/export
 
 1. Open `/settings` -> `Excel`.
 2. Download template (`wallet_import_template.xlsx`) and inspect `Expenses`, `Incomes`, and `Trips` sheets.
@@ -263,7 +248,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - `Trips` includes `Currency` and `Exchange Rate`
    - `Trip Summary` includes trip-currency totals, app-currency reference totals, `Shared Group Expense`, `Shared Group Transactions`, `Group Fund Left`, and `Per Person Shared Spend`
 
-### 3.14 Collection bootstrap check
+### 3.13 Collection bootstrap check
 
 Expected collections:
 
@@ -274,8 +259,6 @@ Expected collections:
 - `savings_assets`
 - `user_preferences`
 - `accounts`
-- `liabilities`
-- `budgets`
 - `trips`
 - `trip_members`
 - `trip_settlements`
@@ -302,6 +285,7 @@ Migration files:
 - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
 - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
+- `pb_migrations/1775600000_remove_budget_and_liability_features.js`
 
 ## 4) Kubernetes Setup
 
@@ -380,16 +364,12 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - household/member create, update, and delete rules are owner-only
    - invited member rows store `email` and can populate `userId` after matching sign-in
 
-### Budgets double-count or duplicate rows appear
+### Legacy budgets or liabilities still appear
 
-1. Confirm the latest planning/collaboration migrations are applied:
-   - `1775400000_planning_collaboration_collections.js`
-   - `1775500000_fix_household_rules_and_budget_indexes.js`
-2. In PocketBase Admin, verify the `budgets` collection has a unique composite index for:
-   - `user`
-   - `month`
-   - `category`
-3. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase if the index is missing.
+1. Confirm the destructive cleanup migration is applied:
+   - `1775600000_remove_budget_and_liability_features.js`
+2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
+3. In PocketBase Admin, verify `budgets` and `liabilities` no longer exist.
 
 ### App API unauthorized
 

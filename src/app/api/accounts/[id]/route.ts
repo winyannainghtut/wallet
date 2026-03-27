@@ -1,6 +1,7 @@
-﻿import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
 import { parseAccountInput } from '@/lib/accounts'
+import { escapeFilterValue } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   status?: number
@@ -33,6 +34,35 @@ function getAuthenticatedPb(request: NextRequest):
   }
 
   return { pb, userId: pb.authStore.model.id }
+}
+
+async function clearAccountReferences(
+  pb: ReturnType<typeof createPbServer>,
+  userId: string,
+  accountId: string
+) {
+  const filter = `user = "${escapeFilterValue(userId)}" && accountId = "${escapeFilterValue(accountId)}"`
+
+  const clearCollectionReferences = async (collectionName: 'transactions' | 'incomes') => {
+    const records = await pb.collection(collectionName).getFullList<{ id: string }>({
+      filter,
+      sort: 'created',
+    })
+
+    for (const record of records) {
+      await pb.collection(collectionName).update(record.id, { accountId: null })
+    }
+  }
+
+  await clearCollectionReferences('transactions')
+
+  try {
+    await clearCollectionReferences('incomes')
+  } catch (error: unknown) {
+    if (!isNotFoundError(error)) {
+      throw error
+    }
+  }
 }
 
 export async function GET(
@@ -120,16 +150,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const linkedLiabilities = await pb.collection('liabilities').getList(1, 1, {
-      filter: `user = "${userId}" && accountId = "${id}"`,
-    })
-    if (linkedLiabilities.totalItems > 0) {
-      return NextResponse.json(
-        { error: 'This account is linked to liabilities. Reassign or remove them first.' },
-        { status: 400 }
-      )
-    }
-
+    await clearAccountReferences(pb, userId, id)
     await pb.collection('accounts').delete(id)
     return NextResponse.json({ success: true })
   } catch (error: unknown) {

@@ -119,6 +119,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
   const selectedPayerLabel = selectedPayer
     ? `${selectedPayer.name}${selectedPayer.isOwner ? ' (You)' : ''}`
     : undefined
+  const selectableAccounts = accounts.filter((account) => account.isActive !== false || account.id === accountId)
   const parsedDisplayedAmount = Number.parseFloat(amount)
   const convertedBaseAmountPreview =
     tripHasCurrencyConfig &&
@@ -216,7 +217,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
 
         const data = await response.json() as { items?: AccountOption[] }
         if (!cancelled) {
-          setAccounts((data.items ?? []).filter((account) => account.isActive !== false))
+          setAccounts(data.items ?? [])
         }
       } catch {
         if (!cancelled) {
@@ -500,7 +501,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
               </p>
             </div>
 
-            {accounts.length > 0 && (
+            {(selectableAccounts.length > 0 || Boolean(accountId)) && (
               <div className="space-y-2">
                 <Label htmlFor="expense-account" className="text-sm font-medium">{t('expense.account')}</Label>
                 <Select value={accountId || 'none'} onValueChange={(value) => setAccountId(!value || value === 'none' ? '' : value)}>
@@ -509,9 +510,9 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">{t('expense.noAccount')}</SelectItem>
-                    {accounts.map((account) => (
+                    {selectableAccounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
-                        {account.name} ({account.currency})
+                        {account.name} ({account.currency}){account.isActive === false ? ` - ${t('common.inactive')}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

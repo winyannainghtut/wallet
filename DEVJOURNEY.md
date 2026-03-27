@@ -55,9 +55,15 @@
   - `1775400000_planning_collaboration_collections.js`
 - Added PocketBase migration:
   - `1775500000_fix_household_rules_and_budget_indexes.js`
+- Removed budgets and liabilities from the product and backend:
+  - deleted `/budgets` and `/liabilities` UI/API flows
+  - removed `budgets` and `liabilities` collections from the expected final PocketBase state
+  - updated Bills center to show only subscriptions and recurring insurance contributions
+- Added PocketBase migration:
+  - `1775600000_remove_budget_and_liability_features.js`
 - Synced bootstrap ConfigMap:
   - `k8s/pocketbase-bootstrap.yaml`
-- Synced docs for trip currency, planning/collaboration hardening, and migration updates.
+- Synced docs for trip currency, planning/collaboration hardening, and the budgets/liabilities removal.
 
 ## 2026-03-26
 
@@ -194,12 +200,13 @@ Browser -> Next.js API routes -> PocketBase
 - `1775300000_trip_currency_and_source_metadata.js`
 - `1775400000_planning_collaboration_collections.js`
 - `1775500000_fix_household_rules_and_budget_indexes.js`
+- `1775600000_remove_budget_and_liability_features.js`
 
 ## Next Practical Tasks
 
-1. Expand Myanmar translation coverage for the new accounts, budgets, liabilities, review, and household screens.
-2. Add CI coverage for migration bootstraps plus the new accounts/budgets/liabilities/household routes.
-3. Add end-to-end smoke tests for review queue, budgets, and trip settle-up flows.
+1. Expand Myanmar translation coverage for the newer accounts, review, household, and fund-goal screens.
+2. Add CI coverage for migration bootstraps plus the new accounts/review/household routes.
+3. Add end-to-end smoke tests for review queue, bills, and trip settle-up flows.
 
 ---
 

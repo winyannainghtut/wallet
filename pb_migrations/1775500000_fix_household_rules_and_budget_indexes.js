@@ -8,21 +8,23 @@ migrate((app) => {
   const HOUSEHOLD_EMAIL_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_email_unique` ON `household_members` (`householdId`, LOWER(`email`))';
   const HOUSEHOLD_USER_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_userid_unique` ON `household_members` (`householdId`, `userId`) WHERE `userId` != ""';
 
-  const updateCollection = (name, updater) => {
-    const collection = app.findCollectionByNameOrId(name);
-    const json = JSON.parse(JSON.stringify(collection));
-    updater(json);
-    app.importCollections([json], false);
+  const updateCollectionIfExists = (name, updater) => {
+    try {
+      const collection = app.findCollectionByNameOrId(name);
+      const json = JSON.parse(JSON.stringify(collection));
+      updater(json);
+      app.importCollections([json], false);
+    } catch {}
   };
 
-  updateCollection("households", (json) => {
+  updateCollectionIfExists("households", (json) => {
     json.listRule = HOUSEHOLD_VIEW_RULE;
     json.viewRule = HOUSEHOLD_VIEW_RULE;
     json.updateRule = HOUSEHOLD_OWNER_RULE;
     json.deleteRule = HOUSEHOLD_OWNER_RULE;
   });
 
-  updateCollection("household_members", (json) => {
+  updateCollectionIfExists("household_members", (json) => {
     const indexes = Array.isArray(json.indexes) ? json.indexes : [];
     if (!indexes.includes(HOUSEHOLD_EMAIL_INDEX)) {
       indexes.push(HOUSEHOLD_EMAIL_INDEX);
@@ -39,7 +41,7 @@ migrate((app) => {
     json.deleteRule = HOUSEHOLD_MEMBER_OWNER_RULE;
   });
 
-  updateCollection("budgets", (json) => {
+  updateCollectionIfExists("budgets", (json) => {
     const indexes = Array.isArray(json.indexes) ? json.indexes : [];
     if (!indexes.includes(BUDGET_UNIQUE_INDEX)) {
       indexes.push(BUDGET_UNIQUE_INDEX);
@@ -53,21 +55,23 @@ migrate((app) => {
   const HOUSEHOLD_EMAIL_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_email_unique` ON `household_members` (`householdId`, LOWER(`email`))';
   const HOUSEHOLD_USER_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS `idx_household_members_household_userid_unique` ON `household_members` (`householdId`, `userId`) WHERE `userId` != ""';
 
-  const updateCollection = (name, updater) => {
-    const collection = app.findCollectionByNameOrId(name);
-    const json = JSON.parse(JSON.stringify(collection));
-    updater(json);
-    app.importCollections([json], false);
+  const updateCollectionIfExists = (name, updater) => {
+    try {
+      const collection = app.findCollectionByNameOrId(name);
+      const json = JSON.parse(JSON.stringify(collection));
+      updater(json);
+      app.importCollections([json], false);
+    } catch {}
   };
 
-  updateCollection("households", (json) => {
+  updateCollectionIfExists("households", (json) => {
     json.listRule = ORIGINAL_HOUSEHOLD_RULE;
     json.viewRule = ORIGINAL_HOUSEHOLD_RULE;
     json.updateRule = ORIGINAL_HOUSEHOLD_RULE;
     json.deleteRule = ORIGINAL_HOUSEHOLD_RULE;
   });
 
-  updateCollection("household_members", (json) => {
+  updateCollectionIfExists("household_members", (json) => {
     const indexes = Array.isArray(json.indexes) ? json.indexes : [];
     json.indexes = indexes.filter((index) => ![HOUSEHOLD_EMAIL_INDEX, HOUSEHOLD_USER_INDEX].includes(index));
     json.listRule = ORIGINAL_HOUSEHOLD_MEMBER_RULE;
@@ -77,7 +81,7 @@ migrate((app) => {
     json.deleteRule = ORIGINAL_HOUSEHOLD_MEMBER_RULE;
   });
 
-  updateCollection("budgets", (json) => {
+  updateCollectionIfExists("budgets", (json) => {
     const indexes = Array.isArray(json.indexes) ? json.indexes : [];
     json.indexes = indexes.filter((index) => index !== BUDGET_UNIQUE_INDEX);
   });
