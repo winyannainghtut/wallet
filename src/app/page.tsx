@@ -29,16 +29,7 @@ export default function DashboardPage() {
     settings, currentUser, isLoading 
   } = useApp()
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="space-y-3 text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
-        </div>
-      </div>
-    )
-  }
+
 
   const displayCurrency = getCurrencyDisplayLabel(settings)
   const {
@@ -138,6 +129,17 @@ export default function DashboardPage() {
   let greeting = 'Good Evening'
   if (currentHour < 12) greeting = 'Good Morning'
   else if (currentHour < 18) greeting = 'Good Afternoon'
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="space-y-3 text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-7">
