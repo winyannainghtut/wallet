@@ -643,9 +643,6 @@ function buildSavingsContextSection(
   const liveFeedLine = savingsContext.cryptoSocketState
     ? `- Crypto live feed: ${savingsContext.cryptoSocketState}${savingsContext.cryptoSocketError ? ` (${savingsContext.cryptoSocketError})` : ''}`
     : '- Crypto live feed: unavailable'
-  const stockFeedLine = savingsContext.stockSocketState
-    ? `- Stock live feed: ${savingsContext.stockSocketState}${savingsContext.stockSocketError ? ` (${savingsContext.stockSocketError})` : ''}`
-    : '- Stock live feed: unavailable'
 
   const assets = [...savingsContext.assets]
     .sort((a, b) => normalizeAmount(b.currentValue) - normalizeAmount(a.currentValue))
@@ -675,7 +672,6 @@ function buildSavingsContextSection(
 - Personal saving funds: ${formatAmount(personalFundsValue, contextCurrency)}
 ${fxLine}
 ${liveFeedLine}
-${stockFeedLine}
 ${savingsContext.fxError ? `- FX error: ${savingsContext.fxError}` : ''}
 - Assets snapshot:
 ${assetLines.length > 0 ? assetLines.join('\n') : '- None'}`

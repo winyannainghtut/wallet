@@ -15,8 +15,8 @@
   - Added cashflow forecast utilities and surfaced them in Reports and Calendar.
   - Added projected net worth view based on tracked assets, forecasted net cashflow, and recurring insurance contributions.
 - **Savings assets live pricing upgrade:**
-  - Replaced the browser-only stock feed with a Yahoo-backed streamer service (`services/stock-streamer`) and `/api/market/stocks`.
-  - Stock assets with a symbol now behave like quantity-based holdings and convert into the active app currency through the cached backend quote bridge.
+  - Rolled back stock live pricing and returned stocks to manual-value tracking only.
+  - Crypto live pricing remains on Coinbase with FX conversion.
 - **Trips and savings UI fixes:**
   - Fixed trip expense and settlement selectors to show names instead of raw IDs.
   - Reworked shared trip settle-up math to use exact cents and avoid residual balance drift after recording settlements.

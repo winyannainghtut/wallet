@@ -34,25 +34,8 @@ type FxApiResponse = {
   error?: string
 }
 
-type StockQuotesApiResponse = {
-  quotes?: Array<{
-    symbol?: string
-    priceUsd?: number
-    updatedAt?: string
-  }>
-  state?: CryptoSocketState
-  error?: string
-  missingSymbols?: string[]
-}
-
 type CryptoQuote = {
   productId: string
-  priceUsd: number
-  updatedAt: string
-}
-
-type StockQuote = {
-  symbol: string
   priceUsd: number
   updatedAt: string
 }
@@ -88,22 +71,18 @@ type UseSavingsAssetsPortfolioResult = {
   stocksValue: number
   personalFundsValue: number
   trackedCryptoProducts: Array<{ symbol: string; productId: string }>
-  trackedStockSymbols: string[]
   cryptoSocketState: CryptoSocketState
   cryptoSocketError: string | null
-  stockSocketState: CryptoSocketState
-  stockSocketError: string | null
   usdToCurrencyRate: number
   fxError: string | null
 }
 
 const COINBASE_MARKET_WS_URL = 'wss://advanced-trade-ws.coinbase.com'
-const STOCK_QUOTES_POLL_INTERVAL_MS = 5_000
 
 export function normalizeAssetSymbol(raw: string): string | undefined {
   const normalized = raw.trim().toUpperCase()
   if (!normalized) return undefined
-  if (!/^[A-Z0-9.-]{1,20}$/.test(normalized)) return undefined
+  if (!/^[A-Z0-9-]{2,20}$/.test(normalized)) return undefined
   return normalized
 }
 
@@ -123,11 +102,6 @@ export function deriveSymbolFromAssetName(rawName: string): string | undefined {
 export function getCryptoAssetSymbol(asset: SavingsAsset): string | undefined {
   if (asset.type !== 'crypto') return undefined
   return asset.symbol ?? deriveSymbolFromAssetName(asset.name)
-}
-
-export function getStockAssetSymbol(asset: SavingsAsset): string | undefined {
-  if (asset.type !== 'stocks') return undefined
-  return asset.symbol
 }
 
 function toCoinbaseProductId(symbol: string): string {
@@ -222,12 +196,9 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
   const [isAssetsLoading, setIsAssetsLoading] = useState(true)
   const [assetsError, setAssetsError] = useState<string | null>(null)
   const [cryptoQuotes, setCryptoQuotes] = useState<Record<string, CryptoQuote>>({})
-  const [stockQuotes, setStockQuotes] = useState<Record<string, StockQuote>>({})
   const [cryptoSocketState, setCryptoSocketState] = useState<CryptoSocketState>('idle')
   const [cryptoSocketError, setCryptoSocketError] = useState<string | null>(null)
   const [socketRetryToken, setSocketRetryToken] = useState(0)
-  const [stockSocketState, setStockSocketState] = useState<CryptoSocketState>('idle')
-  const [stockSocketError, setStockSocketError] = useState<string | null>(null)
   const [usdToCurrencyRate, setUsdToCurrencyRate] = useState(1)
   const [fxError, setFxError] = useState<string | null>(null)
 
@@ -275,18 +246,6 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
       symbol,
       productId,
     }))
-  }, [assets])
-
-  const trackedStockSymbols = useMemo(() => {
-    const symbols = new Set<string>()
-
-    for (const asset of assets) {
-      const symbol = getStockAssetSymbol(asset)
-      if (!symbol) continue
-      symbols.add(symbol)
-    }
-
-    return Array.from(symbols.values()).sort((a, b) => a.localeCompare(b))
   }, [assets])
 
   useEffect(() => {
@@ -448,153 +407,12 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
     }
   }, [trackedCryptoProducts, socketRetryToken])
 
-  useEffect(() => {
-    if (trackedStockSymbols.length === 0) {
-      setStockQuotes({})
-      setStockSocketState('idle')
-      setStockSocketError(null)
-      return
-    }
-
-    const symbolSet = new Set(trackedStockSymbols)
-    setStockQuotes((prev) => {
-      const pruned: Record<string, StockQuote> = {}
-      for (const [symbol, quote] of Object.entries(prev)) {
-        if (symbolSet.has(symbol)) {
-          pruned[symbol] = quote
-        }
-      }
-      return pruned
-    })
-
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout> | null = null
-
-    const loadQuotes = async () => {
-      if (cancelled) return
-
-      setStockSocketState((prev) => (prev === 'connected' ? prev : 'connecting'))
-      setStockSocketError(null)
-
-      try {
-        const response = await fetch(
-          `/api/market/stocks?symbols=${encodeURIComponent(trackedStockSymbols.join(','))}`,
-          { cache: 'no-store' }
-        )
-        const data = (await response.json()) as StockQuotesApiResponse
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch Yahoo stock quotes')
-        }
-
-        if (cancelled) return
-
-        setStockQuotes((prev) => {
-          const next: Record<string, StockQuote> = {}
-
-          for (const [symbol, quote] of Object.entries(prev)) {
-            if (symbolSet.has(symbol)) {
-              next[symbol] = quote
-            }
-          }
-
-          for (const rawQuote of data.quotes ?? []) {
-            const symbol = normalizeAssetSymbol(rawQuote.symbol ?? '')
-            const priceUsd = rawQuote.priceUsd
-            if (!symbol || !symbolSet.has(symbol) || typeof priceUsd !== 'number' || !Number.isFinite(priceUsd)) {
-              continue
-            }
-
-            next[symbol] = {
-              symbol,
-              priceUsd,
-              updatedAt:
-                typeof rawQuote.updatedAt === 'string' && rawQuote.updatedAt.length > 0
-                  ? rawQuote.updatedAt
-                  : new Date().toISOString(),
-            }
-          }
-
-          return next
-        })
-
-        const missingSymbols = (data.missingSymbols ?? [])
-          .map((symbol) => normalizeAssetSymbol(symbol ?? ''))
-          .filter((symbol): symbol is string => Boolean(symbol))
-
-        const nextState = data.state ?? (missingSymbols.length === trackedStockSymbols.length ? 'connecting' : 'connected')
-        setStockSocketState(nextState)
-        setStockSocketError(
-          data.error
-            ?? (missingSymbols.length > 0
-              ? `Waiting for Yahoo quotes: ${missingSymbols.join(', ')}`
-              : null)
-        )
-      } catch (error) {
-        if (cancelled) return
-
-        const message = error instanceof Error ? error.message : 'Failed to fetch Yahoo stock quotes'
-        setStockSocketState('error')
-        setStockSocketError(message)
-      } finally {
-        if (!cancelled) {
-          timer = setTimeout(() => {
-            void loadQuotes()
-          }, STOCK_QUOTES_POLL_INTERVAL_MS)
-        }
-      }
-    }
-
-    void loadQuotes()
-
-    return () => {
-      cancelled = true
-      if (timer) {
-        clearTimeout(timer)
-      }
-    }
-  }, [trackedStockSymbols])
-
   const portfolioAssets = useMemo(() => {
     const quoteCurrency = currency.trim().toUpperCase() || 'USD'
     const requiresFxRate = quoteCurrency !== 'USD'
     const hasFxRate = Number.isFinite(usdToCurrencyRate) && usdToCurrencyRate > 0
 
     return assets.map((asset): PortfolioAsset => {
-      if (asset.type === 'stocks') {
-        const symbol = getStockAssetSymbol(asset)
-        const quote = symbol ? stockQuotes[symbol] : undefined
-
-        if (!symbol) {
-          return {
-            asset,
-            currentValue: asset.amount,
-            valueSource: 'manual',
-          }
-        }
-
-        if (!quote || (requiresFxRate && !hasFxRate)) {
-          return {
-            asset,
-            symbol,
-            productId: symbol,
-            quantity: asset.amount,
-            currentValue: 0,
-            valueSource: 'pending',
-          }
-        }
-
-        return {
-          asset,
-          symbol,
-          productId: symbol,
-          quantity: asset.amount,
-          unitPriceUsd: quote.priceUsd,
-          currentValue: asset.amount * quote.priceUsd * usdToCurrencyRate,
-          quoteUpdatedAt: quote.updatedAt,
-          valueSource: 'live',
-        }
-      }
-
       if (asset.type !== 'crypto') {
         const recurringContributionCount = asset.type === 'insurance'
           ? getRecurringContributionCount(asset.recurringStartDate)
@@ -645,7 +463,7 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
         valueSource: 'live',
       }
     })
-  }, [assets, cryptoQuotes, stockQuotes, currency, usdToCurrencyRate])
+  }, [assets, cryptoQuotes, currency, usdToCurrencyRate])
 
   const sortedPortfolioAssets = useMemo(
     () => [...portfolioAssets].sort((a, b) => b.currentValue - a.currentValue),
@@ -690,11 +508,8 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
     stocksValue,
     personalFundsValue,
     trackedCryptoProducts,
-    trackedStockSymbols,
     cryptoSocketState,
     cryptoSocketError,
-    stockSocketState,
-    stockSocketError,
     usdToCurrencyRate,
     fxError,
   }

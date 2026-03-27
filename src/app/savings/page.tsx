@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/contexts/AppContext'
 import { useFundGoals } from '@/hooks/useFundGoals'
-import { getCryptoAssetSymbol, getStockAssetSymbol, normalizeAssetSymbol, useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
+import { getCryptoAssetSymbol, normalizeAssetSymbol, useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t } from '@/i18n/config'
 import { FundGoal, SavingsAsset, SavingsAssetType, SavingsGoal } from '@/types'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
@@ -173,9 +173,6 @@ export default function SavingsPage() {
     trackedCryptoProducts,
     cryptoSocketState,
     cryptoSocketError,
-    trackedStockSymbols,
-    stockSocketState,
-    stockSocketError,
     usdToCurrencyRate,
     fxError,
   } = useSavingsAssetsPortfolio(settings.currency)
@@ -298,9 +295,7 @@ export default function SavingsPage() {
   const openEditAssetDialog = (asset: SavingsAsset) => {
     const currentSymbol = asset.type === 'crypto'
       ? getCryptoAssetSymbol(asset)
-      : asset.type === 'stocks'
-        ? getStockAssetSymbol(asset)
-        : undefined
+      : undefined
     setEditingAsset(asset)
     setAssetForm({
       type: asset.type,
@@ -466,7 +461,7 @@ export default function SavingsPage() {
 
     const parsedAmount = Number(assetForm.amount)
     if (Number.isNaN(parsedAmount) || parsedAmount < 0) {
-      alert(assetForm.type === 'crypto' || (assetForm.type === 'stocks' && assetForm.symbol.trim())
+      alert(assetForm.type === 'crypto'
         ? 'Quantity must be a number greater than or equal to zero.'
         : 'Amount must be a number greater than or equal to zero.')
       return
@@ -478,7 +473,7 @@ export default function SavingsPage() {
       return
     }
     if (assetForm.symbol.trim() && !normalizedSymbol) {
-      alert('Symbol must contain only A-Z, 0-9, dot, or hyphen.')
+      alert('Symbol must contain only A-Z, 0-9, or hyphen.')
       return
     }
 
@@ -507,8 +502,6 @@ export default function SavingsPage() {
     const symbolPayload =
       assetForm.type === 'crypto'
         ? normalizedSymbol
-        : assetForm.type === 'stocks'
-          ? normalizedSymbol ?? (editingAsset ? '' : undefined)
         : editingAsset
           ? ''
           : undefined
@@ -1027,10 +1020,10 @@ export default function SavingsPage() {
                   {assetsError}
                 </div>
               )}
-              {(trackedCryptoProducts.length > 0 || trackedStockSymbols.length > 0) && (
+              {trackedCryptoProducts.length > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 px-4 py-3 text-sm">
                   <div className="flex items-center gap-2">
-                    {cryptoSocketState === 'connected' || stockSocketState === 'connected' ? (
+                    {cryptoSocketState === 'connected' ? (
                       <Wifi className="h-4 w-4 text-primary" />
                     ) : (
                       <WifiOff className="h-4 w-4 text-muted-foreground" />
@@ -1049,22 +1042,9 @@ export default function SavingsPage() {
                               : 'Idle'}
                       </span>
                     )}
-                    {trackedStockSymbols.length > 0 && (
-                      <span>
-                        Stocks: {stockSocketState === 'connected'
-                          ? 'Connected'
-                          : stockSocketState === 'connecting'
-                            ? 'Connecting...'
-                            : stockSocketState === 'error'
-                              ? 'Disconnected'
-                              : 'Idle'}
-                      </span>
-                    )}
                     {trackedCryptoProducts.length > 0 && <span>Crypto Pairs: {trackedCryptoProducts.map((item) => item.productId).join(', ')}</span>}
-                    {trackedStockSymbols.length > 0 && <span>Stock Symbols: {trackedStockSymbols.join(', ')}</span>}
                     <span>USD/{settings.currency}: {usdToCurrencyRate.toFixed(4)}</span>
                     {cryptoSocketError && <span>{cryptoSocketError}</span>}
-                    {stockSocketError && <span>{stockSocketError}</span>}
                     {fxError && <span>{fxError}</span>}
                   </div>
                 </div>
@@ -1629,18 +1609,16 @@ export default function SavingsPage() {
                 )}
               </div>
             )}
-            {(assetForm.type === 'crypto' || assetForm.type === 'stocks') && (
+            {assetForm.type === 'crypto' && (
               <div className="space-y-2">
-                <Label>{assetForm.type === 'crypto' ? 'Crypto Symbol' : 'Stock Symbol'}</Label>
+                <Label>Crypto Symbol</Label>
                 <Input
                   value={assetForm.symbol}
                   onChange={(e) => setAssetForm((prev) => ({ ...prev, symbol: e.target.value.toUpperCase() }))}
-                  placeholder={assetForm.type === 'crypto' ? 'BTC, ETH, SOL' : 'AAPL, NVDA, TSLA'}
+                  placeholder="BTC, ETH, SOL"
                 />
                 <p className="text-xs text-muted-foreground">
-                  {assetForm.type === 'crypto'
-                    ? `Used for Coinbase live ticker stream (mapped as SYMBOL-USD) and converted to ${settings.currency}.`
-                    : `Optional. When provided, app will use the Yahoo live stock feed from the backend streamer and convert to ${settings.currency}.`}
+                  {`Used for Coinbase live ticker stream (mapped as SYMBOL-USD) and converted to ${settings.currency}.`}
                 </p>
               </div>
             )}
@@ -1648,8 +1626,6 @@ export default function SavingsPage() {
               <Label>
                 {assetForm.type === 'crypto'
                   ? 'Crypto Quantity'
-                  : assetForm.type === 'stocks' && assetForm.symbol.trim()
-                    ? 'Stock Quantity'
                   : assetForm.type === 'insurance' && isRecurringInsuranceEnabled
                     ? `Base Amount (${displayCurrency})`
                     : `Amount (${displayCurrency})`}
@@ -1664,11 +1640,6 @@ export default function SavingsPage() {
               {assetForm.type === 'crypto' && (
                 <p className="text-xs text-muted-foreground">
                   Enter coin amount (for example 0.25 BTC). App will calculate live {settings.currency} value.
-                </p>
-              )}
-              {assetForm.type === 'stocks' && assetForm.symbol.trim() && (
-                <p className="text-xs text-muted-foreground">
-                  Enter share quantity (for example 12 AAPL). App will calculate live {settings.currency} value when Yahoo pricing is available.
                 </p>
               )}
               {assetForm.type === 'insurance' && isRecurringInsuranceEnabled && (

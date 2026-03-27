@@ -43,7 +43,7 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Expenses**
 - **Income**
 - **Savings goals**
-- **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)** with optional live ticker pricing for crypto and stocks
+- **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)** with live ticker pricing for crypto and manual stock values
 - **Trips** with optional shared friend-group pooled spend metadata
 - **Trip members and settle-up records** for payer-aware group trip accounting
 - **Subscriptions (recurring cost modeled into reports/calendar)**
@@ -65,7 +65,6 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **date-fns** for date calculations and formatting.
 - **xlsx** for Excel import/export.
 - **Coinbase Advanced Trade WebSocket** for live crypto pricing.
-- **Yahoo Finance streaming bridge** built with **FastAPI + `yfinance.AsyncWebSocket`** for live stock pricing.
 - **uuid** for local identifier generation where needed.
 - **Next.js middleware** for auth-first route protection.
 
@@ -94,13 +93,12 @@ This document summarizes the current technologies used in the Wallet App codebas
 ## DevOps and Deployment
 
 - **Docker Compose** for local PocketBase runtime (`docker-compose.pb.yml`).
-- **Docker Compose** service for the local Yahoo stock streamer.
-- **Kubernetes manifests** under `k8s/` for frontend, PocketBase, and stock-streamer.
+- **Kubernetes manifests** under `k8s/` for frontend and PocketBase.
 - **PocketBase bootstrap in K8s:**
   - initContainer runs `migrate up`
   - initContainer runs `superuser upsert`
   - migration payload comes from `k8s/pocketbase-bootstrap.yaml`
-- **GitHub Actions** workflow to build/push both app and stock-streamer images to Docker Hub.
+- **GitHub Actions** workflow to build/push image to Docker Hub.
 - **CI gates** for `npm run lint` and `npm run build` before image publish.
 
 ## Quality Tooling

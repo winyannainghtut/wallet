@@ -88,7 +88,7 @@ function normalizeInput(input: SavingsAssetInput) {
 }
 
 function isValidAssetSymbol(value: string): boolean {
-  return /^[A-Z0-9.-]{1,20}$/.test(value)
+  return /^[A-Z0-9-]{2,20}$/.test(value)
 }
 
 function stripUndefined(obj: Record<string, unknown>) {
@@ -211,7 +211,7 @@ export async function PUT(
 
     if (normalized.symbol !== undefined && normalized.symbol.length > 0 && !isValidAssetSymbol(normalized.symbol)) {
       return NextResponse.json(
-        { error: 'symbol must contain only A-Z, 0-9, dot, or hyphen (1-20 chars)' },
+        { error: 'symbol must contain only A-Z, 0-9, or hyphen (2-20 chars)' },
         { status: 400 }
       )
     }

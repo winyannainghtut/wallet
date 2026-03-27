@@ -8,9 +8,9 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
 - Expense tracking (categories, history, reports)
 - Income tracking
 - Savings page with monthly savings goal CRUD
-- Savings assets (insurance, crypto, stocks, personal saving funds) with live market price feeds
+- Savings assets (insurance, crypto, stocks, personal saving funds) with live crypto market feeds and manual stock values
 - Crypto assets support quantity input and live conversion to app currency (for example SGD)
-- Stock assets support symbol-based live pricing through a Yahoo-backed streamer service and conversion into the active app currency
+- Stock assets use manual value entry
 - Trips and subscriptions persisted in PocketBase
 - Trip plans support shared friend-group setup, pooled group fund tracking, and per-expense `Shared Friend Group` tagging
 - Trip plans now support participant tracking, payer-aware shared expenses, settle-up balances, and manual settlement records
@@ -35,7 +35,7 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
 
 ## Architecture
 
-Browser -> Next.js App Router + API routes -> PocketBase / Stock Streamer
+Browser -> Next.js App Router + API routes -> PocketBase
 
 - Browser never writes directly to PocketBase collections
 - Auth and data operations are handled via `src/app/api/*`
@@ -60,7 +60,6 @@ Data:
 - `/api/savings-assets`
 - `/api/savings-assets/[id]`
 - `/api/market/fx`
-- `/api/market/stocks`
 - `/api/preferences`
 - `/api/fund-goals`
 - `/api/fund-goals/[id]`
@@ -145,18 +144,6 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-### 4.1) Optional: start local Yahoo stock streamer
-
-```bash
-docker compose up -d stock-streamer
-```
-
-Set `.env.local` if you run the stock streamer outside Docker Compose:
-
-```env
-STOCK_STREAMER_URL=http://127.0.0.1:8001
-```
-
 ### 5) Configure AI keys (server-side)
 
 Set keys in `.env.local` for local dev:
@@ -229,15 +216,12 @@ kubectl -n wallet-app create secret generic wallet-ai-secrets --from-literal=ZAI
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
-kubectl apply -f k8s/stock-streamer.yaml
 kubectl apply -f k8s/deployment.yaml
 ```
 
-Then patch the frontend and stock-streamer images to the exact immutable tags for the release you want to run:
+Then patch the frontend image to the exact immutable tag for the release you want to run:
 
 ```bash
-kubectl -n wallet-app set image deployment/stock-streamer stock-streamer=winyannainghtut/wallet-stock-streamer:sha-<commit>
-kubectl rollout status deployment/stock-streamer -n wallet-app
 kubectl -n wallet-app set image deployment/wallet-frontend wallet-app=winyannainghtut/wallet-app:sha-<commit>
 kubectl rollout status deployment/wallet-frontend -n wallet-app
 ```
@@ -295,10 +279,7 @@ Workflow: `.github/workflows/dockerhub-build.yml`
 - Required secrets:
   - `DOCKERHUB_USERNAME`
   - `DOCKERHUB_TOKEN`
-- Published images:
-  - `wallet-app`
-  - `wallet-stock-streamer`
-- Published tags for each image:
+- Published tags:
   - `sha-<commit>`
   - `latest` (on `main`)
   - `dev-latest` (on `dev`)
