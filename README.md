@@ -8,10 +8,14 @@ Wallet App is a Next.js 16 personal finance tracker with PocketBase backend, aut
 - Expense tracking (categories, history, reports)
 - Income tracking
 - Savings page with monthly savings goal CRUD
-- Savings assets (insurance, crypto, stocks, personal saving funds) with live crypto market price feed
+- Savings assets (insurance, crypto, stocks, personal saving funds) with live market price feeds
 - Crypto assets support quantity input and live conversion to app currency (for example SGD)
+- Stock assets support symbol-based live pricing over WebSocket and conversion into the active app currency
 - Trips and subscriptions persisted in PocketBase
 - Trip plans support shared friend-group setup, pooled group fund tracking, and per-expense `Shared Friend Group` tagging
+- Trip plans now support participant tracking, payer-aware shared expenses, settle-up balances, and manual settlement records
+- Fund goals let users link savings assets, trip targets, and monthly savings toward named milestones
+- Reports and calendar now include cashflow forecasting and projected net worth views
 - User settings support custom currency display sign separate from the currency code used for FX/export
 - AI-assisted category suggestion for expenses with optional auto-create custom category flow
 - Excel import with validation and duplicate detection for expenses, incomes, and trips
@@ -57,8 +61,14 @@ Data:
 - `/api/savings-assets/[id]`
 - `/api/market/fx`
 - `/api/preferences`
+- `/api/fund-goals`
+- `/api/fund-goals/[id]`
 - `/api/trips`
 - `/api/trips/[id]`
+- `/api/trip-members`
+- `/api/trip-members/[id]`
+- `/api/trip-settlements`
+- `/api/trip-settlements/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
 - `/api/ai`
@@ -178,6 +188,8 @@ Managed migration files:
 - `pb_migrations/1774800000_trip_group_fund_fields.js`
 - `pb_migrations/1774900000_add_currency_sign_to_preferences.js`
 - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
+- `pb_migrations/1775100000_add_recurring_insurance_fields.js`
+- `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
 
 Expected collections:
 
@@ -188,6 +200,9 @@ Expected collections:
 - `savings_assets`
 - `user_preferences`
 - `trips`
+- `trip_members`
+- `trip_settlements`
+- `fund_goals`
 - `subscriptions`
 
 ## Kubernetes Deployment

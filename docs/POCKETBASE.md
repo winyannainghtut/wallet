@@ -31,9 +31,15 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/savings-assets`
 - `/api/savings-assets/[id]`
 - `/api/preferences`
+- `/api/fund-goals`
+- `/api/fund-goals/[id]`
 - `/api/market/fx` (Coinbase exchange rate proxy for currency conversion, e.g., USD->SGD)
 - `/api/trips`
 - `/api/trips/[id]`
+- `/api/trip-members`
+- `/api/trip-members/[id]`
+- `/api/trip-settlements`
+- `/api/trip-settlements/[id]`
 - `/api/subscriptions`
 - `/api/subscriptions/[id]`
 - `/api/ai` (server-side Z.AI calls; does not expose keys to browser)
@@ -41,13 +47,19 @@ Browser -> Next.js API routes -> PocketBase
 ### Market data integration for savings assets
 
 - Live crypto quote stream uses Coinbase Advanced Trade WebSocket (`wss://advanced-trade-ws.coinbase.com`) directly from browser.
+- Live stock quote stream can use `wss://ws.realtime-finance.ws/stocks/{SYMBOL}` directly from browser when a stock asset has a saved symbol.
 - FX conversion (USD -> app currency such as SGD) is fetched via `/api/market/fx`.
 - Savings asset values are resolved client-side as:
-  - insurance/stocks/personal funds: manual value (`amount`)
+  - insurance/personal funds: manual value (`amount`)
   - crypto: `quantity * live USD quote * FX rate`
+  - stocks with symbol: `quantity * live USD quote * FX rate`
+  - stocks without symbol: manual value (`amount`)
 - Per-user settings, custom categories, and AI chat history are stored in `user_preferences` via `/api/preferences`.
 - `user_preferences` now carries settings such as `language`, `currency`, `currencySign`, `aiModel`, `theme`, `customCategories`, and `chatHistory`.
-- `transactions` can carry `tripId` plus `sharedGroupExpense` for trip-linked pooled friend-group spend.
+- `transactions` can carry `tripId`, `sharedGroupExpense`, and `paidByMemberId` for trip-linked pooled friend-group spend and settle-up calculations.
+- `trip_members` stores the participant list for each trip.
+- `trip_settlements` stores planned or paid settle-up records between trip members.
+- `fund_goals` stores linked savings/trip targets, status, and linked asset ids.
 
 ## Schema and Migrations
 
@@ -63,6 +75,8 @@ Migration files:
 - `pb_migrations/1774800000_trip_group_fund_fields.js`
 - `pb_migrations/1774900000_add_currency_sign_to_preferences.js`
 - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
+- `pb_migrations/1775100000_add_recurring_insurance_fields.js`
+- `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
 
 Purpose summary:
 
@@ -76,6 +90,8 @@ Purpose summary:
 - `1774800000`: adds `trips.groupName`, `trips.groupSize`, and `trips.groupFund`
 - `1774900000`: adds `user_preferences.currencySign`
 - `1775000000`: adds `transactions.sharedGroupExpense`
+- `1775100000`: adds recurring monthly insurance contribution fields to `savings_assets`
+- `1775200000`: adds `trip_members`, `trip_settlements`, `fund_goals`, and `transactions.paidByMemberId`
 
 Expected collections:
 
@@ -86,6 +102,9 @@ Expected collections:
 - `savings_assets`
 - `user_preferences`
 - `trips`
+- `trip_members`
+- `trip_settlements`
+- `fund_goals`
 - `subscriptions`
 
 ## Kubernetes Auto Bootstrap
@@ -210,11 +229,24 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
    - `1774800000_trip_group_fund_fields.js`
    - `1774900000_add_currency_sign_to_preferences.js`
    - `1775000000_add_shared_group_expense_to_transactions.js`
+   - `1775100000_add_recurring_insurance_fields.js`
+   - `1775200000_trip_settlements_and_fund_goals.js`
 2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase if running in Kubernetes.
 3. In PocketBase Admin, verify:
    - `trips` has `groupName`, `groupSize`, `groupFund`
    - `user_preferences` has `currencySign`
    - `transactions` has `sharedGroupExpense`
+
+### Trip settle-up or fund goals data missing
+
+1. Confirm latest migration is applied:
+   - `1775200000_trip_settlements_and_fund_goals.js`
+2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
+3. In PocketBase Admin, verify:
+   - `transactions` has `paidByMemberId`
+   - `trip_members` collection exists
+   - `trip_settlements` collection exists
+   - `fund_goals` collection exists
 
 ### App login works but data save fails
 

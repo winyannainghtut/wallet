@@ -55,6 +55,29 @@ export type TripSettlementSuggestion = {
   amount: number
 }
 
+const CURRENCY_SCALE = 100
+
+function toMoneyUnits(value: number): number {
+  return Math.round((value + Number.EPSILON) * CURRENCY_SCALE)
+}
+
+function fromMoneyUnits(value: number): number {
+  if (value === 0) return 0
+  return value / CURRENCY_SCALE
+}
+
+function compareMembersForSettlement(a: TripMember, b: TripMember): number {
+  if (a.isOwner && !b.isOwner) return -1
+  if (!a.isOwner && b.isOwner) return 1
+  return (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name)
+}
+
+function getsRemainderUnit(position: number, startIndex: number, remainder: number, participantCount: number): boolean {
+  if (remainder <= 0 || participantCount <= 0) return false
+  const normalizedPosition = ((position - startIndex) % participantCount + participantCount) % participantCount
+  return normalizedPosition < remainder
+}
+
 function normalizeText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
@@ -243,13 +266,14 @@ export function calculateTripMemberBalances(
     return []
   }
 
+  const orderedMembers = [...members].sort(compareMembersForSettlement)
   const participantCount =
-    typeof trip.groupSize === 'number' && trip.groupSize >= members.length
+    typeof trip.groupSize === 'number' && trip.groupSize >= orderedMembers.length
       ? trip.groupSize
-      : members.length
+      : orderedMembers.length
 
   const balanceMap = new Map<string, TripMemberBalance>(
-    members.map((member) => [member.id, {
+    orderedMembers.map((member) => [member.id, {
       memberId: member.id,
       memberName: member.name,
       paidTotal: 0,
@@ -259,56 +283,74 @@ export function calculateTripMemberBalances(
       netBalance: 0,
     }])
   )
-  const ownerMemberId = members.find((member) => member.isOwner)?.id ?? members[0]?.id
+  const ownerMemberId = orderedMembers.find((member) => member.isOwner)?.id ?? orderedMembers[0]?.id
 
-  for (const expense of expenses) {
-    if (!expense.sharedGroupExpense) continue
-    if (expense.amount <= 0) continue
+  expenses.forEach((expense, expenseIndex) => {
+    if (!expense.sharedGroupExpense) return
+    if (expense.amount <= 0) return
 
-    const share = participantCount > 0 ? expense.amount / participantCount : expense.amount
-    for (const member of balanceMap.values()) {
-      member.shareOwed += share
-      member.netBalance -= share
-    }
+    const totalUnits = toMoneyUnits(expense.amount)
+    const baseShareUnits = participantCount > 0 ? Math.floor(totalUnits / participantCount) : totalUnits
+    const remainderUnits = participantCount > 0 ? totalUnits - baseShareUnits * participantCount : 0
+    const remainderStartIndex = participantCount > 0 ? expenseIndex % participantCount : 0
+
+    orderedMembers.forEach((member, memberIndex) => {
+      const current = balanceMap.get(member.id)
+      if (!current) return
+
+      const shareUnits = baseShareUnits + (getsRemainderUnit(memberIndex, remainderStartIndex, remainderUnits, participantCount) ? 1 : 0)
+      current.shareOwed += shareUnits
+      current.netBalance -= shareUnits
+    })
 
     const payerId = expense.paidByMemberId || ownerMemberId
     if (payerId && balanceMap.has(payerId)) {
       const payer = balanceMap.get(payerId)
       if (payer) {
-        payer.paidTotal += expense.amount
-        payer.netBalance += expense.amount
+        payer.paidTotal += totalUnits
+        payer.netBalance += totalUnits
       }
     }
-  }
+  })
 
   for (const settlement of settlements) {
     if (settlement.status !== 'paid' || settlement.amount <= 0) continue
 
     const fromMember = balanceMap.get(settlement.fromMemberId)
     const toMember = balanceMap.get(settlement.toMemberId)
+    const amountUnits = toMoneyUnits(settlement.amount)
 
     if (fromMember) {
-      fromMember.settlementsOut += settlement.amount
-      fromMember.netBalance += settlement.amount
+      fromMember.settlementsOut += amountUnits
+      fromMember.netBalance += amountUnits
     }
     if (toMember) {
-      toMember.settlementsIn += settlement.amount
-      toMember.netBalance -= settlement.amount
+      toMember.settlementsIn += amountUnits
+      toMember.netBalance -= amountUnits
     }
   }
 
-  return [...balanceMap.values()].sort((a, b) => b.netBalance - a.netBalance)
+  return [...balanceMap.values()]
+    .map((member) => ({
+      ...member,
+      paidTotal: fromMoneyUnits(member.paidTotal),
+      shareOwed: fromMoneyUnits(member.shareOwed),
+      settlementsIn: fromMoneyUnits(member.settlementsIn),
+      settlementsOut: fromMoneyUnits(member.settlementsOut),
+      netBalance: fromMoneyUnits(member.netBalance),
+    }))
+    .sort((a, b) => b.netBalance - a.netBalance)
 }
 
 export function buildTripSettlementSuggestions(
   balances: TripMemberBalance[]
 ): TripSettlementSuggestion[] {
   const creditors = balances
-    .filter((member) => member.netBalance > 0.009)
-    .map((member) => ({ ...member, remaining: member.netBalance }))
+    .map((member) => ({ ...member, remainingUnits: toMoneyUnits(member.netBalance) }))
+    .filter((member) => member.remainingUnits > 0)
   const debtors = balances
-    .filter((member) => member.netBalance < -0.009)
-    .map((member) => ({ ...member, remaining: Math.abs(member.netBalance) }))
+    .map((member) => ({ ...member, remainingUnits: Math.abs(toMoneyUnits(member.netBalance)) }))
+    .filter((member) => member.netBalance < 0 && member.remainingUnits > 0)
 
   const suggestions: TripSettlementSuggestion[] = []
   let creditorIndex = 0
@@ -317,21 +359,21 @@ export function buildTripSettlementSuggestions(
   while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
     const creditor = creditors[creditorIndex]
     const debtor = debtors[debtorIndex]
-    const amount = Math.min(creditor.remaining, debtor.remaining)
+    const amountUnits = Math.min(creditor.remainingUnits, debtor.remainingUnits)
 
     suggestions.push({
       fromMemberId: debtor.memberId,
       fromMemberName: debtor.memberName,
       toMemberId: creditor.memberId,
       toMemberName: creditor.memberName,
-      amount,
+      amount: fromMoneyUnits(amountUnits),
     })
 
-    creditor.remaining -= amount
-    debtor.remaining -= amount
+    creditor.remainingUnits -= amountUnits
+    debtor.remainingUnits -= amountUnits
 
-    if (creditor.remaining <= 0.009) creditorIndex += 1
-    if (debtor.remaining <= 0.009) debtorIndex += 1
+    if (creditor.remainingUnits <= 0) creditorIndex += 1
+    if (debtor.remainingUnits <= 0) debtorIndex += 1
   }
 
   return suggestions

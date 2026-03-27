@@ -1,5 +1,35 @@
 # Dev Journey - Wallet App
 
+## 2026-03-27
+
+### Completed
+
+- **Trip settle-up flow:**
+  - Added trip participants (`trip_members`) and settlement records (`trip_settlements`).
+  - Shared trip expenses now store the group payer via `paidByMemberId`.
+  - Trips page now calculates member balances, suggests who should pay whom, and allows settlement tracking.
+- **Fund goals feature:**
+  - Added `fund_goals` collection, API routes, and savings/dashboard UI.
+  - Goals can link to savings assets and trip targets to show progress and projected completion.
+- **Forecasting upgrade:**
+  - Added cashflow forecast utilities and surfaced them in Reports and Calendar.
+  - Added projected net worth view based on tracked assets, forecasted net cashflow, and recurring insurance contributions.
+- **Savings assets live pricing upgrade:**
+  - Added live stock pricing support via `wss://ws.realtime-finance.ws/stocks/{SYMBOL}`.
+  - Stock assets with a symbol now behave like quantity-based holdings and convert into the active app currency.
+- **Trips and savings UI fixes:**
+  - Fixed trip expense and settlement selectors to show names instead of raw IDs.
+  - Reworked shared trip settle-up math to use exact cents and avoid residual balance drift after recording settlements.
+  - Removed duplicate `Fund Goals` section from the savings page.
+- **Framework/runtime cleanup:**
+  - Renamed `src/proxy.ts` to `src/middleware.ts` for Next.js 16 compatibility.
+  - Added shared date utilities and hardened dashboard loading guard ordering.
+- **Backend/migration updates:**
+  - Added migration `1775200000_trip_settlements_and_fund_goals.js`.
+  - Updated `k8s/pocketbase-bootstrap.yaml` to bootstrap new collections and transaction field extensions.
+- **Documentation sync:**
+  - Updated README, setup guide, PocketBase backend doc, tech stack summary, and this journey log.
+
 ## 2026-03-26
 
 ### Completed
@@ -130,6 +160,8 @@ Browser -> Next.js API routes -> PocketBase
 - `1774800000_trip_group_fund_fields.js`
 - `1774900000_add_currency_sign_to_preferences.js`
 - `1775000000_add_shared_group_expense_to_transactions.js`
+- `1775100000_add_recurring_insurance_fields.js`
+- `1775200000_trip_settlements_and_fund_goals.js`
 
 ## Next Practical Tasks
 
@@ -139,4 +171,4 @@ Browser -> Next.js API routes -> PocketBase
 
 ---
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27

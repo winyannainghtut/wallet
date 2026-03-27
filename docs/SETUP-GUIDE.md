@@ -120,15 +120,18 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Calendar shows expense and income day-level breakdown.
    - Amount labels use your selected currency sign while FX/export still use the currency code.
 
-### 3.3 Savings assets + live crypto
+### 3.3 Savings assets + live market data
 
 1. Open `/savings`.
-2. Add one insurance asset, one stocks asset, and one personal saving funds asset with manual value.
+2. Add one insurance asset and one personal saving funds asset with manual value.
 3. Add one crypto asset using quantity input and a symbol (for example `BTC` or `BTC-USD`).
-4. Verify:
+4. Add one stocks asset using quantity input and a symbol (for example `AAPL` or `NVDA`).
+5. Verify:
    - Crypto value updates from live Coinbase ticker feed.
+   - Stock value updates from `wss://ws.realtime-finance.ws/stocks/{SYMBOL}` when the symbol stream is available.
    - USD market price is converted to app currency via `/api/market/fx` (for example USD->SGD).
    - Savings + Assets values appear in dashboard/reporting summaries.
+   - Savings page shows a combined market live-feed banner for crypto and stocks.
 
 ### 3.4 Trips + shared friend group expenses
 
@@ -140,7 +143,35 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - Group fund usage is based on `Shared Friend Group` expenses only.
    - History list shows a `Shared Friend Group` badge for shared trip expenses.
 
-### 3.5 AI suggest category (auto custom category create)
+### 3.5 Trips settle-up
+
+1. Open the same trip in `/trips`.
+2. Add at least two trip members.
+3. Record one shared trip expense and select which member paid it.
+4. Verify:
+   - Trip page shows member balances.
+   - Settlement suggestions appear when one member owes another.
+   - Saving a settlement record updates the outstanding balance summary.
+
+### 3.6 Fund goals
+
+1. Open `/savings`.
+2. Create a fund goal such as `Emergency Fund` or `Japan Trip`.
+3. Link one or more savings assets and optionally set monthly contribution assumptions.
+4. Verify:
+   - Goal card shows target amount, linked asset value, and projected completion status.
+   - Dashboard shows active fund goals.
+
+### 3.7 Cashflow forecast + projected net worth
+
+1. Open `/reports` and switch to `Forecast`.
+2. Open `/calendar` and inspect the forecast panel.
+3. Verify:
+   - Next 30-day income, outflows, savings transfers, and net values are shown.
+   - Upcoming scheduled cashflow entries are listed.
+   - 6-month projected net worth reflects tracked assets plus forecasted cashflow.
+
+### 3.8 AI suggest category (auto custom category create)
 
 1. Open `/add` and enter a description that does not fit built-in categories.
 2. Click `Suggest Category`.
@@ -148,7 +179,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - AI returns either a built-in category or a custom category candidate.
    - When custom is returned, app auto-creates expense custom category and selects it.
 
-### 3.6 Excel import/export
+### 3.9 Excel import/export
 
 1. Open `/settings` -> `Excel`.
 2. Download template (`wallet_import_template.xlsx`) and inspect `Expenses`, `Incomes`, and `Trips` sheets.
@@ -172,7 +203,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - `Expenses` includes `Trip ID` and `Shared Friend Group`
    - `Trip Summary` includes `Shared Group Expense`, `Shared Group Transactions`, `Group Fund Left`, and `Per Person Shared Spend`
 
-### 3.7 Collection bootstrap check
+### 3.10 Collection bootstrap check
 
 Expected collections:
 
@@ -183,6 +214,9 @@ Expected collections:
 - `savings_assets`
 - `user_preferences`
 - `trips`
+- `trip_members`
+- `trip_settlements`
+- `fund_goals`
 - `subscriptions`
 
 Migration files:
@@ -197,6 +231,8 @@ Migration files:
 - `pb_migrations/1774800000_trip_group_fund_fields.js`
 - `pb_migrations/1774900000_add_currency_sign_to_preferences.js`
 - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
+- `pb_migrations/1775100000_add_recurring_insurance_fields.js`
+- `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
 
 ## 4) Kubernetes Setup
 

@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/contexts/AppContext'
 import { useFundGoals } from '@/hooks/useFundGoals'
-import { getCryptoAssetSymbol, normalizeAssetSymbol, useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
+import { getCryptoAssetSymbol, getStockAssetSymbol, normalizeAssetSymbol, useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t } from '@/i18n/config'
 import { FundGoal, SavingsAsset, SavingsAssetType, SavingsGoal } from '@/types'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
@@ -173,6 +173,9 @@ export default function SavingsPage() {
     trackedCryptoProducts,
     cryptoSocketState,
     cryptoSocketError,
+    trackedStockSymbols,
+    stockSocketState,
+    stockSocketError,
     usdToCurrencyRate,
     fxError,
   } = useSavingsAssetsPortfolio(settings.currency)
@@ -293,7 +296,11 @@ export default function SavingsPage() {
   }
 
   const openEditAssetDialog = (asset: SavingsAsset) => {
-    const currentSymbol = asset.type === 'crypto' ? getCryptoAssetSymbol(asset) : undefined
+    const currentSymbol = asset.type === 'crypto'
+      ? getCryptoAssetSymbol(asset)
+      : asset.type === 'stocks'
+        ? getStockAssetSymbol(asset)
+        : undefined
     setEditingAsset(asset)
     setAssetForm({
       type: asset.type,
@@ -459,7 +466,7 @@ export default function SavingsPage() {
 
     const parsedAmount = Number(assetForm.amount)
     if (Number.isNaN(parsedAmount) || parsedAmount < 0) {
-      alert(assetForm.type === 'crypto'
+      alert(assetForm.type === 'crypto' || (assetForm.type === 'stocks' && assetForm.symbol.trim())
         ? 'Quantity must be a number greater than or equal to zero.'
         : 'Amount must be a number greater than or equal to zero.')
       return
@@ -500,6 +507,8 @@ export default function SavingsPage() {
     const symbolPayload =
       assetForm.type === 'crypto'
         ? normalizedSymbol
+        : assetForm.type === 'stocks'
+          ? normalizedSymbol ?? (editingAsset ? '' : undefined)
         : editingAsset
           ? ''
           : undefined
@@ -996,194 +1005,6 @@ export default function SavingsPage() {
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="flex items-center gap-2 text-base">
-              <Target className="h-4 w-4 text-primary" />
-              Fund Goals
-            </CardTitle>
-            <CardDescription>
-              Link savings assets and trips to larger goals like emergency fund, travel, or investing milestones.
-            </CardDescription>
-          </div>
-          <Button onClick={openCreateFundGoalDialog} className="rounded-xl">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add Fund Goal
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isFundGoalsLoading ? (
-            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
-          ) : (
-            <>
-              {fundGoalsError && (
-                <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-                  {fundGoalsError}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-border/50 px-4 py-3">
-                  <p className="text-xs uppercase text-muted-foreground">Active Goals</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums">{activeFundGoals.length}</p>
-                </div>
-                <div className="rounded-xl border border-border/50 px-4 py-3">
-                  <p className="text-xs uppercase text-muted-foreground">Linked Assets Value</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(fundGoalCurrentAmount).toLocaleString()} {displayCurrency}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/50 px-4 py-3">
-                  <p className="text-xs uppercase text-muted-foreground">Projected Monthly Toward Goals</p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {Math.round(fundGoalProjectedMonthly).toLocaleString()} {displayCurrency}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">{fundGoalsOnTrack}/{activeFundGoals.length || 0} on track</p>
-                </div>
-              </div>
-
-              {enrichedFundGoals.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
-                  No fund goals yet. Create a goal, attach one or more savings assets, and the app will project completion using recurring contributions and your monthly savings.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {enrichedFundGoals.map((goal) => (
-                    <div
-                      key={goal.id}
-                      className="space-y-4 rounded-xl border border-border/40 p-4"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: goal.color ?? '#6366f1' }}
-                            />
-                            <p className="font-semibold">{goal.name}</p>
-                            <Badge variant={goal.status === 'completed' ? 'default' : goal.status === 'archived' ? 'outline' : 'secondary'}>
-                              {goal.status}
-                            </Badge>
-                            {goal.isOnTrack !== undefined && (
-                              <Badge variant={goal.isOnTrack ? 'default' : 'secondary'}>
-                                {goal.isOnTrack ? 'On track' : 'Behind'}
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">
-                            Target {Math.round(goal.targetAmount).toLocaleString()} {displayCurrency}
-                            {goal.targetDate ? ` by ${format(new Date(`${goal.targetDate}T00:00:00`), 'MMM d, yyyy')}` : ''}
-                          </p>
-                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                            {goal.linkedTrip && (
-                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
-                                Trip: {goal.linkedTrip.name}
-                              </span>
-                            )}
-                            {goal.includeMonthlySavings && (
-                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
-                                Includes monthly savings
-                              </span>
-                            )}
-                            {goal.monthlyContribution && goal.monthlyContribution > 0 && (
-                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
-                                Manual +{Math.round(goal.monthlyContribution).toLocaleString()} {displayCurrency}/mo
-                              </span>
-                            )}
-                            {goal.linkedAssets.length > 0 && (
-                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
-                                {goal.linkedAssets.length} linked assets
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => openEditFundGoalDialog(goal)} className="h-8 w-8 rounded-lg">
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => void handleDeleteFundGoal(goal.id)}
-                            className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10"
-                            disabled={deletingFundGoalId === goal.id}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-xl border border-border/50 px-4 py-3">
-                          <p className="text-xs uppercase text-muted-foreground">Current Value</p>
-                          <p className="mt-1 text-lg font-semibold tabular-nums">
-                            {Math.round(goal.currentAmount).toLocaleString()} {displayCurrency}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-border/50 px-4 py-3">
-                          <p className="text-xs uppercase text-muted-foreground">Remaining</p>
-                          <p className="mt-1 text-lg font-semibold tabular-nums">
-                            {Math.round(goal.remainingAmount).toLocaleString()} {displayCurrency}
-                          </p>
-                        </div>
-                        <div className="rounded-xl border border-border/50 px-4 py-3">
-                          <p className="text-xs uppercase text-muted-foreground">Projected Monthly</p>
-                          <p className="mt-1 text-lg font-semibold tabular-nums">
-                            {Math.round(goal.projectedMonthlyContribution).toLocaleString()} {displayCurrency}
-                          </p>
-                          {goal.projectedCompletionDate && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Finishes around {format(new Date(`${goal.projectedCompletionDate}T00:00:00`), 'MMM d, yyyy')}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Progress</span>
-                          <span className="font-semibold tabular-nums">{goal.progressPercentage.toFixed(1)}%</span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full rounded-full transition-all"
-                            style={{
-                              width: `${Math.min(100, Math.max(goal.progressPercentage, 0))}%`,
-                              backgroundColor: goal.color ?? '#6366f1',
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {goal.linkedAssets.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {goal.linkedAssets.map((asset) => (
-                            <Badge key={asset.asset.id} variant="outline">
-                              {asset.asset.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-
-                      {goal.note && (
-                        <p className="text-sm text-muted-foreground">{goal.note}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {activeFundGoals.length > 0 && fundGoalTargetAmount > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  Active goals are {((fundGoalCurrentAmount / fundGoalTargetAmount) * 100).toFixed(1)}% funded overall.
-                </p>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/40">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2 text-base">
               <Shield className="h-4 w-4 text-primary" />
               Financial Assets
             </CardTitle>
@@ -1206,29 +1027,44 @@ export default function SavingsPage() {
                   {assetsError}
                 </div>
               )}
-              {trackedCryptoProducts.length > 0 && (
+              {(trackedCryptoProducts.length > 0 || trackedStockSymbols.length > 0) && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 px-4 py-3 text-sm">
                   <div className="flex items-center gap-2">
-                    {cryptoSocketState === 'connected' ? (
+                    {cryptoSocketState === 'connected' || stockSocketState === 'connected' ? (
                       <Wifi className="h-4 w-4 text-primary" />
                     ) : (
                       <WifiOff className="h-4 w-4 text-muted-foreground" />
                     )}
-                    <span className="font-medium">Crypto Live Feed</span>
+                    <span className="font-medium">Market Live Feed</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>
-                      {cryptoSocketState === 'connected'
-                        ? 'Connected'
-                        : cryptoSocketState === 'connecting'
-                          ? 'Connecting...'
-                          : cryptoSocketState === 'error'
-                            ? 'Disconnected'
-                            : 'Idle'}
-                    </span>
-                    <span>Pairs: {trackedCryptoProducts.map((item) => item.productId).join(', ')}</span>
+                    {trackedCryptoProducts.length > 0 && (
+                      <span>
+                        Crypto: {cryptoSocketState === 'connected'
+                          ? 'Connected'
+                          : cryptoSocketState === 'connecting'
+                            ? 'Connecting...'
+                            : cryptoSocketState === 'error'
+                              ? 'Disconnected'
+                              : 'Idle'}
+                      </span>
+                    )}
+                    {trackedStockSymbols.length > 0 && (
+                      <span>
+                        Stocks: {stockSocketState === 'connected'
+                          ? 'Connected'
+                          : stockSocketState === 'connecting'
+                            ? 'Connecting...'
+                            : stockSocketState === 'error'
+                              ? 'Disconnected'
+                              : 'Idle'}
+                      </span>
+                    )}
+                    {trackedCryptoProducts.length > 0 && <span>Crypto Pairs: {trackedCryptoProducts.map((item) => item.productId).join(', ')}</span>}
+                    {trackedStockSymbols.length > 0 && <span>Stock Symbols: {trackedStockSymbols.join(', ')}</span>}
                     <span>USD/{settings.currency}: {usdToCurrencyRate.toFixed(4)}</span>
                     {cryptoSocketError && <span>{cryptoSocketError}</span>}
+                    {stockSocketError && <span>{stockSocketError}</span>}
                     {fxError && <span>{fxError}</span>}
                   </div>
                 </div>
@@ -1317,13 +1153,13 @@ export default function SavingsPage() {
                               )}
                             </div>
                           )}
-                          {asset.type === 'crypto' && (
+                          {(asset.type === 'crypto' || asset.type === 'stocks') && (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                               <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
                                 {portfolioAsset.productId ?? 'No Symbol'}
                               </span>
                               <span>
-                                Qty: {asset.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 8 })}
+                                Qty: {asset.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: asset.type === 'stocks' ? 4 : 8 })}
                               </span>
                               <span className="font-medium text-foreground">
                                 {typeof portfolioAsset.unitPriceUsd === 'number'
@@ -1793,16 +1629,18 @@ export default function SavingsPage() {
                 )}
               </div>
             )}
-            {assetForm.type === 'crypto' && (
+            {(assetForm.type === 'crypto' || assetForm.type === 'stocks') && (
               <div className="space-y-2">
-                <Label>Crypto Symbol</Label>
+                <Label>{assetForm.type === 'crypto' ? 'Crypto Symbol' : 'Stock Symbol'}</Label>
                 <Input
                   value={assetForm.symbol}
                   onChange={(e) => setAssetForm((prev) => ({ ...prev, symbol: e.target.value.toUpperCase() }))}
-                  placeholder="BTC, ETH, SOL"
+                  placeholder={assetForm.type === 'crypto' ? 'BTC, ETH, SOL' : 'AAPL, NVDA, TSLA'}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Used for Coinbase live ticker stream (mapped as SYMBOL-USD) and converted to {settings.currency}.
+                  {assetForm.type === 'crypto'
+                    ? `Used for Coinbase live ticker stream (mapped as SYMBOL-USD) and converted to ${settings.currency}.`
+                    : `Optional. When provided, app will try live stock pricing from realtime-finance.ws and convert to ${settings.currency}.`}
                 </p>
               </div>
             )}
@@ -1810,6 +1648,8 @@ export default function SavingsPage() {
               <Label>
                 {assetForm.type === 'crypto'
                   ? 'Crypto Quantity'
+                  : assetForm.type === 'stocks' && assetForm.symbol.trim()
+                    ? 'Stock Quantity'
                   : assetForm.type === 'insurance' && isRecurringInsuranceEnabled
                     ? `Base Amount (${displayCurrency})`
                     : `Amount (${displayCurrency})`}
@@ -1824,6 +1664,11 @@ export default function SavingsPage() {
               {assetForm.type === 'crypto' && (
                 <p className="text-xs text-muted-foreground">
                   Enter coin amount (for example 0.25 BTC). App will calculate live {settings.currency} value.
+                </p>
+              )}
+              {assetForm.type === 'stocks' && assetForm.symbol.trim() && (
+                <p className="text-xs text-muted-foreground">
+                  Enter share quantity (for example 12 AAPL). App will calculate live {settings.currency} value when the stock socket is available.
                 </p>
               )}
               {assetForm.type === 'insurance' && isRecurringInsuranceEnabled && (

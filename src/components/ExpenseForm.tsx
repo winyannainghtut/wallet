@@ -41,6 +41,10 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
   
   const language = getLanguage()
   const selectedTrip = trips.find((trip) => trip.id === tripId)
+  const selectedPayer = tripMembers.find((member) => member.id === paidByMemberId)
+  const selectedPayerLabel = selectedPayer
+    ? `${selectedPayer.name}${selectedPayer.isOwner ? ' (You)' : ''}`
+    : undefined
 
   useEffect(() => {
     let cancelled = false
@@ -371,7 +375,9 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                   }}
                 >
                   <SelectTrigger className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
-                    <SelectValue placeholder={t('expense.selectTrip')} />
+                    <SelectValue placeholder={t('expense.selectTrip')}>
+                      {selectedTrip?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">{t('expense.noTrip')}</SelectItem>
@@ -423,7 +429,9 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                         id="trip-paid-by"
                         className="rounded-xl border-border/60 bg-background/80 transition-all focus:bg-background"
                       >
-                        <SelectValue placeholder={tripMembers.length === 0 ? t('expense.addTripMembersFirst') : t('expense.selectPayer')} />
+                        <SelectValue placeholder={tripMembers.length === 0 ? t('expense.addTripMembersFirst') : t('expense.selectPayer')}>
+                          {selectedPayerLabel}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {tripMembers.map((member) => (

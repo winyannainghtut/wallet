@@ -40,6 +40,12 @@ type CryptoQuote = {
   updatedAt: string
 }
 
+type StockQuote = {
+  symbol: string
+  priceUsd: number
+  updatedAt: string
+}
+
 export type CryptoSocketState = 'idle' | 'connecting' | 'connected' | 'error'
 
 export type PortfolioAsset = {
@@ -71,13 +77,17 @@ type UseSavingsAssetsPortfolioResult = {
   stocksValue: number
   personalFundsValue: number
   trackedCryptoProducts: Array<{ symbol: string; productId: string }>
+  trackedStockSymbols: string[]
   cryptoSocketState: CryptoSocketState
   cryptoSocketError: string | null
+  stockSocketState: CryptoSocketState
+  stockSocketError: string | null
   usdToCurrencyRate: number
   fxError: string | null
 }
 
 const COINBASE_MARKET_WS_URL = 'wss://advanced-trade-ws.coinbase.com'
+const STOCK_MARKET_WS_BASE_URL = 'wss://ws.realtime-finance.ws/stocks'
 
 export function normalizeAssetSymbol(raw: string): string | undefined {
   const normalized = raw.trim().toUpperCase()
@@ -102,6 +112,11 @@ export function deriveSymbolFromAssetName(rawName: string): string | undefined {
 export function getCryptoAssetSymbol(asset: SavingsAsset): string | undefined {
   if (asset.type !== 'crypto') return undefined
   return asset.symbol ?? deriveSymbolFromAssetName(asset.name)
+}
+
+export function getStockAssetSymbol(asset: SavingsAsset): string | undefined {
+  if (asset.type !== 'stocks') return undefined
+  return asset.symbol
 }
 
 function toCoinbaseProductId(symbol: string): string {
@@ -160,6 +175,91 @@ function parseCoinbaseTickerMessage(payload: unknown): Array<{ productId: string
   return updates
 }
 
+function parseNumericValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    const parsed = Number(trimmed.replace(/[$,]/g, ''))
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+function parseStockTickerMessage(symbol: string, payload: unknown): { symbol: string; priceUsd: number } | null {
+  const normalizedSymbol = normalizeAssetSymbol(symbol)
+  if (!normalizedSymbol) return null
+
+  if (typeof payload === 'string') {
+    const directNumber = parseNumericValue(payload)
+    if (directNumber !== null) {
+      return { symbol: normalizedSymbol, priceUsd: directNumber }
+    }
+
+    try {
+      return parseStockTickerMessage(normalizedSymbol, JSON.parse(payload) as unknown)
+    } catch {
+      return null
+    }
+  }
+
+  const directNumber = parseNumericValue(payload)
+  if (directNumber !== null) {
+    return { symbol: normalizedSymbol, priceUsd: directNumber }
+  }
+
+  if (typeof payload !== 'object' || payload === null) {
+    return null
+  }
+
+  const record = payload as Record<string, unknown>
+  const candidateContainers: Array<Record<string, unknown>> = [record]
+
+  for (const key of ['data', 'quote', 'ticker', 'payload', 'result']) {
+    const value = record[key]
+    if (typeof value === 'object' && value !== null) {
+      candidateContainers.push(value as Record<string, unknown>)
+    }
+  }
+
+  for (const container of candidateContainers) {
+    const candidateSymbol = normalizeAssetSymbol(
+      typeof container.symbol === 'string'
+        ? container.symbol
+        : typeof container.ticker === 'string'
+          ? container.ticker
+          : typeof container.code === 'string'
+            ? container.code
+            : typeof container.s === 'string'
+              ? container.s
+              : normalizedSymbol
+    )
+
+    if (candidateSymbol && candidateSymbol !== normalizedSymbol) {
+      continue
+    }
+
+    for (const key of ['price', 'last', 'lastPrice', 'close', 'currentPrice', 'marketPrice', 'regularMarketPrice', 'c', 'p']) {
+      const price = parseNumericValue(container[key])
+      if (price !== null) {
+        return {
+          symbol: normalizedSymbol,
+          priceUsd: price,
+        }
+      }
+    }
+  }
+
+  return null
+}
+
 function normalizeAssetRecord(raw: SavingsAssetApiRecord): SavingsAsset | null {
   if (
     !raw.id ||
@@ -196,9 +296,13 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
   const [isAssetsLoading, setIsAssetsLoading] = useState(true)
   const [assetsError, setAssetsError] = useState<string | null>(null)
   const [cryptoQuotes, setCryptoQuotes] = useState<Record<string, CryptoQuote>>({})
+  const [stockQuotes, setStockQuotes] = useState<Record<string, StockQuote>>({})
   const [cryptoSocketState, setCryptoSocketState] = useState<CryptoSocketState>('idle')
   const [cryptoSocketError, setCryptoSocketError] = useState<string | null>(null)
   const [socketRetryToken, setSocketRetryToken] = useState(0)
+  const [stockSocketState, setStockSocketState] = useState<CryptoSocketState>('idle')
+  const [stockSocketError, setStockSocketError] = useState<string | null>(null)
+  const [stockSocketRetryToken, setStockSocketRetryToken] = useState(0)
   const [usdToCurrencyRate, setUsdToCurrencyRate] = useState(1)
   const [fxError, setFxError] = useState<string | null>(null)
 
@@ -246,6 +350,18 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
       symbol,
       productId,
     }))
+  }, [assets])
+
+  const trackedStockSymbols = useMemo(() => {
+    const symbols = new Set<string>()
+
+    for (const asset of assets) {
+      const symbol = getStockAssetSymbol(asset)
+      if (!symbol) continue
+      symbols.add(symbol)
+    }
+
+    return Array.from(symbols.values()).sort((a, b) => a.localeCompare(b))
   }, [assets])
 
   useEffect(() => {
@@ -407,12 +523,134 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
     }
   }, [trackedCryptoProducts, socketRetryToken])
 
+  useEffect(() => {
+    if (trackedStockSymbols.length === 0) {
+      setStockQuotes({})
+      setStockSocketState('idle')
+      setStockSocketError(null)
+      return
+    }
+
+    const symbolSet = new Set(trackedStockSymbols)
+    setStockQuotes((prev) => {
+      const pruned: Record<string, StockQuote> = {}
+      for (const [symbol, quote] of Object.entries(prev)) {
+        if (symbolSet.has(symbol)) {
+          pruned[symbol] = quote
+        }
+      }
+      return pruned
+    })
+
+    setStockSocketState('connecting')
+    setStockSocketError(null)
+
+    let isCleanedUp = false
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    const openSymbols = new Set<string>()
+    const sockets = trackedStockSymbols.map((symbol) => {
+      const ws = new WebSocket(`${STOCK_MARKET_WS_BASE_URL}/${encodeURIComponent(symbol)}`)
+
+      ws.onopen = () => {
+        if (isCleanedUp) return
+        openSymbols.add(symbol)
+        setStockSocketState('connected')
+        setStockSocketError(null)
+      }
+
+      ws.onmessage = (event) => {
+        if (isCleanedUp) return
+        const parsed = parseStockTickerMessage(symbol, event.data)
+        if (!parsed) return
+
+        setStockQuotes((prev) => ({
+          ...prev,
+          [parsed.symbol]: {
+            symbol: parsed.symbol,
+            priceUsd: parsed.priceUsd,
+            updatedAt: new Date().toISOString(),
+          },
+        }))
+      }
+
+      ws.onerror = () => {
+        if (isCleanedUp) return
+        if (openSymbols.size === 0) {
+          setStockSocketState('error')
+        }
+        setStockSocketError(`Stock live stream error (${symbol})`)
+      }
+
+      ws.onclose = () => {
+        if (isCleanedUp) return
+
+        openSymbols.delete(symbol)
+        if (openSymbols.size === 0) {
+          setStockSocketState('error')
+          setStockSocketError(`Stock live stream disconnected (${symbol})`)
+          if (!reconnectTimer) {
+            reconnectTimer = setTimeout(() => {
+              setStockSocketRetryToken((prev) => prev + 1)
+            }, 3_000)
+          }
+        }
+      }
+
+      return ws
+    })
+
+    return () => {
+      isCleanedUp = true
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+      }
+      for (const ws of sockets) {
+        ws.close()
+      }
+    }
+  }, [trackedStockSymbols, stockSocketRetryToken])
+
   const portfolioAssets = useMemo(() => {
     const quoteCurrency = currency.trim().toUpperCase() || 'USD'
     const requiresFxRate = quoteCurrency !== 'USD'
     const hasFxRate = Number.isFinite(usdToCurrencyRate) && usdToCurrencyRate > 0
 
     return assets.map((asset): PortfolioAsset => {
+      if (asset.type === 'stocks') {
+        const symbol = getStockAssetSymbol(asset)
+        const quote = symbol ? stockQuotes[symbol] : undefined
+
+        if (!symbol) {
+          return {
+            asset,
+            currentValue: asset.amount,
+            valueSource: 'manual',
+          }
+        }
+
+        if (!quote || (requiresFxRate && !hasFxRate)) {
+          return {
+            asset,
+            symbol,
+            productId: symbol,
+            quantity: asset.amount,
+            currentValue: 0,
+            valueSource: 'pending',
+          }
+        }
+
+        return {
+          asset,
+          symbol,
+          productId: symbol,
+          quantity: asset.amount,
+          unitPriceUsd: quote.priceUsd,
+          currentValue: asset.amount * quote.priceUsd * usdToCurrencyRate,
+          quoteUpdatedAt: quote.updatedAt,
+          valueSource: 'live',
+        }
+      }
+
       if (asset.type !== 'crypto') {
         const recurringContributionCount = asset.type === 'insurance'
           ? getRecurringContributionCount(asset.recurringStartDate)
@@ -463,7 +701,7 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
         valueSource: 'live',
       }
     })
-  }, [assets, cryptoQuotes, currency, usdToCurrencyRate])
+  }, [assets, cryptoQuotes, stockQuotes, currency, usdToCurrencyRate])
 
   const sortedPortfolioAssets = useMemo(
     () => [...portfolioAssets].sort((a, b) => b.currentValue - a.currentValue),
@@ -508,8 +746,11 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
     stocksValue,
     personalFundsValue,
     trackedCryptoProducts,
+    trackedStockSymbols,
     cryptoSocketState,
     cryptoSocketError,
+    stockSocketState,
+    stockSocketError,
     usdToCurrencyRate,
     fxError,
   }

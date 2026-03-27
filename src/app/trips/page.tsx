@@ -300,6 +300,8 @@ export default function TripsPage() {
 
   const settlementTrip = trips.find((trip) => trip.id === settlementForm.tripId) ?? null
   const settlementMembers = settlementTrip ? membersByTrip.get(settlementTrip.id) ?? [] : []
+  const selectedSettlementFromMember = settlementMembers.find((member) => member.id === settlementForm.fromMemberId)
+  const selectedSettlementToMember = settlementMembers.find((member) => member.id === settlementForm.toMemberId)
 
   const resetTripForm = () => {
     setEditingTrip(null)
@@ -1209,7 +1211,9 @@ export default function TripsPage() {
                   onValueChange={(value) => setSettlementForm((prev) => ({ ...prev, fromMemberId: value ?? '' }))}
                 >
                   <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20">
-                    <SelectValue placeholder="Who paid back?" />
+                    <SelectValue placeholder="Who paid back?">
+                      {selectedSettlementFromMember?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {settlementMembers.map((member) => (
@@ -1227,7 +1231,9 @@ export default function TripsPage() {
                   onValueChange={(value) => setSettlementForm((prev) => ({ ...prev, toMemberId: value ?? '' }))}
                 >
                   <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20">
-                    <SelectValue placeholder="Who received it?" />
+                    <SelectValue placeholder="Who received it?">
+                      {selectedSettlementToMember?.name}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {settlementMembers.map((member) => (

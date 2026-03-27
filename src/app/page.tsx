@@ -41,6 +41,8 @@ export default function DashboardPage() {
     sortedPortfolioAssets,
     cryptoSocketState,
     cryptoSocketError,
+    stockSocketState,
+    stockSocketError,
     usdToCurrencyRate,
     fxError,
   } = useSavingsAssetsPortfolio(settings.currency)
@@ -100,6 +102,8 @@ export default function DashboardPage() {
     fxError,
     cryptoSocketState,
     cryptoSocketError,
+    stockSocketState,
+    stockSocketError,
     assets: sortedPortfolioAssets.slice(0, 25).map((item) => ({
       id: item.asset.id,
       type: item.asset.type,

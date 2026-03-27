@@ -23,6 +23,8 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1774800000_trip_group_fund_fields.js`
   - `pb_migrations/1774900000_add_currency_sign_to_preferences.js`
   - `pb_migrations/1775000000_add_shared_group_expense_to_transactions.js`
+  - `pb_migrations/1775100000_add_recurring_insurance_fields.js`
+  - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
 - **Main collections:**
   - `users`
   - `transactions`
@@ -31,6 +33,9 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `savings_assets`
   - `user_preferences`
   - `trips`
+  - `trip_members`
+  - `trip_settlements`
+  - `fund_goals`
   - `subscriptions`
 
 ## Product Data Domains
@@ -38,9 +43,12 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Expenses**
 - **Income**
 - **Savings goals**
-- **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)**
+- **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)** with optional live ticker pricing for crypto and stocks
 - **Trips** with optional shared friend-group pooled spend metadata
+- **Trip members and settle-up records** for payer-aware group trip accounting
 - **Subscriptions (recurring cost modeled into reports/calendar)**
+- **Fund goals** linked to trips, savings assets, and monthly savings progress
+- **Cashflow forecast / projected net worth** derived from expenses, incomes, subscriptions, and recurring insurance contributions
 
 ## UI and Styling
 
@@ -56,8 +64,9 @@ This document summarizes the current technologies used in the Wallet App codebas
 
 - **date-fns** for date calculations and formatting.
 - **xlsx** for Excel import/export.
-- **WebSocket API** for live Coinbase crypto ticker stream.
+- **WebSocket APIs** for live Coinbase crypto ticker stream and stock market ticker stream.
 - **uuid** for local identifier generation where needed.
+- **Next.js middleware** for auth-first route protection.
 
 ## AI
 
@@ -73,6 +82,9 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **PocketBase-backed user preferences:**
   - `user_preferences` stores app settings, including `currencySign`, theme, AI model, custom categories, and AI chat history per authenticated user
   - client keeps a local cache only for fast bootstrap/theme hydration
+- **API-backed domain hooks:**
+  - `useSavingsAssetsPortfolio`
+  - `useFundGoals`
 - **Custom i18n layer:**
   - `src/i18n/config.ts`
   - `src/i18n/en.json`

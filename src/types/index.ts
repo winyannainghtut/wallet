@@ -150,6 +150,8 @@ export interface AiSavingsContext {
   fxError?: string | null
   cryptoSocketState?: CryptoSocketState
   cryptoSocketError?: string | null
+  stockSocketState?: CryptoSocketState
+  stockSocketError?: string | null
   assets: AiSavingsAssetContext[]
 }
 
