@@ -8,6 +8,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      - STOCK_STREAMER_URL=http://stock-streamer:8000
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/"]
@@ -15,3 +16,20 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    depends_on:
+      - stock-streamer
+
+  stock-streamer:
+    build:
+      context: ./services/stock-streamer
+      dockerfile: Dockerfile
+    container_name: wallet-stock-streamer
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

@@ -34,6 +34,17 @@ type FxApiResponse = {
   error?: string
 }
 
+type StockQuotesApiResponse = {
+  quotes?: Array<{
+    symbol?: string
+    priceUsd?: number
+    updatedAt?: string
+  }>
+  state?: CryptoSocketState
+  error?: string
+  missingSymbols?: string[]
+}
+
 type CryptoQuote = {
   productId: string
   priceUsd: number
@@ -87,12 +98,12 @@ type UseSavingsAssetsPortfolioResult = {
 }
 
 const COINBASE_MARKET_WS_URL = 'wss://advanced-trade-ws.coinbase.com'
-const STOCK_MARKET_WS_BASE_URL = 'wss://ws.realtime-finance.ws/stocks'
+const STOCK_QUOTES_POLL_INTERVAL_MS = 5_000
 
 export function normalizeAssetSymbol(raw: string): string | undefined {
   const normalized = raw.trim().toUpperCase()
   if (!normalized) return undefined
-  if (!/^[A-Z0-9-]{2,20}$/.test(normalized)) return undefined
+  if (!/^[A-Z0-9.-]{1,20}$/.test(normalized)) return undefined
   return normalized
 }
 
@@ -175,91 +186,6 @@ function parseCoinbaseTickerMessage(payload: unknown): Array<{ productId: string
   return updates
 }
 
-function parseNumericValue(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) return null
-
-    const parsed = Number(trimmed.replace(/[$,]/g, ''))
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-
-  return null
-}
-
-function parseStockTickerMessage(symbol: string, payload: unknown): { symbol: string; priceUsd: number } | null {
-  const normalizedSymbol = normalizeAssetSymbol(symbol)
-  if (!normalizedSymbol) return null
-
-  if (typeof payload === 'string') {
-    const directNumber = parseNumericValue(payload)
-    if (directNumber !== null) {
-      return { symbol: normalizedSymbol, priceUsd: directNumber }
-    }
-
-    try {
-      return parseStockTickerMessage(normalizedSymbol, JSON.parse(payload) as unknown)
-    } catch {
-      return null
-    }
-  }
-
-  const directNumber = parseNumericValue(payload)
-  if (directNumber !== null) {
-    return { symbol: normalizedSymbol, priceUsd: directNumber }
-  }
-
-  if (typeof payload !== 'object' || payload === null) {
-    return null
-  }
-
-  const record = payload as Record<string, unknown>
-  const candidateContainers: Array<Record<string, unknown>> = [record]
-
-  for (const key of ['data', 'quote', 'ticker', 'payload', 'result']) {
-    const value = record[key]
-    if (typeof value === 'object' && value !== null) {
-      candidateContainers.push(value as Record<string, unknown>)
-    }
-  }
-
-  for (const container of candidateContainers) {
-    const candidateSymbol = normalizeAssetSymbol(
-      typeof container.symbol === 'string'
-        ? container.symbol
-        : typeof container.ticker === 'string'
-          ? container.ticker
-          : typeof container.code === 'string'
-            ? container.code
-            : typeof container.s === 'string'
-              ? container.s
-              : normalizedSymbol
-    )
-
-    if (candidateSymbol && candidateSymbol !== normalizedSymbol) {
-      continue
-    }
-
-    for (const key of ['price', 'last', 'lastPrice', 'close', 'currentPrice', 'marketPrice', 'regularMarketPrice', 'c', 'p']) {
-      const price = parseNumericValue(container[key])
-      if (price !== null) {
-        return {
-          symbol: normalizedSymbol,
-          priceUsd: price,
-        }
-      }
-    }
-  }
-
-  return null
-}
-
 function normalizeAssetRecord(raw: SavingsAssetApiRecord): SavingsAsset | null {
   if (
     !raw.id ||
@@ -302,7 +228,6 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
   const [socketRetryToken, setSocketRetryToken] = useState(0)
   const [stockSocketState, setStockSocketState] = useState<CryptoSocketState>('idle')
   const [stockSocketError, setStockSocketError] = useState<string | null>(null)
-  const [stockSocketRetryToken, setStockSocketRetryToken] = useState(0)
   const [usdToCurrencyRate, setUsdToCurrencyRate] = useState(1)
   const [fxError, setFxError] = useState<string | null>(null)
 
@@ -542,73 +467,92 @@ export function useSavingsAssetsPortfolio(currency: string): UseSavingsAssetsPor
       return pruned
     })
 
-    setStockSocketState('connecting')
-    setStockSocketError(null)
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
 
-    let isCleanedUp = false
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-    const openSymbols = new Set<string>()
-    const sockets = trackedStockSymbols.map((symbol) => {
-      const ws = new WebSocket(`${STOCK_MARKET_WS_BASE_URL}/${encodeURIComponent(symbol)}`)
+    const loadQuotes = async () => {
+      if (cancelled) return
 
-      ws.onopen = () => {
-        if (isCleanedUp) return
-        openSymbols.add(symbol)
-        setStockSocketState('connected')
-        setStockSocketError(null)
-      }
+      setStockSocketState((prev) => (prev === 'connected' ? prev : 'connecting'))
+      setStockSocketError(null)
 
-      ws.onmessage = (event) => {
-        if (isCleanedUp) return
-        const parsed = parseStockTickerMessage(symbol, event.data)
-        if (!parsed) return
-
-        setStockQuotes((prev) => ({
-          ...prev,
-          [parsed.symbol]: {
-            symbol: parsed.symbol,
-            priceUsd: parsed.priceUsd,
-            updatedAt: new Date().toISOString(),
-          },
-        }))
-      }
-
-      ws.onerror = () => {
-        if (isCleanedUp) return
-        if (openSymbols.size === 0) {
-          setStockSocketState('error')
+      try {
+        const response = await fetch(
+          `/api/market/stocks?symbols=${encodeURIComponent(trackedStockSymbols.join(','))}`,
+          { cache: 'no-store' }
+        )
+        const data = (await response.json()) as StockQuotesApiResponse
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch Yahoo stock quotes')
         }
-        setStockSocketError(`Stock live stream error (${symbol})`)
-      }
 
-      ws.onclose = () => {
-        if (isCleanedUp) return
+        if (cancelled) return
 
-        openSymbols.delete(symbol)
-        if (openSymbols.size === 0) {
-          setStockSocketState('error')
-          setStockSocketError(`Stock live stream disconnected (${symbol})`)
-          if (!reconnectTimer) {
-            reconnectTimer = setTimeout(() => {
-              setStockSocketRetryToken((prev) => prev + 1)
-            }, 3_000)
+        setStockQuotes((prev) => {
+          const next: Record<string, StockQuote> = {}
+
+          for (const [symbol, quote] of Object.entries(prev)) {
+            if (symbolSet.has(symbol)) {
+              next[symbol] = quote
+            }
           }
+
+          for (const rawQuote of data.quotes ?? []) {
+            const symbol = normalizeAssetSymbol(rawQuote.symbol ?? '')
+            const priceUsd = rawQuote.priceUsd
+            if (!symbol || !symbolSet.has(symbol) || typeof priceUsd !== 'number' || !Number.isFinite(priceUsd)) {
+              continue
+            }
+
+            next[symbol] = {
+              symbol,
+              priceUsd,
+              updatedAt:
+                typeof rawQuote.updatedAt === 'string' && rawQuote.updatedAt.length > 0
+                  ? rawQuote.updatedAt
+                  : new Date().toISOString(),
+            }
+          }
+
+          return next
+        })
+
+        const missingSymbols = (data.missingSymbols ?? [])
+          .map((symbol) => normalizeAssetSymbol(symbol ?? ''))
+          .filter((symbol): symbol is string => Boolean(symbol))
+
+        const nextState = data.state ?? (missingSymbols.length === trackedStockSymbols.length ? 'connecting' : 'connected')
+        setStockSocketState(nextState)
+        setStockSocketError(
+          data.error
+            ?? (missingSymbols.length > 0
+              ? `Waiting for Yahoo quotes: ${missingSymbols.join(', ')}`
+              : null)
+        )
+      } catch (error) {
+        if (cancelled) return
+
+        const message = error instanceof Error ? error.message : 'Failed to fetch Yahoo stock quotes'
+        setStockSocketState('error')
+        setStockSocketError(message)
+      } finally {
+        if (!cancelled) {
+          timer = setTimeout(() => {
+            void loadQuotes()
+          }, STOCK_QUOTES_POLL_INTERVAL_MS)
         }
-      }
-
-      return ws
-    })
-
-    return () => {
-      isCleanedUp = true
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer)
-      }
-      for (const ws of sockets) {
-        ws.close()
       }
     }
-  }, [trackedStockSymbols, stockSocketRetryToken])
+
+    void loadQuotes()
+
+    return () => {
+      cancelled = true
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
+  }, [trackedStockSymbols])
 
   const portfolioAssets = useMemo(() => {
     const quoteCurrency = currency.trim().toUpperCase() || 'USD'

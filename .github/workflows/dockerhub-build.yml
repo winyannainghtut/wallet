@@ -1,4 +1,4 @@
-name: Build and Push Wallet App Image
+name: Build and Push Wallet Images
 
 on:
   push:
@@ -42,8 +42,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
+      - name: Extract wallet-app Docker metadata
+        id: meta_app
         uses: docker/metadata-action@v5
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/wallet-app
@@ -52,13 +52,34 @@ jobs:
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=dev-latest,enable=${{ github.ref == 'refs/heads/dev' }}
 
-      - name: Build and push image
+      - name: Build and push wallet-app image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta_app.outputs.tags }}
+          labels: ${{ steps.meta_app.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract stock-streamer Docker metadata
+        id: meta_stock
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/wallet-stock-streamer
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=dev-latest,enable=${{ github.ref == 'refs/heads/dev' }}
+
+      - name: Build and push stock-streamer image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./services/stock-streamer
+          file: ./services/stock-streamer/Dockerfile
+          push: true
+          tags: ${{ steps.meta_stock.outputs.tags }}
+          labels: ${{ steps.meta_stock.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

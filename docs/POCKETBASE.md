@@ -34,6 +34,7 @@ Browser -> Next.js API routes -> PocketBase
 - `/api/fund-goals`
 - `/api/fund-goals/[id]`
 - `/api/market/fx` (Coinbase exchange rate proxy for currency conversion, e.g., USD->SGD)
+- `/api/market/stocks` (Next.js proxy to the Yahoo-backed stock streamer cache)
 - `/api/trips`
 - `/api/trips/[id]`
 - `/api/trip-members`
@@ -47,7 +48,7 @@ Browser -> Next.js API routes -> PocketBase
 ### Market data integration for savings assets
 
 - Live crypto quote stream uses Coinbase Advanced Trade WebSocket (`wss://advanced-trade-ws.coinbase.com`) directly from browser.
-- Live stock quote stream can use `wss://ws.realtime-finance.ws/stocks/{SYMBOL}` directly from browser when a stock asset has a saved symbol.
+- Live stock quote stream now uses a dedicated Yahoo-backed streamer service (`services/stock-streamer`) that subscribes server-side and exposes cached quotes through `/api/market/stocks`.
 - FX conversion (USD -> app currency such as SGD) is fetched via `/api/market/fx`.
 - Savings asset values are resolved client-side as:
   - insurance/personal funds: manual value (`amount`)
@@ -131,6 +132,7 @@ kubectl -n wallet-app create secret generic wallet-ai-secrets --from-literal=ZAI
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
+kubectl apply -f k8s/stock-streamer.yaml
 ```
 
 ### Verify bootstrap

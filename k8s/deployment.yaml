@@ -45,6 +45,8 @@ spec:
                 secretKeyRef:
                   name: wallet-ai-secrets
                   key: ZAI_API_KEYS_JSON
+            - name: STOCK_STREAMER_URL
+              value: "http://stock-streamer-service.wallet-app.svc.cluster.local:8000"
             - name: ZAI_API_KEY
               valueFrom:
                 secretKeyRef:

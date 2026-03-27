@@ -478,7 +478,7 @@ export default function SavingsPage() {
       return
     }
     if (assetForm.symbol.trim() && !normalizedSymbol) {
-      alert('Symbol must contain only A-Z, 0-9, or hyphen.')
+      alert('Symbol must contain only A-Z, 0-9, dot, or hyphen.')
       return
     }
 
@@ -1640,7 +1640,7 @@ export default function SavingsPage() {
                 <p className="text-xs text-muted-foreground">
                   {assetForm.type === 'crypto'
                     ? `Used for Coinbase live ticker stream (mapped as SYMBOL-USD) and converted to ${settings.currency}.`
-                    : `Optional. When provided, app will try live stock pricing from realtime-finance.ws and convert to ${settings.currency}.`}
+                    : `Optional. When provided, app will use the Yahoo live stock feed from the backend streamer and convert to ${settings.currency}.`}
                 </p>
               </div>
             )}
@@ -1668,7 +1668,7 @@ export default function SavingsPage() {
               )}
               {assetForm.type === 'stocks' && assetForm.symbol.trim() && (
                 <p className="text-xs text-muted-foreground">
-                  Enter share quantity (for example 12 AAPL). App will calculate live {settings.currency} value when the stock socket is available.
+                  Enter share quantity (for example 12 AAPL). App will calculate live {settings.currency} value when Yahoo pricing is available.
                 </p>
               )}
               {assetForm.type === 'insurance' && isRecurringInsuranceEnabled && (

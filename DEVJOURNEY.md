@@ -15,8 +15,8 @@
   - Added cashflow forecast utilities and surfaced them in Reports and Calendar.
   - Added projected net worth view based on tracked assets, forecasted net cashflow, and recurring insurance contributions.
 - **Savings assets live pricing upgrade:**
-  - Added live stock pricing support via `wss://ws.realtime-finance.ws/stocks/{SYMBOL}`.
-  - Stock assets with a symbol now behave like quantity-based holdings and convert into the active app currency.
+  - Replaced the browser-only stock feed with a Yahoo-backed streamer service (`services/stock-streamer`) and `/api/market/stocks`.
+  - Stock assets with a symbol now behave like quantity-based holdings and convert into the active app currency through the cached backend quote bridge.
 - **Trips and savings UI fixes:**
   - Fixed trip expense and settlement selectors to show names instead of raw IDs.
   - Reworked shared trip settle-up math to use exact cents and avoid residual balance drift after recording settlements.

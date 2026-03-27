@@ -73,6 +73,18 @@ Open:
 - App: `http://localhost:3000`
 - PocketBase Admin: `http://localhost:8090/_/`
 
+### 2.4.1 Optional: start local stock streamer for Yahoo live quotes
+
+```bash
+docker compose up -d stock-streamer
+```
+
+If you run it outside Docker Compose, point the app at it:
+
+```env
+STOCK_STREAMER_URL=http://127.0.0.1:8001
+```
+
 ### 2.5 Registration policy (internal usage)
 
 In `.env.local`:
@@ -128,7 +140,7 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
 4. Add one stocks asset using quantity input and a symbol (for example `AAPL` or `NVDA`).
 5. Verify:
    - Crypto value updates from live Coinbase ticker feed.
-   - Stock value updates from `wss://ws.realtime-finance.ws/stocks/{SYMBOL}` when the symbol stream is available.
+   - Stock value updates from the Yahoo-backed stock streamer via `/api/market/stocks`.
    - USD market price is converted to app currency via `/api/market/fx` (for example USD->SGD).
    - Savings + Assets values appear in dashboard/reporting summaries.
    - Savings page shows a combined market live-feed banner for crypto and stocks.
@@ -255,12 +267,15 @@ kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/pocketbase-bootstrap.yaml
 kubectl apply -f k8s/pocketbase-deployment.yaml
 kubectl apply -f k8s/pocketbase-service.yaml
+kubectl apply -f k8s/stock-streamer.yaml
 kubectl apply -f k8s/deployment.yaml
 ```
 
-Patch the frontend deployment to the immutable application image you want to run:
+Patch the stock-streamer and frontend deployments to the immutable images you want to run:
 
 ```bash
+kubectl -n wallet-app set image deployment/stock-streamer stock-streamer=winyannainghtut/wallet-stock-streamer:sha-<commit>
+kubectl rollout status deployment/stock-streamer -n wallet-app
 kubectl -n wallet-app set image deployment/wallet-frontend wallet-app=winyannainghtut/wallet-app:sha-<commit>
 kubectl rollout status deployment/wallet-frontend -n wallet-app
 ```

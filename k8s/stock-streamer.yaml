@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stock-streamer
+  namespace: wallet-app
+  labels:
+    app: stock-streamer
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stock-streamer
+  template:
+    metadata:
+      labels:
+        app: stock-streamer
+        tier: backend
+    spec:
+      containers:
+        - name: stock-streamer
+          # Replace with the desired immutable stock-streamer image digest or sha-<commit> tag during deployment.
+          image: winyannainghtut/wallet-stock-streamer:dev-latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: STOCK_REQUEST_TTL_SECONDS
+              value: "120"
+            - name: STOCK_QUOTE_STALE_SECONDS
+              value: "30"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1001
+            capabilities:
+              drop:
+                - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stock-streamer-service
+  namespace: wallet-app
+  labels:
+    app: stock-streamer
+    tier: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: stock-streamer
