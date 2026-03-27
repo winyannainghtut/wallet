@@ -16,7 +16,7 @@ import { t, getLanguage } from '@/i18n/config'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 export default function HistoryPage() {
-  const { expenses, deleteExpense, updateExpense, settings } = useApp()
+  const { expenses, personalExpenses, deleteExpense, updateExpense, settings } = useApp()
   const language = getLanguage()
   const displayCurrency = getCurrencyDisplayLabel(settings)
 
@@ -58,7 +58,11 @@ export default function HistoryPage() {
   }
 
   const hasFilters = Boolean(startDate || endDate || category !== 'all' || search)
-  const filteredTotal = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+  const personalExpenseAmountById = new Map(personalExpenses.map((expense) => [expense.id, expense.amount]))
+  const filteredTotal = filteredExpenses.reduce(
+    (sum, expense) => sum + (personalExpenseAmountById.get(expense.id) ?? expense.amount),
+    0
+  )
 
   const handleEdit = (expense: Expense) => {
     setEditingExpense(expense)

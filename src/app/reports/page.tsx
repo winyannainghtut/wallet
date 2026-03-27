@@ -25,7 +25,7 @@ function getDateKey(rawDate: string): string {
 
 export default function ReportsPage() {
   const language = getLanguage()
-  const { weeklySummary, monthlySummary, subscriptions, expenses, incomes, settings } = useApp()
+  const { weeklySummary, monthlySummary, subscriptions, personalExpenses, incomes, settings } = useApp()
   const currencyCode = settings.currency
   const displayCurrency = getCurrencyDisplayLabel(settings)
   const { totalAssetValue } = useSavingsAssetsPortfolio(currencyCode)
@@ -73,7 +73,7 @@ export default function ReportsPage() {
     return sum + income.amount
   }, 0)
 
-  const weeklyExpenseOnlyTotal = expenses.reduce((sum, expense) => {
+  const weeklyExpenseOnlyTotal = personalExpenses.reduce((sum, expense) => {
     const dateKey = getDateKey(expense.date)
     if (dateKey < format(weekStart, 'yyyy-MM-dd') || dateKey > format(weekEnd, 'yyyy-MM-dd')) {
       return sum
@@ -92,7 +92,7 @@ export default function ReportsPage() {
   const reportRangeStart = startOfMonth(subMonths(new Date(), 5))
   const reportRangeEnd = endOfMonth(new Date())
   const expensesWithSubsForReports = mergeExpensesWithSubscriptionOccurrences(
-    expenses,
+    personalExpenses,
     subscriptions,
     reportRangeStart,
     reportRangeEnd
@@ -140,7 +140,7 @@ export default function ReportsPage() {
       return acc
     }, {})
 
-  const weeklyExpenseByDate = expenses.reduce<Record<string, { amount: number; count: number }>>((acc, item) => {
+  const weeklyExpenseByDate = personalExpenses.reduce<Record<string, { amount: number; count: number }>>((acc, item) => {
     const key = getDateKey(item.date)
     if (key < format(weekStart, 'yyyy-MM-dd') || key > format(weekEnd, 'yyyy-MM-dd')) {
       return acc

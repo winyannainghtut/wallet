@@ -37,6 +37,7 @@ import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-f
 import { setLanguage as setI18nLanguage } from '@/i18n/config'
 import { useAuth } from '@/contexts/AuthContext'
 import { mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-expenses'
+import { applyPersonalExpenseShares } from '@/lib/expense-sharing'
 import { DEFAULT_APP_SETTINGS, hasCustomAppSettings, normalizeAppSettings } from '@/lib/settings'
 import { fetchUserPreferences, updateUserPreferences, type UserPreferencesResponse } from '@/lib/preferences-client'
 
@@ -166,6 +167,7 @@ async function getResponseError(response: Response, fallback: string): Promise<s
 interface AppContextType {
   // Expenses
   expenses: Expense[]
+  personalExpenses: Expense[]
   addExpense: (expense: Omit<Expense, 'id' | 'createdAt'>) => Promise<Expense>
   updateExpense: (id: string, updates: Partial<Omit<Expense, 'id' | 'createdAt'>>) => Promise<Expense | null>
   deleteExpense: (id: string) => Promise<boolean>
@@ -822,29 +824,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return true
   }, [isAuthenticated])
 
+  const personalExpenses = React.useMemo(
+    () => applyPersonalExpenseShares(expenses, trips),
+    [expenses, trips]
+  )
+
   // Summaries (include recurring subscriptions as part of spend)
   const todaySummary = React.useMemo(() => {
     const now = new Date()
     const dateKey = format(now, 'yyyy-MM-dd')
-    const withSubs = mergeExpensesWithSubscriptionOccurrences(expenses, subscriptions, now, now)
+    const withSubs = mergeExpensesWithSubscriptionOccurrences(personalExpenses, subscriptions, now, now)
     return getDailySummary(dateKey, withSubs)
-  }, [expenses, subscriptions])
+  }, [personalExpenses, subscriptions])
 
   const weeklySummary = React.useMemo(() => {
     const now = new Date()
     const weekStart = startOfWeek(now)
     const weekEnd = endOfWeek(now)
-    const withSubs = mergeExpensesWithSubscriptionOccurrences(expenses, subscriptions, weekStart, weekEnd)
+    const withSubs = mergeExpensesWithSubscriptionOccurrences(personalExpenses, subscriptions, weekStart, weekEnd)
     return getWeeklySummary(now, withSubs)
-  }, [expenses, subscriptions])
+  }, [personalExpenses, subscriptions])
 
   const monthlySummary = React.useMemo(() => {
     const now = new Date()
     const monthStart = startOfMonth(now)
     const monthEnd = endOfMonth(now)
-    const withSubs = mergeExpensesWithSubscriptionOccurrences(expenses, subscriptions, monthStart, monthEnd)
+    const withSubs = mergeExpensesWithSubscriptionOccurrences(personalExpenses, subscriptions, monthStart, monthEnd)
     return getMonthlySummary(now, withSubs)
-  }, [expenses, subscriptions])
+  }, [personalExpenses, subscriptions])
 
   // Settings
   const updateSettings = useCallback(async (newSettings: Partial<AppSettings>) => {
@@ -946,6 +953,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider
       value={{
         expenses,
+        personalExpenses,
         addExpense,
         updateExpense,
         deleteExpense,

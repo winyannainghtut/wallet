@@ -32,7 +32,7 @@ function normalizeDateKey(rawDate: string): string {
 
 export default function DashboardPage() {
   const { 
-    expenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, 
+    expenses, personalExpenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, 
     settings, currentUser 
   } = useApp()
   const displayCurrency = getCurrencyDisplayLabel(settings)
@@ -177,9 +177,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {(expenses.length > 0 || incomes.length > 0) && (
+      {(personalExpenses.length > 0 || incomes.length > 0) && (
         <AiInsightsCard 
-          expenses={expenses} 
+          expenses={personalExpenses} 
           incomes={incomes}
           subscriptions={subscriptions}
           monthlySavings={monthlySavings}
@@ -250,7 +250,7 @@ export default function DashboardPage() {
         {/* Category Chart */}
         <div className="lg:col-span-3">
           <IncomeExpenseBarChart
-            expenses={expenses}
+            expenses={personalExpenses}
             incomes={incomes}
             title="Trend"
             currency={displayCurrency}
@@ -267,7 +267,7 @@ export default function DashboardPage() {
       {/* AI Assistant */}
       <div>
         <ChatAssistant
-          expenses={expenses}
+          expenses={personalExpenses}
           incomes={incomes}
           subscriptions={subscriptions}
           monthlySavings={monthlySavings}
