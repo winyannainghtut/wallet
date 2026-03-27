@@ -40,18 +40,7 @@ import { mergeExpensesWithSubscriptionOccurrences } from '@/lib/subscription-exp
 import { applyPersonalExpenseShares } from '@/lib/expense-sharing'
 import { DEFAULT_APP_SETTINGS, hasCustomAppSettings, normalizeAppSettings } from '@/lib/settings'
 import { fetchUserPreferences, updateUserPreferences, type UserPreferencesResponse } from '@/lib/preferences-client'
-
-function normalizeExpenseDate(rawDate: string): string {
-  const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
-  if (datePartMatch?.[1]) return datePartMatch[1]
-
-  const parsed = new Date(rawDate)
-  if (!Number.isNaN(parsed.getTime())) {
-    return format(parsed, 'yyyy-MM-dd')
-  }
-
-  return rawDate
-}
+import { normalizeDateKey } from '@/lib/date-utils'
 
 type TransactionApiRecord = {
   id: string
@@ -63,6 +52,7 @@ type TransactionApiRecord = {
   updated?: string
   tripId?: string
   sharedGroupExpense?: boolean
+  paidByMemberId?: string
   type?: 'income' | 'expense' | string
 }
 
@@ -103,11 +93,15 @@ function mapExpenseRecord(item: TransactionApiRecord): Expense {
     amount: item.amount,
     category: item.category as Category,
     description: item.description || '',
-    date: normalizeExpenseDate(item.date),
+    date: normalizeDateKey(item.date),
     createdAt: item.created,
     updatedAt: item.updated,
     tripId,
     sharedGroupExpense: item.sharedGroupExpense === true,
+    paidByMemberId:
+      typeof item.paidByMemberId === 'string' && item.paidByMemberId.trim().length > 0
+        ? item.paidByMemberId
+        : undefined,
   }
 }
 
@@ -117,7 +111,7 @@ function mapIncomeRecord(item: TransactionApiRecord): Income {
     amount: item.amount,
     category: (item.category || 'other') as IncomeCategory,
     description: item.description || '',
-    date: normalizeExpenseDate(item.date),
+    date: normalizeDateKey(item.date),
     createdAt: item.created,
     updatedAt: item.updated,
   }
@@ -352,7 +346,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/transactions')
+      const res = await fetch('/api/transactions?perPage=500')
       if (res.ok) {
         const data = await res.json()
         const mappedExpenses: Expense[] = (data.items || [])
@@ -376,7 +370,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/incomes')
+      const res = await fetch('/api/incomes?perPage=500')
       if (res.ok) {
         const data = await res.json()
         const mappedIncomes: Income[] = (data.items || []).map(mapIncomeRecord)
@@ -398,7 +392,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/trips')
+      const res = await fetch('/api/trips?perPage=500')
       if (res.ok) {
         const data = await res.json()
         const mappedTrips: Trip[] = (data.items || []).map(mapTripRecord)
@@ -420,7 +414,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/subscriptions')
+      const res = await fetch('/api/subscriptions?perPage=500')
       if (res.ok) {
         const data = await res.json()
         const mappedSubscriptions: Subscription[] = (data.items || []).map(mapSubscriptionRecord)
@@ -483,12 +477,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     queueMicrotask(loadData)
   }, [isAuthenticated, user, loadUserData])
 
-  // Switch active user (local profiles)
+  // Reload data for the current authenticated user (only the PocketBase user is allowed)
   const switchUser = useCallback((userId: string) => {
     if (!user || userId !== user.id) return
     setActiveUserId(userId)
-    loadUserData()
     setProfiles(getProfiles())
+    void loadUserData()
   }, [user, loadUserData])
 
   const addProfile = useCallback((name: string, avatar?: string) => {
@@ -544,6 +538,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         date: expense.date,
         tripId: normalizedTripId,
         sharedGroupExpense: normalizedTripId ? expense.sharedGroupExpense === true : false,
+        paidByMemberId:
+          normalizedTripId && expense.sharedGroupExpense === true && typeof expense.paidByMemberId === 'string'
+            ? expense.paidByMemberId
+            : '',
       }),
     })
 
@@ -575,6 +573,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ...(normalizedTripId !== undefined ? { tripId: normalizedTripId } : {}),
       ...(normalizedTripId !== undefined
         ? { sharedGroupExpense: normalizedTripId ? updates.sharedGroupExpense === true : false }
+        : {}),
+      ...(normalizedTripId !== undefined
+        ? {
+            paidByMemberId:
+              normalizedTripId &&
+              updates.sharedGroupExpense === true &&
+              typeof updates.paidByMemberId === 'string'
+                ? updates.paidByMemberId
+                : '',
+          }
         : {}),
     }
 

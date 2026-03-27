@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CategoryPieChart, DailyBarChart, WeeklyTrendChart } from '@/components/Charts'
 import { useApp } from '@/contexts/AppContext'
 import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
+import { buildCashflowForecast, buildProjectedNetWorth } from '@/lib/cashflow'
 import { getWeeklySummary, getMonthlySummary } from '@/lib/storage'
 import { WeeklySummary, getCategoryLabel } from '@/types'
 import { t, getLanguage } from '@/i18n/config'
@@ -28,7 +29,7 @@ export default function ReportsPage() {
   const { weeklySummary, monthlySummary, subscriptions, personalExpenses, incomes, settings } = useApp()
   const currencyCode = settings.currency
   const displayCurrency = getCurrencyDisplayLabel(settings)
-  const { totalAssetValue } = useSavingsAssetsPortfolio(currencyCode)
+  const { totalAssetValue, sortedPortfolioAssets } = useSavingsAssetsPortfolio(currencyCode)
 
   // Monthly subscription cost
   const monthlySubCost = subscriptions
@@ -179,6 +180,26 @@ export default function ReportsPage() {
     return best
   }, null as WeeklySummary['dailyBreakdown'][number] | null)
   const activeSpendDays = weeklySummary.dailyBreakdown.filter(day => day.total > 0).length
+  const forecastDays = buildCashflowForecast({
+    expenses: personalExpenses,
+    incomes,
+    subscriptions,
+    portfolioAssets: sortedPortfolioAssets,
+    horizonDays: 180,
+  })
+  const next30ForecastDays = forecastDays.slice(0, 30)
+  const next30Income = next30ForecastDays.reduce((sum, day) => sum + day.income, 0)
+  const next30Outflows = next30ForecastDays.reduce((sum, day) => sum + day.expenses + day.subscriptions, 0)
+  const next30SavingsTransfers = next30ForecastDays.reduce((sum, day) => sum + day.savingsTransfers, 0)
+  const next30Net = next30ForecastDays.reduce((sum, day) => sum + day.net, 0)
+  const projectedNetWorthPoints = buildProjectedNetWorth(forecastDays, totalAssetValue, 6)
+  const sixMonthProjectedNetWorth = projectedNetWorthPoints[projectedNetWorthPoints.length - 1]?.projectedNetWorth ?? totalAssetValue
+  const maxProjectedNetWorth = Math.max(...projectedNetWorthPoints.map((point) => point.projectedNetWorth), totalAssetValue, 1)
+  const upcomingForecastEntries = forecastDays
+    .flatMap((day) => day.entries)
+    .filter((entry) => entry.date >= format(new Date(), 'yyyy-MM-dd'))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind))
+    .slice(0, 12)
 
   return (
     <div className="space-y-7">
@@ -193,6 +214,7 @@ export default function ReportsPage() {
         <TabsList className="rounded-xl border border-border/40 bg-muted/40 p-1 backdrop-blur-sm">
           <TabsTrigger value="weekly" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">{t('reports.weekly')}</TabsTrigger>
           <TabsTrigger value="monthly" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">{t('reports.monthly')}</TabsTrigger>
+          <TabsTrigger value="forecast" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">Forecast</TabsTrigger>
         </TabsList>
 
         <TabsContent value="weekly" className="space-y-6">
@@ -434,6 +456,133 @@ export default function ReportsPage() {
             title="6-Month Spend Trend"
             currency={displayCurrency}
           />
+        </TabsContent>
+
+        <TabsContent value="forecast" className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Next 30d Income</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums text-emerald-600">
+                  {Math.round(next30Income).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Next 30d Outflows</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums">
+                  {Math.round(next30Outflows).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Expenses + subscriptions</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Savings Transfers</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums text-primary">
+                  {Math.round(next30SavingsTransfers).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Recurring insurance and asset contributions</p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Next 30d Net</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className={`text-2xl font-bold tracking-tight tabular-nums ${next30Net >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                  {Math.round(next30Net).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">6-Month Projected Net Worth</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold tracking-tight tabular-nums text-primary">
+                  {Math.round(sixMonthProjectedNetWorth).toLocaleString()} <span className="text-base font-semibold text-muted-foreground">{displayCurrency}</span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">Tracked assets plus forecasted net cashflow</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base">Upcoming Cashflow</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {upcomingForecastEntries.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No scheduled cashflow events in the next 30 days.</p>
+                ) : (
+                  upcomingForecastEntries.map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between rounded-xl border border-border/40 px-4 py-3">
+                      <div className="space-y-1">
+                        <p className="font-medium">{entry.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(`${entry.date}T00:00:00`), 'EEE, MMM d')} • {entry.kind.replace('_', ' ')} • {entry.source}
+                        </p>
+                      </div>
+                      <span className={`font-semibold tabular-nums ${
+                        entry.kind === 'income'
+                          ? 'text-emerald-600'
+                          : entry.kind === 'savings_transfer'
+                            ? 'text-primary'
+                            : 'text-foreground'
+                      }`}>
+                        {entry.kind === 'income' ? '+' : '-'}{Math.round(entry.amount).toLocaleString()} {displayCurrency}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/40 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base">Projected Net Worth</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {projectedNetWorthPoints.map((point) => (
+                  <div key={point.month} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{point.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Net {Math.round(point.netCashflow).toLocaleString()} {displayCurrency}
+                          {' • '}
+                          Asset growth {Math.round(point.savingsTransferAmount).toLocaleString()} {displayCurrency}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold tabular-nums">
+                          {Math.round(point.projectedNetWorth).toLocaleString()} {displayCurrency}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Assets {Math.round(point.projectedAssets).toLocaleString()} {displayCurrency}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${Math.min(100, Math.max((point.projectedNetWorth / maxProjectedNetWorth) * 100, 0))}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

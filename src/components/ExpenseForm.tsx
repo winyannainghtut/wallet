@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { Sparkles, Wand2, Plane, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { CATEGORIES, Category, Expense, getCategoryLabel } from '@/types'
+import { CATEGORIES, Category, Expense, TripMember, getCategoryLabel } from '@/types'
 import { useApp } from '@/contexts/AppContext'
 import { isAiKeyNotConfiguredError, parseExpenseText, suggestCategory } from '@/lib/ai-client'
 import { t, getLanguage } from '@/i18n/config'
@@ -34,16 +34,100 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
   const [date, setDate] = useState(initialData?.date || format(new Date(), 'yyyy-MM-dd'))
   const [tripId, setTripId] = useState(initialData?.tripId || '')
   const [sharedGroupExpense, setSharedGroupExpense] = useState(initialData?.sharedGroupExpense === true)
+  const [paidByMemberId, setPaidByMemberId] = useState(initialData?.paidByMemberId || '')
+  const [tripMembers, setTripMembers] = useState<TripMember[]>([])
+  const [isTripMembersLoading, setIsTripMembersLoading] = useState(false)
   const [isSuggesting, setIsSuggesting] = useState(false)
   
   const language = getLanguage()
   const selectedTrip = trips.find((trip) => trip.id === tripId)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadTripMembers = async () => {
+      if (!tripId) {
+        setTripMembers([])
+        setPaidByMemberId('')
+        return
+      }
+
+      try {
+        setIsTripMembersLoading(true)
+        const response = await fetch(`/api/trip-members?tripId=${encodeURIComponent(tripId)}&perPage=200`)
+        const data = await response.json() as { items?: Array<{
+          id?: string
+          trip?: string
+          name?: string
+          isOwner?: boolean
+          sortOrder?: number
+          created?: string
+          updated?: string
+        }>, error?: string }
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load trip members')
+        }
+
+        const normalized = (data.items ?? [])
+          .filter((item) => item.id && item.trip === tripId && item.name)
+          .map((item) => ({
+            id: item.id as string,
+            tripId,
+            name: item.name as string,
+            isOwner: item.isOwner === true,
+            sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : undefined,
+            createdAt: item.created ?? new Date().toISOString(),
+            updatedAt: item.updated,
+          }))
+          .sort((a, b) => {
+            if (a.isOwner && !b.isOwner) return -1
+            if (!a.isOwner && b.isOwner) return 1
+            return (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+          })
+
+        if (cancelled) return
+        setTripMembers(normalized)
+
+        if (normalized.length === 0) {
+          setPaidByMemberId('')
+          return
+        }
+
+        setPaidByMemberId((current) => (
+          current && normalized.some((member) => member.id === current)
+            ? current
+            : normalized[0].id
+        ))
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load trip members:', error)
+          setTripMembers([])
+          setPaidByMemberId('')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsTripMembersLoading(false)
+        }
+      }
+    }
+
+    void loadTripMembers()
+
+    return () => {
+      cancelled = true
+    }
+  }, [tripId])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || !category || isSubmitting) return
 
     const normalizedTripId = tripId.trim()
+
+    if (normalizedTripId && sharedGroupExpense && !paidByMemberId) {
+      alert('Select who paid for this shared expense.')
+      return
+    }
 
     onSubmit({
       amount: parseFloat(amount),
@@ -52,6 +136,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
       date,
       tripId: normalizedTripId,
       sharedGroupExpense: normalizedTripId ? sharedGroupExpense : false,
+      paidByMemberId: normalizedTripId && sharedGroupExpense ? paidByMemberId : undefined,
     })
   }
 
@@ -150,7 +235,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
               />
               <p className="text-xs text-muted-foreground">
-                Paste an SMS, receipt text, or simply describe what you spent.
+                {t('expense.magicAddHint')}
               </p>
             </div>
             <Button
@@ -263,7 +348,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background"
               />
               <p className="text-xs text-muted-foreground/80">
-                Add context like place or purpose for smarter insights.
+                {t('expense.descriptionHint')}
               </p>
             </div>
 
@@ -280,6 +365,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                     const nextTripId = value === 'none' ? '' : value || ''
                     if (nextTripId !== tripId) {
                       setSharedGroupExpense(false)
+                      setPaidByMemberId('')
                     }
                     setTripId(nextTripId)
                   }}
@@ -301,7 +387,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
               <div className="space-y-2 rounded-xl border border-border/40 bg-muted/15 p-4">
                 <Label htmlFor="trip-expense-scope" className="flex items-center gap-1.5 text-sm font-medium">
                   <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                  Trip Expense Scope
+                  {t('expense.tripExpenseScope')}
                 </Label>
                 <Select
                   value={sharedGroupExpense ? 'shared-group' : 'personal'}
@@ -314,8 +400,8 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="personal">Personal</SelectItem>
-                    <SelectItem value="shared-group">Shared Friend Group</SelectItem>
+                    <SelectItem value="personal">{t('expense.personal')}</SelectItem>
+                    <SelectItem value="shared-group">{t('expense.sharedGroup')}</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
@@ -323,6 +409,37 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                     ? `This expense will count toward ${selectedTrip.groupName || 'the shared friend group fund'} for ${selectedTrip.name}.`
                     : `This expense stays as your personal cost inside ${selectedTrip.name}.`}
                 </p>
+                {sharedGroupExpense && (
+                  <div className="space-y-2 pt-1">
+                    <Label htmlFor="trip-paid-by" className="text-sm font-medium">
+                      {t('expense.paidBy')}
+                    </Label>
+                    <Select
+                      value={paidByMemberId || undefined}
+                      onValueChange={(value) => setPaidByMemberId(value || '')}
+                      disabled={isTripMembersLoading || tripMembers.length === 0}
+                    >
+                      <SelectTrigger
+                        id="trip-paid-by"
+                        className="rounded-xl border-border/60 bg-background/80 transition-all focus:bg-background"
+                      >
+                        <SelectValue placeholder={tripMembers.length === 0 ? t('expense.addTripMembersFirst') : t('expense.selectPayer')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tripMembers.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.name}{member.isOwner ? ' (You)' : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {tripMembers.length === 0
+                        ? t('expense.addTripMembersHint')
+                        : t('expense.payerHint')}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

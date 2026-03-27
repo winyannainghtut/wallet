@@ -4,16 +4,19 @@ import { type ComponentType, useEffect, useMemo, useState } from 'react'
 import { endOfMonth, format, startOfMonth } from 'date-fns'
 import { ArrowDownRight, ArrowUpRight, Coins, Edit2, PiggyBank, PlusCircle, Repeat, Shield, Target, Trash2, TrendingUp, Wallet, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/contexts/AppContext'
+import { useFundGoals } from '@/hooks/useFundGoals'
 import { getCryptoAssetSymbol, normalizeAssetSymbol, useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t } from '@/i18n/config'
-import { SavingsAsset, SavingsAssetType, SavingsGoal } from '@/types'
+import { FundGoal, SavingsAsset, SavingsAssetType, SavingsGoal } from '@/types'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
 
 type SavingsGoalApiRecord = {
@@ -46,6 +49,19 @@ type AssetFormState = {
   recurringMonthlyAmount: string
   recurringStartDate: string
   note: string
+}
+
+type FundGoalFormState = {
+  name: string
+  targetAmount: string
+  targetDate: string
+  monthlyContribution: string
+  includeMonthlySavings: boolean
+  linkedTripId: string
+  linkedAssetIds: string[]
+  note: string
+  status: FundGoal['status']
+  color: string
 }
 
 function normalizeDateKey(rawDate: string): string {
@@ -90,8 +106,18 @@ const ASSET_TYPE_META: Record<SavingsAssetType, { label: string; icon: Component
   personal_funds: { label: 'Personal Saving Funds', icon: Wallet },
 }
 
+function formatFundGoalStatus(status: FundGoal['status']): string {
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
+function getFundGoalBadgeVariant(status: FundGoal['status']): 'default' | 'secondary' | 'outline' {
+  if (status === 'completed') return 'default'
+  if (status === 'archived') return 'outline'
+  return 'secondary'
+}
+
 export default function SavingsPage() {
-  const { incomes, monthlySummary, subscriptions, settings } = useApp()
+  const { incomes, monthlySummary, subscriptions, settings, trips } = useApp()
   const displayCurrency = getCurrencyDisplayLabel(settings)
   const [goals, setGoals] = useState<SavingsGoal[]>([])
   const [isGoalsLoading, setIsGoalsLoading] = useState(true)
@@ -118,6 +144,22 @@ export default function SavingsPage() {
     note: '',
   })
   const [isRecurringInsuranceEnabled, setIsRecurringInsuranceEnabled] = useState(false)
+  const [isFundGoalDialogOpen, setIsFundGoalDialogOpen] = useState(false)
+  const [isFundGoalSaving, setIsFundGoalSaving] = useState(false)
+  const [deletingFundGoalId, setDeletingFundGoalId] = useState<string | null>(null)
+  const [editingFundGoal, setEditingFundGoal] = useState<FundGoal | null>(null)
+  const [fundGoalForm, setFundGoalForm] = useState<FundGoalFormState>({
+    name: '',
+    targetAmount: '',
+    targetDate: '',
+    monthlyContribution: '',
+    includeMonthlySavings: true,
+    linkedTripId: '',
+    linkedAssetIds: [],
+    note: '',
+    status: 'active',
+    color: '#6366f1',
+  })
   const {
     isAssetsLoading,
     assetsError,
@@ -152,6 +194,12 @@ export default function SavingsPage() {
   const monthlyExpense = monthlySummary.total
   const monthlySavings = monthlyIncome - monthlyExpense
   const savingsRate = monthlyIncome > 0 ? (monthlySavings / monthlyIncome) * 100 : 0
+  const {
+    enrichedGoals: enrichedFundGoals,
+    isLoading: isFundGoalsLoading,
+    error: fundGoalsError,
+    refreshGoals: refreshFundGoals,
+  } = useFundGoals(sortedPortfolioAssets, trips, monthlySavings)
 
   const monthlySubscriptionCost = subscriptions
     .filter((item) => item.isActive)
@@ -178,6 +226,36 @@ export default function SavingsPage() {
   const remainingAmount = currentGoal ? Math.max(currentGoal.targetAmount - positiveMonthlySavings, 0) : 0
   const exceededAmount = currentGoal ? Math.max(positiveMonthlySavings - currentGoal.targetAmount, 0) : 0
   const goalReached = Boolean(currentGoal && positiveMonthlySavings >= currentGoal.targetAmount)
+  const activeFundGoals = useMemo(
+    () => enrichedFundGoals
+      .filter((goal) => goal.status === 'active')
+      .sort((a, b) => {
+        if (a.targetDate && b.targetDate) return a.targetDate.localeCompare(b.targetDate)
+        if (a.targetDate) return -1
+        if (b.targetDate) return 1
+        return b.progressPercentage - a.progressPercentage
+      }),
+    [enrichedFundGoals]
+  )
+  const sortedFundGoals = useMemo(
+    () => [...enrichedFundGoals].sort((a, b) => {
+      if (a.status !== b.status) {
+        if (a.status === 'active') return -1
+        if (b.status === 'active') return 1
+        if (a.status === 'completed') return -1
+        if (b.status === 'completed') return 1
+      }
+      if (a.targetDate && b.targetDate) return a.targetDate.localeCompare(b.targetDate)
+      if (a.targetDate) return -1
+      if (b.targetDate) return 1
+      return b.progressPercentage - a.progressPercentage
+    }),
+    [enrichedFundGoals]
+  )
+  const fundGoalCurrentAmount = activeFundGoals.reduce((sum, goal) => sum + goal.currentAmount, 0)
+  const fundGoalTargetAmount = activeFundGoals.reduce((sum, goal) => sum + goal.targetAmount, 0)
+  const fundGoalProjectedMonthly = activeFundGoals.reduce((sum, goal) => sum + goal.projectedMonthlyContribution, 0)
+  const fundGoalsOnTrack = activeFundGoals.filter((goal) => goal.isOnTrack !== false).length
 
   const openCreateGoalDialog = () => {
     setEditingGoal(null)
@@ -233,6 +311,49 @@ export default function SavingsPage() {
       Boolean(asset.recurringStartDate)
     )
     setIsAssetDialogOpen(true)
+  }
+
+  const openCreateFundGoalDialog = () => {
+    setEditingFundGoal(null)
+    setFundGoalForm({
+      name: '',
+      targetAmount: '',
+      targetDate: '',
+      monthlyContribution: '',
+      includeMonthlySavings: true,
+      linkedTripId: '',
+      linkedAssetIds: [],
+      note: '',
+      status: 'active',
+      color: '#6366f1',
+    })
+    setIsFundGoalDialogOpen(true)
+  }
+
+  const openEditFundGoalDialog = (goal: FundGoal) => {
+    setEditingFundGoal(goal)
+    setFundGoalForm({
+      name: goal.name,
+      targetAmount: String(goal.targetAmount),
+      targetDate: goal.targetDate ?? '',
+      monthlyContribution: goal.monthlyContribution ? String(goal.monthlyContribution) : '',
+      includeMonthlySavings: goal.includeMonthlySavings === true,
+      linkedTripId: goal.linkedTripId ?? '',
+      linkedAssetIds: goal.linkedAssetIds,
+      note: goal.note ?? '',
+      status: goal.status,
+      color: goal.color ?? '#6366f1',
+    })
+    setIsFundGoalDialogOpen(true)
+  }
+
+  const toggleLinkedAsset = (assetId: string) => {
+    setFundGoalForm((prev) => ({
+      ...prev,
+      linkedAssetIds: prev.linkedAssetIds.includes(assetId)
+        ? prev.linkedAssetIds.filter((id) => id !== assetId)
+        : [...prev.linkedAssetIds, assetId],
+    }))
   }
 
   const fetchGoals = async () => {
@@ -450,6 +571,101 @@ export default function SavingsPage() {
     }
   }
 
+  const handleSaveFundGoal = async () => {
+    if (!fundGoalForm.name.trim()) {
+      alert('Goal name is required.')
+      return
+    }
+
+    const parsedTargetAmount = Number(fundGoalForm.targetAmount)
+    if (Number.isNaN(parsedTargetAmount) || parsedTargetAmount < 0) {
+      alert('Target amount must be a non-negative number.')
+      return
+    }
+
+    const parsedMonthlyContribution = fundGoalForm.monthlyContribution.trim().length > 0
+      ? Number(fundGoalForm.monthlyContribution)
+      : null
+    if (
+      parsedMonthlyContribution !== null &&
+      (Number.isNaN(parsedMonthlyContribution) || parsedMonthlyContribution < 0)
+    ) {
+      alert('Monthly contribution must be a non-negative number.')
+      return
+    }
+
+    if (
+      fundGoalForm.targetDate.trim() &&
+      !/^\d{4}-\d{2}-\d{2}$/.test(fundGoalForm.targetDate)
+    ) {
+      alert('Target date must use YYYY-MM-DD format.')
+      return
+    }
+
+    const payload = {
+      name: fundGoalForm.name.trim(),
+      targetAmount: parsedTargetAmount,
+      targetDate: fundGoalForm.targetDate.trim() || undefined,
+      monthlyContribution: parsedMonthlyContribution,
+      includeMonthlySavings: fundGoalForm.includeMonthlySavings,
+      linkedTripId: fundGoalForm.linkedTripId || undefined,
+      linkedAssets: fundGoalForm.linkedAssetIds,
+      note: fundGoalForm.note.trim() || undefined,
+      status: fundGoalForm.status,
+      color: fundGoalForm.color.trim() || undefined,
+    }
+
+    try {
+      setIsFundGoalSaving(true)
+      const url = editingFundGoal ? `/api/fund-goals/${editingFundGoal.id}` : '/api/fund-goals'
+      const method = editingFundGoal ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+      const data = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save fund goal')
+      }
+
+      setIsFundGoalDialogOpen(false)
+      setEditingFundGoal(null)
+      await refreshFundGoals()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save fund goal'
+      alert(message)
+    } finally {
+      setIsFundGoalSaving(false)
+    }
+  }
+
+  const handleDeleteFundGoal = async (goalId: string) => {
+    if (!confirm('Are you sure you want to delete this fund goal?')) {
+      return
+    }
+
+    try {
+      setDeletingFundGoalId(goalId)
+      const response = await fetch(`/api/fund-goals/${goalId}`, {
+        method: 'DELETE',
+      })
+      const data = (await response.json()) as { error?: string }
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete fund goal')
+      }
+      await refreshFundGoals()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete fund goal'
+      alert(message)
+    } finally {
+      setDeletingFundGoalId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="space-y-1">
@@ -597,6 +813,369 @@ export default function SavingsPage() {
                 </p>
               </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/40">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Target className="h-4 w-4 text-primary" />
+              Fund Goals
+            </CardTitle>
+            <CardDescription>
+              Link assets, trips, and monthly savings to long-term funding goals.
+            </CardDescription>
+          </div>
+          <Button onClick={openCreateFundGoalDialog} className="rounded-xl">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Add Fund Goal
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {fundGoalsError && (
+            <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+              {fundGoalsError}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-border/50 px-4 py-3">
+              <p className="text-xs uppercase text-muted-foreground">Active Goals</p>
+              <p className="mt-1 text-lg font-semibold">{activeFundGoals.length}</p>
+            </div>
+            <div className="rounded-xl border border-border/50 px-4 py-3">
+              <p className="text-xs uppercase text-muted-foreground">Tracked Amount</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {Math.round(fundGoalCurrentAmount).toLocaleString()} {displayCurrency}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/50 px-4 py-3">
+              <p className="text-xs uppercase text-muted-foreground">Target Total</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {Math.round(fundGoalTargetAmount).toLocaleString()} {displayCurrency}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border/50 px-4 py-3">
+              <p className="text-xs uppercase text-muted-foreground">Projected Monthly</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums">
+                {Math.round(fundGoalProjectedMonthly).toLocaleString()} {displayCurrency}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {fundGoalsOnTrack}/{activeFundGoals.length || 0} on track
+              </p>
+            </div>
+          </div>
+
+          {isFundGoalsLoading ? (
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+          ) : sortedFundGoals.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+              No fund goals yet. Create one to track a trip fund, emergency fund, or other long-term target.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sortedFundGoals.map((goal) => (
+                <div
+                  key={goal.id}
+                  className="space-y-4 rounded-xl border border-border/40 p-4"
+                  style={goal.color ? { borderColor: `${goal.color}55` } : undefined}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{goal.name}</p>
+                        <Badge variant={getFundGoalBadgeVariant(goal.status)}>
+                          {formatFundGoalStatus(goal.status)}
+                        </Badge>
+                        {goal.isOnTrack !== undefined && (
+                          <Badge variant={goal.isOnTrack ? 'default' : 'secondary'}>
+                            {goal.isOnTrack ? 'On Track' : 'Behind'}
+                          </Badge>
+                        )}
+                        {goal.color && (
+                          <span
+                            className="h-3 w-3 rounded-full border border-border/50"
+                            style={{ backgroundColor: goal.color }}
+                            aria-hidden="true"
+                          />
+                        )}
+                      </div>
+                      {goal.note && (
+                        <p className="text-sm text-muted-foreground">{goal.note}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        {goal.targetDate && <span>Target by {format(new Date(`${goal.targetDate}T00:00:00`), 'MMM d, yyyy')}</span>}
+                        {goal.linkedTrip && <span>Trip: {goal.linkedTrip.name}</span>}
+                        {goal.includeMonthlySavings && <span>Includes monthly savings</span>}
+                        <span>{goal.linkedAssets.length} linked assets</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="icon" onClick={() => openEditFundGoalDialog(goal)} className="h-8 w-8 rounded-lg">
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => void handleDeleteFundGoal(goal.id)}
+                        className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10"
+                        disabled={deletingFundGoalId === goal.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-xl border border-border/50 px-4 py-3">
+                      <p className="text-xs uppercase text-muted-foreground">Current</p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {Math.round(goal.currentAmount).toLocaleString()} {displayCurrency}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 px-4 py-3">
+                      <p className="text-xs uppercase text-muted-foreground">Target</p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {Math.round(goal.targetAmount).toLocaleString()} {displayCurrency}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 px-4 py-3">
+                      <p className="text-xs uppercase text-muted-foreground">Remaining</p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {Math.round(goal.remainingAmount).toLocaleString()} {displayCurrency}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/50 px-4 py-3">
+                      <p className="text-xs uppercase text-muted-foreground">Projected Monthly</p>
+                      <p className="mt-1 text-lg font-semibold tabular-nums">
+                        {Math.round(goal.projectedMonthlyContribution).toLocaleString()} {displayCurrency}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">Progress</span>
+                      <span className="font-semibold tabular-nums">{goal.progressPercentage.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{
+                          width: `${goal.progressPercentage}%`,
+                          backgroundColor: goal.color || undefined,
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {goal.projectedCompletionDate
+                        ? `Projected completion ${format(new Date(`${goal.projectedCompletionDate}T00:00:00`), 'MMM d, yyyy')}`
+                        : 'Add linked assets or monthly contributions to estimate completion.'}
+                    </p>
+                  </div>
+
+                  {goal.linkedAssets.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {goal.linkedAssets.map((asset) => (
+                        <Badge key={asset.asset.id} variant="outline">
+                          {asset.asset.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/40">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Target className="h-4 w-4 text-primary" />
+              Fund Goals
+            </CardTitle>
+            <CardDescription>
+              Link savings assets and trips to larger goals like emergency fund, travel, or investing milestones.
+            </CardDescription>
+          </div>
+          <Button onClick={openCreateFundGoalDialog} className="rounded-xl">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Add Fund Goal
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isFundGoalsLoading ? (
+            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+          ) : (
+            <>
+              {fundGoalsError && (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                  {fundGoalsError}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-xl border border-border/50 px-4 py-3">
+                  <p className="text-xs uppercase text-muted-foreground">Active Goals</p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums">{activeFundGoals.length}</p>
+                </div>
+                <div className="rounded-xl border border-border/50 px-4 py-3">
+                  <p className="text-xs uppercase text-muted-foreground">Linked Assets Value</p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums">
+                    {Math.round(fundGoalCurrentAmount).toLocaleString()} {displayCurrency}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border/50 px-4 py-3">
+                  <p className="text-xs uppercase text-muted-foreground">Projected Monthly Toward Goals</p>
+                  <p className="mt-1 text-lg font-semibold tabular-nums">
+                    {Math.round(fundGoalProjectedMonthly).toLocaleString()} {displayCurrency}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{fundGoalsOnTrack}/{activeFundGoals.length || 0} on track</p>
+                </div>
+              </div>
+
+              {enrichedFundGoals.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+                  No fund goals yet. Create a goal, attach one or more savings assets, and the app will project completion using recurring contributions and your monthly savings.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {enrichedFundGoals.map((goal) => (
+                    <div
+                      key={goal.id}
+                      className="space-y-4 rounded-xl border border-border/40 p-4"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: goal.color ?? '#6366f1' }}
+                            />
+                            <p className="font-semibold">{goal.name}</p>
+                            <Badge variant={goal.status === 'completed' ? 'default' : goal.status === 'archived' ? 'outline' : 'secondary'}>
+                              {goal.status}
+                            </Badge>
+                            {goal.isOnTrack !== undefined && (
+                              <Badge variant={goal.isOnTrack ? 'default' : 'secondary'}>
+                                {goal.isOnTrack ? 'On track' : 'Behind'}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            Target {Math.round(goal.targetAmount).toLocaleString()} {displayCurrency}
+                            {goal.targetDate ? ` by ${format(new Date(`${goal.targetDate}T00:00:00`), 'MMM d, yyyy')}` : ''}
+                          </p>
+                          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                            {goal.linkedTrip && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
+                                Trip: {goal.linkedTrip.name}
+                              </span>
+                            )}
+                            {goal.includeMonthlySavings && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
+                                Includes monthly savings
+                              </span>
+                            )}
+                            {goal.monthlyContribution && goal.monthlyContribution > 0 && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
+                                Manual +{Math.round(goal.monthlyContribution).toLocaleString()} {displayCurrency}/mo
+                              </span>
+                            )}
+                            {goal.linkedAssets.length > 0 && (
+                              <span className="rounded-full bg-muted px-2 py-0.5 font-medium">
+                                {goal.linkedAssets.length} linked assets
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => openEditFundGoalDialog(goal)} className="h-8 w-8 rounded-lg">
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => void handleDeleteFundGoal(goal.id)}
+                            className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10"
+                            disabled={deletingFundGoalId === goal.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-border/50 px-4 py-3">
+                          <p className="text-xs uppercase text-muted-foreground">Current Value</p>
+                          <p className="mt-1 text-lg font-semibold tabular-nums">
+                            {Math.round(goal.currentAmount).toLocaleString()} {displayCurrency}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-border/50 px-4 py-3">
+                          <p className="text-xs uppercase text-muted-foreground">Remaining</p>
+                          <p className="mt-1 text-lg font-semibold tabular-nums">
+                            {Math.round(goal.remainingAmount).toLocaleString()} {displayCurrency}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-border/50 px-4 py-3">
+                          <p className="text-xs uppercase text-muted-foreground">Projected Monthly</p>
+                          <p className="mt-1 text-lg font-semibold tabular-nums">
+                            {Math.round(goal.projectedMonthlyContribution).toLocaleString()} {displayCurrency}
+                          </p>
+                          {goal.projectedCompletionDate && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Finishes around {format(new Date(`${goal.projectedCompletionDate}T00:00:00`), 'MMM d, yyyy')}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Progress</span>
+                          <span className="font-semibold tabular-nums">{goal.progressPercentage.toFixed(1)}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{
+                              width: `${Math.min(100, Math.max(goal.progressPercentage, 0))}%`,
+                              backgroundColor: goal.color ?? '#6366f1',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {goal.linkedAssets.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {goal.linkedAssets.map((asset) => (
+                            <Badge key={asset.asset.id} variant="outline">
+                              {asset.asset.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      {goal.note && (
+                        <p className="text-sm text-muted-foreground">{goal.note}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {activeFundGoals.length > 0 && fundGoalTargetAmount > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Active goals are {((fundGoalCurrentAmount / fundGoalTargetAmount) * 100).toFixed(1)}% funded overall.
+                </p>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -917,6 +1496,191 @@ export default function SavingsPage() {
             <Button variant="outline" onClick={() => setIsGoalDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={() => void handleSaveGoal()} disabled={isGoalSaving}>
               {isGoalSaving ? `${t('common.save')}...` : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isFundGoalDialogOpen}
+        onOpenChange={(open) => {
+          setIsFundGoalDialogOpen(open)
+          if (!open) {
+            setEditingFundGoal(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>{editingFundGoal ? 'Edit Fund Goal' : 'Add Fund Goal'}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Goal Name</Label>
+                <Input
+                  value={fundGoalForm.name}
+                  onChange={(e) => setFundGoalForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="Emergency fund, Japan 2027, Retirement top-up..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={fundGoalForm.status}
+                  onValueChange={(value) => {
+                    if (value === 'active' || value === 'completed' || value === 'archived') {
+                      setFundGoalForm((prev) => ({ ...prev, status: value }))
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Target Amount</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={fundGoalForm.targetAmount}
+                  onChange={(e) => setFundGoalForm((prev) => ({ ...prev, targetAmount: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Target Date</Label>
+                <Input
+                  type="date"
+                  value={fundGoalForm.targetDate}
+                  onChange={(e) => setFundGoalForm((prev) => ({ ...prev, targetDate: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
+              <div className="space-y-2">
+                <Label>Monthly Contribution</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={fundGoalForm.monthlyContribution}
+                  onChange={(e) => setFundGoalForm((prev) => ({ ...prev, monthlyContribution: e.target.value }))}
+                  placeholder="Optional manual monthly amount"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Color</Label>
+                <Input
+                  type="color"
+                  value={fundGoalForm.color}
+                  onChange={(e) => setFundGoalForm((prev) => ({ ...prev, color: e.target.value }))}
+                  className="h-10 w-20 p-1"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-start justify-between rounded-xl border border-border/50 bg-muted/15 px-4 py-3">
+              <div className="space-y-1">
+                <Label className="text-sm font-medium">Include Net Monthly Savings</Label>
+                <p className="text-xs text-muted-foreground">
+                  Automatically count this month&apos;s net savings toward the goal projection.
+                </p>
+              </div>
+              <Switch
+                checked={fundGoalForm.includeMonthlySavings}
+                onCheckedChange={(checked) => setFundGoalForm((prev) => ({ ...prev, includeMonthlySavings: checked }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Linked Trip</Label>
+              <Select
+                value={fundGoalForm.linkedTripId || 'none'}
+                onValueChange={(value) => setFundGoalForm((prev) => ({ ...prev, linkedTripId: value === 'none' ? '' : (value ?? '') }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No linked trip</SelectItem>
+                  {trips.map((trip) => (
+                    <SelectItem key={trip.id} value={trip.id}>
+                      {trip.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Linked Assets</Label>
+                <p className="text-xs text-muted-foreground">
+                  Pick the savings assets that already belong to this goal.
+                </p>
+              </div>
+              {sortedPortfolioAssets.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/60 p-4 text-sm text-muted-foreground">
+                  Add savings assets first, then link them here.
+                </div>
+              ) : (
+                <div className="grid gap-2">
+                  {sortedPortfolioAssets.map((asset) => {
+                    const isSelected = fundGoalForm.linkedAssetIds.includes(asset.asset.id)
+                    return (
+                      <button
+                        key={asset.asset.id}
+                        type="button"
+                        onClick={() => toggleLinkedAsset(asset.asset.id)}
+                        className={[
+                          'flex items-center justify-between rounded-xl border px-3 py-2 text-left transition-all',
+                          isSelected
+                            ? 'border-primary bg-primary/10'
+                            : 'border-border/50 bg-background hover:bg-muted/20',
+                        ].join(' ')}
+                      >
+                        <div>
+                          <p className="font-medium">{asset.asset.name}</p>
+                          <p className="text-xs text-muted-foreground">{ASSET_TYPE_META[asset.asset.type].label}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold tabular-nums">
+                            {Math.round(asset.currentValue).toLocaleString()} {displayCurrency}
+                          </p>
+                          {isSelected && <p className="text-xs text-primary">Linked</p>}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Note</Label>
+              <Textarea
+                value={fundGoalForm.note}
+                onChange={(e) => setFundGoalForm((prev) => ({ ...prev, note: e.target.value }))}
+                placeholder="Optional notes about this goal"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFundGoalDialogOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void handleSaveFundGoal()} disabled={isFundGoalSaving}>
+              {isFundGoalSaving ? `${t('common.save')}...` : t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

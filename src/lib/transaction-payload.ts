@@ -15,6 +15,7 @@ type TransactionPayloadInput = {
   tripId?: unknown
   trip?: unknown
   sharedGroupExpense?: unknown
+  paidByMemberId?: unknown
 }
 
 type ExistingTransaction = {
@@ -22,6 +23,7 @@ type ExistingTransaction = {
   tripId?: unknown
   trip?: unknown
   sharedGroupExpense?: unknown
+  paidByMemberId?: unknown
 }
 
 type ParseOptions = {
@@ -99,6 +101,24 @@ async function ensureTripExistsForUser(
   }
 }
 
+async function ensureTripMemberExistsForTrip(
+  pb: ReturnType<typeof createPbServer>,
+  userId: string,
+  tripId: string,
+  memberId: string
+): Promise<boolean> {
+  try {
+    const member = await pb.collection('trip_members').getOne(memberId)
+    return member.user === userId && member.trip === tripId
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return false
+    }
+
+    throw error
+  }
+}
+
 export function escapeFilterValue(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
@@ -121,6 +141,7 @@ export async function parseTransactionPayload(
   const hasDate = hasOwn(body, 'date')
   const hasTripId = hasOwn(body, 'tripId')
   const hasSharedGroupExpense = hasOwn(body, 'sharedGroupExpense')
+  const hasPaidByMemberId = hasOwn(body, 'paidByMemberId')
 
   const nextType = hasType ? normalizeType(body.type) : null
   if ((!partial || hasType) && !nextType) {
@@ -151,6 +172,7 @@ export async function parseTransactionPayload(
   const existingType = normalizeType(options.existing?.type)
   const existingTripId = normalizeTripId(options.existing?.tripId ?? options.existing?.trip)
   const existingSharedGroupExpense = options.existing?.sharedGroupExpense === true
+  const existingPaidByMemberId = normalizeTripId(options.existing?.paidByMemberId)
 
   const effectiveType = nextType ?? existingType
   if (!effectiveType) {
@@ -159,6 +181,7 @@ export async function parseTransactionPayload(
 
   const requestedTripId = hasTripId ? normalizeTripId(body.tripId) : undefined
   const requestedSharedGroupExpense = hasSharedGroupExpense ? body.sharedGroupExpense === true : undefined
+  const requestedPaidByMemberId = hasPaidByMemberId ? normalizeTripId(body.paidByMemberId) : undefined
 
   const effectiveTripId = effectiveType === 'income'
     ? ''
@@ -171,6 +194,11 @@ export async function parseTransactionPayload(
     : effectiveTripId
       ? requestedSharedGroupExpense ?? existingSharedGroupExpense
       : false
+  const effectivePaidByMemberId = effectiveType === 'income'
+    ? ''
+    : effectiveSharedGroupExpense
+      ? requestedPaidByMemberId ?? existingPaidByMemberId
+      : ''
 
   if (effectiveType === 'expense' && effectiveSharedGroupExpense && !effectiveTripId) {
     return { error: 'sharedGroupExpense requires a tripId' }
@@ -180,6 +208,22 @@ export async function parseTransactionPayload(
     const tripExists = await ensureTripExistsForUser(options.pb, options.userId, effectiveTripId)
     if (!tripExists) {
       return { error: 'tripId must reference an existing trip for this user' }
+    }
+  }
+
+  if (effectiveType === 'expense' && effectiveSharedGroupExpense && !effectivePaidByMemberId) {
+    return { error: 'paidByMemberId is required for shared group expenses' }
+  }
+
+  if (effectiveType === 'expense' && effectiveSharedGroupExpense && effectiveTripId && effectivePaidByMemberId) {
+    const memberExists = await ensureTripMemberExistsForTrip(
+      options.pb,
+      options.userId,
+      effectiveTripId,
+      effectivePaidByMemberId
+    )
+    if (!memberExists) {
+      return { error: 'paidByMemberId must reference a member of the selected trip' }
     }
   }
 
@@ -194,11 +238,13 @@ export async function parseTransactionPayload(
     !partial ||
     hasTripId ||
     hasSharedGroupExpense ||
+    hasPaidByMemberId ||
     (hasType && effectiveType !== existingType)
 
   if (shouldIncludeTripState) {
     payload.tripId = effectiveTripId
     payload.sharedGroupExpense = effectiveSharedGroupExpense
+    payload.paidByMemberId = effectivePaidByMemberId
   }
 
   return { data: payload }

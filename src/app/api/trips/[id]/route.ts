@@ -56,18 +56,21 @@ async function clearTripReference(
   recordId: string
 ): Promise<boolean> {
   const payloads: Array<Record<string, unknown>> = [
-    { tripId: null, sharedGroupExpense: false },
-    { tripId: '', sharedGroupExpense: false },
-    { tripId: [], sharedGroupExpense: false },
-    { trip: null, sharedGroupExpense: false },
-    { trip: '', sharedGroupExpense: false },
-    { trip: [], sharedGroupExpense: false },
+    { tripId: null, sharedGroupExpense: false, paidByMemberId: null },
+    { tripId: '', sharedGroupExpense: false, paidByMemberId: '' },
+    { tripId: [], sharedGroupExpense: false, paidByMemberId: [] },
+    { trip: null, sharedGroupExpense: false, paidByMemberId: null },
+    { trip: '', sharedGroupExpense: false, paidByMemberId: '' },
+    { trip: [], sharedGroupExpense: false, paidByMemberId: [] },
     { tripId: null },
     { tripId: '' },
     { tripId: [] },
     { trip: null },
     { trip: '' },
     { trip: [] },
+    { paidByMemberId: null },
+    { paidByMemberId: '' },
+    { paidByMemberId: [] },
   ]
 
   for (const payload of payloads) {

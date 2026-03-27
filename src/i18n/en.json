@@ -30,7 +30,12 @@
     "warning": "Warning",
     "commandPalette": "Search or jump to...",
     "quickActions": "Quick Actions",
-    "navigation": "Navigation"
+    "navigation": "Navigation",
+    "logout": "Logout",
+    "yes": "Yes",
+    "no": "No",
+    "items": "items",
+    "entriesMatched": "entries matched"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -43,7 +48,9 @@
     "aiAssistant": "AI Assistant",
     "trips": "Trips",
     "subscriptions": "Subscriptions",
-    "calendar": "Calendar"
+    "calendar": "Calendar",
+    "collapse": "Collapse",
+    "expand": "Expand"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -55,6 +62,14 @@
     "expenseIncomeRatio": "Expense/Income Ratio",
     "recentExpenses": "Recent Expenses",
     "quickAdd": "Quick Add",
+    "addIncome": "Add Income",
+    "fundGoals": "Fund Goals",
+    "fundGoalsDesc": "Linked savings assets and projected completion dates for your next milestones.",
+    "manageGoals": "Manage Goals",
+    "trackedAssets": "Tracked Assets",
+    "trackedAssetsDesc": "Insurance, crypto, stocks, and personal funds",
+    "recentTransactions": "Recent Transactions",
+    "noRecentTransactions": "No recent transactions",
     "viewAll": "View All"
   },
   "expense": {
@@ -75,7 +90,17 @@
     "magicAddButton": "Auto-Fill",
     "magicAddProcessing": "Parsing...",
     "selectTrip": "Select Trip (Optional)",
-    "noTrip": "No Trip"
+    "noTrip": "No Trip",
+    "magicAddHint": "Paste an SMS, receipt text, or simply describe what you spent.",
+    "descriptionHint": "Add context like place or purpose for smarter insights.",
+    "tripExpenseScope": "Trip Expense Scope",
+    "personal": "Personal",
+    "sharedGroup": "Shared Friend Group",
+    "paidBy": "Paid By",
+    "addTripMembersFirst": "Add trip members first",
+    "selectPayer": "Select payer",
+    "addTripMembersHint": "Add trip members on the Trips page before recording shared expenses for settle-up.",
+    "payerHint": "Shared settle-up balances are calculated from this payer."
   },
   "categories": {
     "groceries": "Groceries",
@@ -96,6 +121,7 @@
     "title": "Reports",
     "weekly": "Weekly",
     "monthly": "Monthly",
+    "forecast": "Forecast",
     "weeklyIncome": "Weekly Income",
     "monthlyIncome": "Monthly Income",
     "netSavings": "Net Savings",
@@ -106,16 +132,35 @@
     "trend": "Trend",
     "selectPeriod": "Select Period",
     "totalExpenses": "Total Expenses",
+    "totalInclSub": "Total (incl. subscriptions)",
     "averageDaily": "Daily Average",
     "highestCategory": "Highest Category",
-    "lowestCategory": "Lowest Category"
+    "lowestCategory": "Lowest Category",
+    "highestDay": "Highest day",
+    "activeDays": "Active days",
+    "expenseOnly": "Expense-only",
+    "subscriptionOnly": "Subscription-only",
+    "ofWeeklyTotal": "of weekly total",
+    "sixMonthAverage": "6-Month Average",
+    "next30dIncome": "Next 30d Income",
+    "next30dOutflows": "Next 30d Outflows",
+    "savingsTransfers": "Savings Transfers",
+    "next30dNet": "Next 30d Net",
+    "sixMonthProjectedNetWorth": "6-Month Projected Net Worth",
+    "upcomingCashflow": "Upcoming Cashflow",
+    "projectedNetWorth": "Projected Net Worth",
+    "noScheduledEvents": "No scheduled cashflow events in the next 30 days."
   },
   "history": {
     "title": "Expense History",
     "filterByDate": "Filter by Date",
     "filterByCategory": "Filter by Category",
     "noExpenses": "No expenses found",
-    "clearFilters": "Clear Filters"
+    "clearFilters": "Clear Filters",
+    "narrowByDate": "Narrow by date range, category, or keyword.",
+    "allCategories": "All categories",
+    "from": "From",
+    "to": "To"
   },
   "income": {
     "title": "Income",
@@ -166,7 +211,14 @@
     "breakdownDesc": "Monthly savings = income - total expense (including recurring subscriptions).",
     "subscriptionCost": "Recurring Subscription Cost",
     "goodMessage": "Good progress. You are saving this month.",
-    "warningMessage": "Current spending is higher than income. Consider reducing optional costs."
+    "warningMessage": "Current spending is higher than income. Consider reducing optional costs.",
+    "assetInsurance": "Insurance",
+    "assetCrypto": "Crypto",
+    "assetStocks": "Stocks",
+    "assetPersonalFunds": "Personal Saving Funds",
+    "statusActive": "Active",
+    "statusCompleted": "Completed",
+    "statusArchived": "Archived"
   },
   "settings": {
     "title": "Settings",
@@ -174,14 +226,31 @@
     "english": "English",
     "myanmar": "Myanmar",
     "currency": "Currency",
+    "currencyDisplay": "Currency Display",
+    "currencySign": "Currency Sign",
+    "activeCurrencyCode": "Active Currency Code",
+    "quickSelect": "Quick Select",
+    "theme": "Theme",
+    "darkTheme": "Dark Theme",
+    "lightTheme": "Light Theme",
+    "blossomTheme": "Blossom Theme",
+    "glowingHorizon": "Glowing Horizon",
+    "customCategories": "Custom Categories",
+    "addCategory": "Add Category",
+    "categoryName": "Category name",
     "aiModel": "AI Model",
     "aiModelDescription": "Select model only. API keys are managed by admin on the server.",
     "aiModelUpdated": "AI model updated.",
     "aiKeyManagedByAdmin": "API keys are stored in Kubernetes secrets and are never saved in your browser.",
     "exportData": "Export Data",
     "importData": "Import Data",
-    "clearData": "Clear All Data",
-    "clearDataConfirm": "Are you sure you want to clear all data? This action cannot be undone."
+    "clearAllData": "Clear All Data",
+    "clearDataConfirm": "Are you sure you want to clear all data? This action cannot be undone.",
+    "account": "Account",
+    "manageData": "Manage language, AI, and data tools.",
+    "importWarnings": "Import Warnings",
+    "excel": "Excel",
+    "excelDesc": "Import and export expenses, incomes, savings assets, and trips data."
   },
   "ai": {
     "title": "AI Assistant",
@@ -199,6 +268,7 @@
     "noApiKey": "AI service is not configured for your account yet.",
     "generateInsightBtn": "Generate Insight",
     "insightPrompt": "Get personalized financial advice based on your recent spending patterns.",
+    "clearChat": "Clear Chat",
     "exampleQuestions": [
       "How much did I spend on food this week?",
       "What's my biggest expense category?",
@@ -249,6 +319,49 @@
     "subtitle": "Visualize your spending day by day",
     "total": "Total",
     "noExpenses": "No expenses on this day",
-    "selectDay": "Click a day to see expense details"
+    "selectDay": "Click a day to see expense details",
+    "forecast": "Cashflow Forecast",
+    "income30d": "30d Income",
+    "outflows30d": "30d Outflows",
+    "savingsTransfers": "Savings Transfers",
+    "net30d": "30d Net",
+    "projectedNetWorth6m": "6-Month Projected Net Worth",
+    "upcoming": "Upcoming",
+    "noForecastItems": "No forecasted items in the next 30 days."
+  },
+  "trips": {
+    "title": "Travel Trips",
+    "subtitle": "Plan budgets, manage group participants, and settle shared trip spending.",
+    "addTrip": "Add Trip",
+    "searchPlaceholder": "Search trips, destinations, groups, or participant names...",
+    "noTrips": "No trips found",
+    "noTripsDesc": "Create a trip to track travel budgets, group funds, and shared settle-up balances.",
+    "createFirstTrip": "Create First Trip",
+    "totalSpend": "Total Spend",
+    "sharedGroupSpend": "Shared Group Spend",
+    "tripBudget": "Trip Budget",
+    "budgetLeft": "Budget left",
+    "overBudgetBy": "Over budget by",
+    "groupFund": "Group Fund",
+    "fundLeft": "Fund Left",
+    "perPersonShared": "Per Person Shared Spend",
+    "travelersCount": "travelers",
+    "trackedMembers": "tracked members",
+    "days": "days",
+    "edit": "Edit",
+    "delete": "Delete",
+    "members": "Members",
+    "settlements": "Settlements"
+  },
+  "command": {
+    "noResults": "No results found.",
+    "switchToMyanmar": "မြန်မာဘာသာသို့ ပြောင်းမည်",
+    "switchToEnglish": "Switch to English"
+  },
+  "charts": {
+    "income": "Income",
+    "expense": "Expense",
+    "dailyAverage": "Daily Average",
+    "thisWeek": "This Week"
   }
 }

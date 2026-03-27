@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 const PUBLIC_ROUTES = new Set(['/login'])
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname.endsWith('/') && request.nextUrl.pathname !== '/'
     ? request.nextUrl.pathname.slice(0, -1)
     : request.nextUrl.pathname

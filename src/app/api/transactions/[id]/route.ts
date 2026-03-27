@@ -97,6 +97,7 @@ export async function PUT(
         tripId: existing.tripId,
         trip: existing.trip,
         sharedGroupExpense: existing.sharedGroupExpense,
+        paidByMemberId: existing.paidByMemberId,
       },
     })
 

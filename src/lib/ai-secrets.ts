@@ -1,7 +1,6 @@
 type KeyMap = Record<string, string>
 
 const EMPTY_MAP: KeyMap = {}
-let cachedKeys: KeyMap | null = null
 
 function parseKeyMap(raw: string): KeyMap {
   try {
@@ -25,10 +24,8 @@ function parseKeyMap(raw: string): KeyMap {
 }
 
 function getKeyMap(): KeyMap {
-  if (cachedKeys) return cachedKeys
   const raw = process.env.ZAI_API_KEYS_JSON || '{}'
-  cachedKeys = parseKeyMap(raw)
-  return cachedKeys
+  return parseKeyMap(raw)
 }
 
 export function resolveUserZaiApiKey(userId: string, email?: string): string | null {

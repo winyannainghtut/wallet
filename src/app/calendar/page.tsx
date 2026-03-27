@@ -19,7 +19,9 @@ import { ChevronLeft, ChevronRight, CalendarDays, Plane, TrendingDown, TrendingU
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useApp } from '@/contexts/AppContext'
+import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t, getLanguage } from '@/i18n/config'
+import { buildCashflowForecast, buildProjectedNetWorth } from '@/lib/cashflow'
 import { Category, Subscription, getCategoryLabel } from '@/types'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
 
@@ -90,6 +92,7 @@ export default function CalendarPage() {
   const displayCurrency = getCurrencyDisplayLabel(settings)
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const { totalAssetValue, sortedPortfolioAssets } = useSavingsAssetsPortfolio(settings.currency)
 
   // Get days for the calendar grid (including padding days from prev/next month)
   const calendarDays = useMemo(() => {
@@ -212,6 +215,28 @@ export default function CalendarPage() {
     .filter((entry) => entry.kind === 'income')
     .reduce((sum, entry) => sum + entry.amount, 0)
   const selectedNetSavings = selectedIncomeTotal - selectedExpenseTotal
+  const forecastDays = useMemo(
+    () => buildCashflowForecast({
+      expenses,
+      incomes,
+      subscriptions,
+      portfolioAssets: sortedPortfolioAssets,
+      horizonDays: 180,
+    }),
+    [expenses, incomes, sortedPortfolioAssets, subscriptions]
+  )
+  const next30ForecastDays = forecastDays.slice(0, 30)
+  const next30Income = next30ForecastDays.reduce((sum, day) => sum + day.income, 0)
+  const next30Outflows = next30ForecastDays.reduce((sum, day) => sum + day.expenses + day.subscriptions, 0)
+  const next30SavingsTransfers = next30ForecastDays.reduce((sum, day) => sum + day.savingsTransfers, 0)
+  const next30Net = next30ForecastDays.reduce((sum, day) => sum + day.net, 0)
+  const projectedNetWorth = buildProjectedNetWorth(forecastDays, totalAssetValue, 6)
+  const sixMonthProjection = projectedNetWorth[projectedNetWorth.length - 1]
+  const upcomingForecastEntries = forecastDays
+    .flatMap((day) => day.entries)
+    .filter((entry) => entry.date >= format(new Date(), 'yyyy-MM-dd'))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind))
+    .slice(0, 6)
 
   // Category breakdown for selected day
   const selectedByCategory = useMemo(() => {
@@ -396,6 +421,77 @@ export default function CalendarPage() {
                 <p className={`text-xl font-bold tabular-nums ${monthlyNetSavings >= 0 ? 'text-primary' : 'text-destructive'}`}>
                   {Math.round(monthlyNetSavings).toLocaleString()} {displayCurrency}
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/40 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Cashflow Forecast</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-border/40 px-3 py-2">
+                  <p className="text-[11px] uppercase text-muted-foreground">30d Income</p>
+                  <p className="text-sm font-semibold tabular-nums text-emerald-600">
+                    {Math.round(next30Income).toLocaleString()} {displayCurrency}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border/40 px-3 py-2">
+                  <p className="text-[11px] uppercase text-muted-foreground">30d Outflows</p>
+                  <p className="text-sm font-semibold tabular-nums">
+                    {Math.round(next30Outflows).toLocaleString()} {displayCurrency}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border/40 px-3 py-2">
+                  <p className="text-[11px] uppercase text-muted-foreground">Savings Transfers</p>
+                  <p className="text-sm font-semibold tabular-nums text-primary">
+                    {Math.round(next30SavingsTransfers).toLocaleString()} {displayCurrency}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border/40 px-3 py-2">
+                  <p className="text-[11px] uppercase text-muted-foreground">30d Net</p>
+                  <p className={`text-sm font-semibold tabular-nums ${next30Net >= 0 ? 'text-primary' : 'text-destructive'}`}>
+                    {Math.round(next30Net).toLocaleString()} {displayCurrency}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border/40 bg-background/70 px-3 py-2">
+                <p className="text-[11px] uppercase text-muted-foreground">6-Month Projected Net Worth</p>
+                <p className="text-lg font-bold tabular-nums text-primary">
+                  {Math.round(sixMonthProjection?.projectedNetWorth ?? totalAssetValue).toLocaleString()} {displayCurrency}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Assets {Math.round(sixMonthProjection?.projectedAssets ?? totalAssetValue).toLocaleString()} {displayCurrency}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Upcoming</p>
+                {upcomingForecastEntries.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No forecasted items in the next 30 days.</p>
+                ) : (
+                  upcomingForecastEntries.map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between rounded-lg border border-border/40 px-3 py-2 text-sm">
+                      <div>
+                        <p className="font-medium">{entry.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(`${entry.date}T00:00:00`), 'MMM d')} • {entry.kind.replace('_', ' ')}
+                        </p>
+                      </div>
+                      <span className={`font-semibold tabular-nums ${
+                        entry.kind === 'income'
+                          ? 'text-emerald-600'
+                          : entry.kind === 'savings_transfer'
+                            ? 'text-primary'
+                            : 'text-foreground'
+                      }`}>
+                        {entry.kind === 'income' ? '+' : '-'}{Math.round(entry.amount).toLocaleString()}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

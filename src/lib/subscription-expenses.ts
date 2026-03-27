@@ -1,41 +1,6 @@
-import { differenceInCalendarDays, eachDayOfInterval, format, getDaysInMonth } from 'date-fns'
+import { eachDayOfInterval, format } from 'date-fns'
 import { Expense, Subscription } from '@/types'
-
-function normalizeDateString(rawDate: string): string {
-  const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
-  if (datePartMatch?.[1]) return datePartMatch[1]
-
-  const parsed = new Date(rawDate)
-  if (!Number.isNaN(parsed.getTime())) {
-    return format(parsed, 'yyyy-MM-dd')
-  }
-
-  return rawDate
-}
-
-function parseDateOnly(rawDate: string): Date | null {
-  const normalized = normalizeDateString(rawDate)
-  const parsed = new Date(`${normalized}T00:00:00`)
-  if (Number.isNaN(parsed.getTime())) return null
-  return parsed
-}
-
-function isSubscriptionDueOnDay(subscription: Subscription, day: Date, startDate: Date): boolean {
-  if (day < startDate) return false
-
-  if (subscription.billingCycle === 'weekly') {
-    return differenceInCalendarDays(day, startDate) % 7 === 0
-  }
-
-  if (subscription.billingCycle === 'monthly') {
-    const targetDay = Math.min(startDate.getDate(), getDaysInMonth(day))
-    return day.getDate() === targetDay
-  }
-
-  if (day.getMonth() !== startDate.getMonth()) return false
-  const targetDay = Math.min(startDate.getDate(), getDaysInMonth(day))
-  return day.getDate() === targetDay
-}
+import { parseDateOnly, isSubscriptionDueOnDay } from '@/lib/date-utils'
 
 function buildSubscriptionExpenseOccurrences(
   subscriptions: Subscription[],

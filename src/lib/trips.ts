@@ -1,4 +1,4 @@
-import type { Trip } from '@/types'
+import type { Expense, Trip, TripMember, TripSettlement } from '@/types'
 
 type TripPayloadInput = {
   name?: unknown
@@ -35,6 +35,24 @@ export type TripFinancialSummary = {
   remainingGroupFund?: number
   perPersonSharedSpend?: number
   perPersonFundTarget?: number
+}
+
+export type TripMemberBalance = {
+  memberId: string
+  memberName: string
+  paidTotal: number
+  shareOwed: number
+  settlementsIn: number
+  settlementsOut: number
+  netBalance: number
+}
+
+export type TripSettlementSuggestion = {
+  fromMemberId: string
+  fromMemberName: string
+  toMemberId: string
+  toMemberName: string
+  amount: number
 }
 
 function normalizeText(value: unknown): string {
@@ -213,4 +231,108 @@ export function getTripFinancialSummary(
         ? groupFund / groupSize
         : undefined,
   }
+}
+
+export function calculateTripMemberBalances(
+  trip: Pick<Trip, 'groupSize'>,
+  members: TripMember[],
+  expenses: Array<Pick<Expense, 'amount' | 'sharedGroupExpense' | 'paidByMemberId'>>,
+  settlements: Array<Pick<TripSettlement, 'fromMemberId' | 'toMemberId' | 'amount' | 'status'>>
+): TripMemberBalance[] {
+  if (members.length === 0) {
+    return []
+  }
+
+  const participantCount =
+    typeof trip.groupSize === 'number' && trip.groupSize >= members.length
+      ? trip.groupSize
+      : members.length
+
+  const balanceMap = new Map<string, TripMemberBalance>(
+    members.map((member) => [member.id, {
+      memberId: member.id,
+      memberName: member.name,
+      paidTotal: 0,
+      shareOwed: 0,
+      settlementsIn: 0,
+      settlementsOut: 0,
+      netBalance: 0,
+    }])
+  )
+  const ownerMemberId = members.find((member) => member.isOwner)?.id ?? members[0]?.id
+
+  for (const expense of expenses) {
+    if (!expense.sharedGroupExpense) continue
+    if (expense.amount <= 0) continue
+
+    const share = participantCount > 0 ? expense.amount / participantCount : expense.amount
+    for (const member of balanceMap.values()) {
+      member.shareOwed += share
+      member.netBalance -= share
+    }
+
+    const payerId = expense.paidByMemberId || ownerMemberId
+    if (payerId && balanceMap.has(payerId)) {
+      const payer = balanceMap.get(payerId)
+      if (payer) {
+        payer.paidTotal += expense.amount
+        payer.netBalance += expense.amount
+      }
+    }
+  }
+
+  for (const settlement of settlements) {
+    if (settlement.status !== 'paid' || settlement.amount <= 0) continue
+
+    const fromMember = balanceMap.get(settlement.fromMemberId)
+    const toMember = balanceMap.get(settlement.toMemberId)
+
+    if (fromMember) {
+      fromMember.settlementsOut += settlement.amount
+      fromMember.netBalance += settlement.amount
+    }
+    if (toMember) {
+      toMember.settlementsIn += settlement.amount
+      toMember.netBalance -= settlement.amount
+    }
+  }
+
+  return [...balanceMap.values()].sort((a, b) => b.netBalance - a.netBalance)
+}
+
+export function buildTripSettlementSuggestions(
+  balances: TripMemberBalance[]
+): TripSettlementSuggestion[] {
+  const creditors = balances
+    .filter((member) => member.netBalance > 0.009)
+    .map((member) => ({ ...member, remaining: member.netBalance }))
+  const debtors = balances
+    .filter((member) => member.netBalance < -0.009)
+    .map((member) => ({ ...member, remaining: Math.abs(member.netBalance) }))
+
+  const suggestions: TripSettlementSuggestion[] = []
+  let creditorIndex = 0
+  let debtorIndex = 0
+
+  while (creditorIndex < creditors.length && debtorIndex < debtors.length) {
+    const creditor = creditors[creditorIndex]
+    const debtor = debtors[debtorIndex]
+    const amount = Math.min(creditor.remaining, debtor.remaining)
+
+    suggestions.push({
+      fromMemberId: debtor.memberId,
+      fromMemberName: debtor.memberName,
+      toMemberId: creditor.memberId,
+      toMemberName: creditor.memberName,
+      amount,
+    })
+
+    creditor.remaining -= amount
+    debtor.remaining -= amount
+
+    if (creditor.remaining <= 0.009) creditorIndex += 1
+    if (debtor.remaining <= 0.009) debtorIndex += 1
+  }
+
+  return suggestions
 }

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Expense, Income, getCategoryLabel, getIncomeCategoryLabel } from '@/types'
 import { format } from 'date-fns'
 import { ArrowDownRight, ArrowUpRight, Edit, Trash2 } from 'lucide-react'
-import { getLanguage } from '@/i18n/config'
+import { t, getLanguage } from '@/i18n/config'
 
 export type TransactionItem = (Expense & { type: 'expense' }) | (Income & { type: 'income' })
 
@@ -31,7 +31,7 @@ export function TransactionList({
     return (
       <Card className="border-border/40">
         <CardContent className="py-12 text-center text-muted-foreground">
-          <p className="text-sm">No recent transactions</p>
+          <p className="text-sm">{t('dashboard.noRecentTransactions')}</p>
         </CardContent>
       </Card>
     )
@@ -66,7 +66,7 @@ export function TransactionList({
                     </Badge>
                     {showDate && (
                       <span className="text-xs text-muted-foreground/80">
-                        {format(new Date(tx.date), 'MMM dd, yyyy')}
+                        {format(new Date(tx.date + 'T00:00:00'), 'MMM dd, yyyy')}
                       </span>
                     )}
                   </div>

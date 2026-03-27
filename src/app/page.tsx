@@ -1,10 +1,12 @@
 'use client'
 
 
-import { endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns'
-import { PlusCircle, TrendingUp, Calendar, Wallet, PiggyBank, Scale, Plus } from 'lucide-react'
+import { useMemo } from 'react'
+import { endOfMonth, endOfWeek, format, getDaysInMonth, startOfMonth, startOfWeek } from 'date-fns'
+import { PlusCircle, TrendingUp, Calendar, Wallet, PiggyBank, Scale, Plus, Target } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { SummaryCard } from '@/components/SummaryCard'
 import { CategoryPieChart, IncomeExpenseBarChart } from '@/components/Charts'
 import { ChatAssistant } from '@/components/ChatAssistant'
@@ -13,28 +15,31 @@ import { TransactionList, TransactionItem } from '@/components/TransactionList'
 import { UpcomingSubscriptions } from '@/components/UpcomingSubscriptions'
 import { SavingsGoalWidget } from '@/components/SavingsGoalWidget'
 import { useApp } from '@/contexts/AppContext'
+import { useFundGoals } from '@/hooks/useFundGoals'
 import { useSavingsAssetsPortfolio } from '@/hooks/useSavingsAssetsPortfolio'
 import { t } from '@/i18n/config'
 import type { AiSavingsContext } from '@/types'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
+import { normalizeDateKey } from '@/lib/date-utils'
 
-function normalizeDateKey(rawDate: string): string {
-  const datePartMatch = rawDate.match(/^(\d{4}-\d{2}-\d{2})/)
-  if (datePartMatch?.[1]) return datePartMatch[1]
-
-  const parsed = new Date(rawDate)
-  if (!Number.isNaN(parsed.getTime())) {
-    return format(parsed, 'yyyy-MM-dd')
-  }
-
-  return rawDate
-}
 
 export default function DashboardPage() {
   const { 
-    expenses, personalExpenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, 
-    settings, currentUser 
+    expenses, personalExpenses, incomes, subscriptions, todaySummary, weeklySummary, monthlySummary, trips,
+    settings, currentUser, isLoading 
   } = useApp()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="space-y-3 text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
+        </div>
+      </div>
+    )
+  }
+
   const displayCurrency = getCurrencyDisplayLabel(settings)
   const {
     totalAssetValue,
@@ -77,7 +82,22 @@ export default function DashboardPage() {
   const monthlySavings = monthlyIncome - monthlySummary.total
   const weeklySavings = weeklyIncome - weeklySummary.total
   const expenseIncomeRatio = monthlyIncome > 0 ? (monthlySummary.total / monthlyIncome) * 100 : 0
-  const averageDailyExpense = monthlySummary.total / 30
+  const averageDailyExpense = monthlySummary.total / getDaysInMonth(new Date())
+  const { enrichedGoals: enrichedFundGoals, isLoading: isFundGoalsLoading } = useFundGoals(
+    sortedPortfolioAssets,
+    trips,
+    monthlySavings
+  )
+  const activeFundGoals = useMemo(
+    () => enrichedFundGoals
+      .filter((goal) => goal.status === 'active')
+      .sort((a, b) => {
+        if (a.targetDate && b.targetDate) return a.targetDate.localeCompare(b.targetDate)
+        return b.progressPercentage - a.progressPercentage
+      })
+      .slice(0, 3),
+    [enrichedFundGoals]
+  )
   const aiSavingsContext: AiSavingsContext = {
     currency: settings.currency,
     totalAssetValue,
@@ -170,7 +190,7 @@ export default function DashboardPage() {
                 className="w-full rounded-xl border-primary/20 text-primary shadow-sm transition-all hover:-translate-y-0.5 hover:bg-primary/5"
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Add Income
+                {t('dashboard.addIncome')}
               </Button>
             </Link>
           </div>
@@ -191,6 +211,74 @@ export default function DashboardPage() {
         <SavingsGoalWidget currentSavings={monthlySavings} currency={displayCurrency} />
         <UpcomingSubscriptions subscriptions={subscriptions} currency={displayCurrency} />
       </div>
+
+      {(isFundGoalsLoading || activeFundGoals.length > 0) && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold tracking-tight">{t('dashboard.fundGoals')}</h2>
+              <p className="text-sm text-muted-foreground">
+                {t('dashboard.fundGoalsDesc')}
+              </p>
+            </div>
+            <Link href="/savings">
+              <Button variant="outline" className="rounded-xl">
+                <Target className="mr-2 h-4 w-4" />
+                {t('dashboard.manageGoals')}
+              </Button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            {isFundGoalsLoading && activeFundGoals.length === 0 ? (
+              <Card className="border-border/40 xl:col-span-3">
+                <CardContent className="py-6 text-sm text-muted-foreground">
+                  Loading fund goals...
+                </CardContent>
+              </Card>
+            ) : (
+              activeFundGoals.map((goal) => (
+                <Card key={goal.id} className="border-border/40">
+                  <CardContent className="space-y-3 py-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: goal.color ?? '#6366f1' }}
+                          />
+                          <p className="font-semibold">{goal.name}</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {Math.round(goal.currentAmount).toLocaleString()} / {Math.round(goal.targetAmount).toLocaleString()} {displayCurrency}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold">{goal.progressPercentage.toFixed(0)}%</p>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${Math.min(100, Math.max(goal.progressPercentage, 0))}%`,
+                          backgroundColor: goal.color ?? '#6366f1',
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span>
+                        Projected: {goal.projectedCompletionDate
+                          ? format(new Date(`${goal.projectedCompletionDate}T00:00:00`), 'MMM d, yyyy')
+                          : 'No estimate yet'}
+                      </span>
+                      {goal.linkedTrip && <span>Trip: {goal.linkedTrip.name}</span>}
+                      <span>{goal.linkedAssets.length} linked assets</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="space-y-4">
@@ -230,10 +318,10 @@ export default function DashboardPage() {
             currency={displayCurrency}
           />
           <SummaryCard
-            title="Tracked Assets"
+            title={t('dashboard.trackedAssets')}
             amount={totalAssetValue}
             icon={Wallet}
-            subtitle="Insurance, crypto, stocks, and personal funds"
+            subtitle={t('dashboard.trackedAssetsDesc')}
             currency={displayCurrency}
           />
           <SummaryCard
@@ -279,7 +367,7 @@ export default function DashboardPage() {
       {/* Recent Transactions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold tracking-tight">Recent Transactions</h2>
+          <h2 className="text-lg font-bold tracking-tight">{t('dashboard.recentTransactions')}</h2>
           <Link href="/history">
             <Button variant="link" className="text-primary">{t('dashboard.viewAll')}</Button>
           </Link>

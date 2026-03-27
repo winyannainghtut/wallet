@@ -83,6 +83,7 @@ export interface Expense {
   updatedAt?: string
   tripId?: string
   sharedGroupExpense?: boolean
+  paidByMemberId?: string
 }
 
 export interface Income {
@@ -175,6 +176,45 @@ export interface TripMutationInput {
   groupName?: string
   groupSize?: number | null
   groupFund?: number | null
+}
+
+export interface TripMember {
+  id: string
+  tripId: string
+  name: string
+  isOwner?: boolean
+  sortOrder?: number
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface TripSettlement {
+  id: string
+  tripId: string
+  fromMemberId: string
+  toMemberId: string
+  amount: number
+  date: string
+  status: 'planned' | 'paid'
+  note?: string
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface FundGoal {
+  id: string
+  name: string
+  targetAmount: number
+  targetDate?: string
+  monthlyContribution?: number
+  includeMonthlySavings?: boolean
+  linkedTripId?: string
+  linkedAssetIds: string[]
+  note?: string
+  status: 'active' | 'completed' | 'archived'
+  color?: string
+  createdAt: string
+  updatedAt?: string
 }
 
 export type BillingCycle = 'monthly' | 'yearly' | 'weekly'
