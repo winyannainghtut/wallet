@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Language } from '@/i18n/config'
+import { Language, t } from '@/i18n/config'
 import { useApp } from '@/contexts/AppContext'
 
 export function LanguageSwitcher() {
@@ -34,13 +34,13 @@ export function LanguageSwitcher() {
           onClick={() => changeLanguage('en')}
           className={language === 'en' ? 'bg-accent' : ''}
         >
-          English
+          {t('settings.english')}
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => changeLanguage('my')}
           className={language === 'my' ? 'bg-accent' : ''}
         >
-          Myanmar
+          {t('settings.myanmar')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -13,9 +13,9 @@ Wallet App is a Next.js 16 personal finance system with PocketBase backend, auth
 - Stock assets use manual value entry
 - Manual accounts layer for cash, bank, credit card, e-wallet, investment, and other balances
 - Liabilities tracking with payoff projection, minimum-payment planning, and due-date visibility
-- Category budgets with monthly limits, rollovers, and month-by-month comparisons
+- Category budgets with monthly limits, rollovers, month-by-month comparisons, and duplicate month/category protection
 - Transaction review queue with tags, merchant cleanup, account assignment, and reusable transaction rules
-- Household workspaces with member roles and shared base currency
+- Household workspaces with member roles, shared base currency, owner-only management, and email-based invite auto-binding
 - Bills center that combines subscriptions, liabilities, and recurring insurance contributions
 - Trips and subscriptions persisted in PocketBase
 - Trip plans support shared friend-group setup, pooled group fund tracking, and per-expense `Shared Friend Group` tagging
@@ -215,6 +215,7 @@ Managed migration files:
 - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
 - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
+- `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
 
 Expected collections:
 
@@ -258,6 +259,16 @@ kubectl rollout status deployment/wallet-frontend -n wallet-app
 ```
 
 `k8s/deployment.yaml` is intentionally pinned to a known digest baseline. Do not rely on mutable tags like `dev-latest` for shared environments.
+
+If a release only changes PocketBase migrations and frontend code, the normal update order is:
+
+```bash
+kubectl apply -f k8s/pocketbase-bootstrap.yaml
+kubectl rollout restart deployment/pocketbase -n wallet-app
+kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=200
+kubectl -n wallet-app set image deployment/wallet-frontend wallet-app=winyannainghtut/wallet-app:sha-<commit>
+kubectl rollout status deployment/wallet-frontend -n wallet-app
+```
 
 ### Expose App via Cloudflare Tunnel (`wallet.winyan.dev`, token mode)
 

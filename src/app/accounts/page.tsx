@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pencil, PlusCircle, Trash2, Wallet } from 'lucide-react'
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { useApp } from '@/contexts/AppContext'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
+import { t } from '@/i18n/config'
 import { AccountRecord, AccountType, getAccountTypeLabel, mapAccountRecord } from '@/lib/accounts'
 
 type ApiListResponse<T> = {
@@ -64,7 +65,7 @@ export default function AccountsPage() {
       const response = await fetch('/api/accounts?perPage=500')
       const data = await response.json() as ApiListResponse<Record<string, unknown>>
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to load accounts')
+        throw new Error(data.error || t('common.error'))
       }
 
       const mappedAccounts = (data.items ?? [])
@@ -73,7 +74,7 @@ export default function AccountsPage() {
 
       setAccounts(mappedAccounts.sort((a, b) => Number(b.isActive) - Number(a.isActive) || b.balance - a.balance))
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load accounts'
+      const message = loadError instanceof Error ? loadError.message : t('common.error')
       setError(message)
       setAccounts([])
     } finally {
@@ -148,21 +149,21 @@ export default function AccountsPage() {
       })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save account')
+        throw new Error(data.error || t('common.error'))
       }
 
       await loadAccounts()
       setIsDialogOpen(false)
       resetForm()
     } catch (saveError) {
-      alert(saveError instanceof Error ? saveError.message : 'Failed to save account')
+      alert(saveError instanceof Error ? saveError.message : t('common.error'))
     } finally {
       setIsSaving(false)
     }
   }
 
   const handleDelete = async (account: AccountRecord) => {
-    if (!confirm(`Delete ${account.name}?`)) {
+    if (!confirm(t('common.deleteConfirm', { name: account.name }))) {
       return
     }
 
@@ -170,11 +171,11 @@ export default function AccountsPage() {
       const response = await fetch(`/api/accounts/${account.id}`, { method: 'DELETE' })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete account')
+        throw new Error(data.error || t('common.error'))
       }
       await loadAccounts()
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : 'Failed to delete account')
+      alert(deleteError instanceof Error ? deleteError.message : t('common.error'))
     }
   }
 
@@ -182,39 +183,39 @@ export default function AccountsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Accounts</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('accounts.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Track manual balances across bank accounts, wallets, and investments.
+            {t('accounts.subtitle')}
           </p>
         </div>
         <Button onClick={openCreate} className="rounded-xl">
           <PlusCircle className="mr-2 h-4 w-4" />
-          Add Account
+          {t('accounts.addAccount')}
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Total Accounts</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('accounts.totalAccounts')}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.total}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Active Accounts</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('accounts.activeAccounts')}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.active}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">{`Balance (${displayCurrency})`}</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('common.balance')} ({displayCurrency})</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.appCurrencyBalance.toFixed(2)}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Foreign Currency Accounts</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('accounts.foreignCurrencyAccounts')}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.foreignCount}</CardContent>
         </Card>
@@ -229,7 +230,7 @@ export default function AccountsPage() {
       <div className="grid gap-4 lg:grid-cols-2">
         {isLoading ? (
           <Card className="border-border/40">
-            <CardContent className="py-10 text-sm text-muted-foreground">Loading accounts...</CardContent>
+            <CardContent className="py-10 text-sm text-muted-foreground">{t('common.loading')}...</CardContent>
           </Card>
         ) : accounts.length === 0 ? (
           <Card className="border-dashed border-border/50 lg:col-span-2">
@@ -238,9 +239,9 @@ export default function AccountsPage() {
                 <Wallet className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="font-semibold">No accounts yet</h2>
+                <h2 className="font-semibold">{t('accounts.noAccountsTitle')}</h2>
                 <p className="text-sm text-muted-foreground">
-                  Add your manual bank, wallet, or investment balances.
+                  {t('accounts.noAccountsDesc')}
                 </p>
               </div>
             </CardContent>
@@ -260,7 +261,7 @@ export default function AccountsPage() {
                       <div>
                         <p className="text-lg font-semibold">{account.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {getAccountTypeLabel(account.type)}
+                          {t(getAccountTypeLabel(account.type))}
                       {account.institution ? ` · ${account.institution}` : ''}
                         </p>
                       </div>
@@ -277,14 +278,14 @@ export default function AccountsPage() {
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Balance</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('common.balance')}</p>
                       <p className="mt-1 text-xl font-semibold">
                         {account.balance.toFixed(2)} {account.currency}
                       </p>
                     </div>
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Status</p>
-                      <p className="mt-1 text-xl font-semibold">{account.isActive ? 'Active' : 'Inactive'}</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('common.status')}</p>
+                      <p className="mt-1 text-xl font-semibold">{account.isActive ? t('common.active') : t('common.inactive')}</p>
                     </div>
                   </div>
 
@@ -301,18 +302,18 @@ export default function AccountsPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>{editingAccount ? 'Edit Account' : 'Add Account'}</DialogTitle>
+            <DialogTitle>{editingAccount ? t('accounts.editAccount') : t('accounts.addAccount')}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="account-name">Name</Label>
+              <Label htmlFor="account-name">{t('common.name')}</Label>
               <Input id="account-name" value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label>{t('common.type')}</Label>
                 <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as AccountType }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -320,47 +321,47 @@ export default function AccountsPage() {
                   <SelectContent>
                     {accountTypes.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {getAccountTypeLabel(type)}
+                        {t(getAccountTypeLabel(type))}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="account-institution">Institution</Label>
+                <Label htmlFor="account-institution">{t('accounts.institution')}</Label>
                 <Input id="account-institution" value={form.institution} onChange={(event) => setForm((prev) => ({ ...prev, institution: event.target.value }))} />
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="account-currency">Currency</Label>
+                <Label htmlFor="account-currency">{t('common.currency')}</Label>
                 <Input id="account-currency" maxLength={3} value={form.currency} onChange={(event) => setForm((prev) => ({ ...prev, currency: event.target.value.toUpperCase() }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="account-balance">Balance</Label>
+                <Label htmlFor="account-balance">{t('common.balance')}</Label>
                 <Input id="account-balance" type="number" step="0.01" value={form.balance} onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="account-note">Note</Label>
+              <Label htmlFor="account-note">{t('common.note')}</Label>
               <Textarea id="account-note" rows={3} value={form.note} onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))} />
             </div>
 
             <div className="flex items-center justify-between rounded-xl border border-border/40 p-3">
               <div>
-                <p className="text-sm font-medium">Active account</p>
-                <p className="text-xs text-muted-foreground">Inactive accounts stay visible but are excluded from active totals.</p>
+                <p className="text-sm font-medium">{t('accounts.activeAccount')}</p>
+                <p className="text-xs text-muted-foreground">{t('accounts.activeAccountDesc')}</p>
               </div>
               <Switch checked={form.isActive} onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked }))} />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={() => void handleSave()} disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save Account'}
+              {isSaving ? `${t('common.save')}...` : t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Home, Pencil, PlusCircle, Trash2, Users } from 'lucide-react'
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useApp } from '@/contexts/AppContext'
+import { t } from '@/i18n/config'
 import { HouseholdMemberRecord, HouseholdRecord } from '@/lib/households'
 
 type ApiListResponse<T> = {
@@ -69,17 +70,17 @@ export default function HouseholdPage() {
       const householdsData = await householdsResponse.json() as ApiListResponse<HouseholdRecord>
       const membersData = await membersResponse.json() as ApiListResponse<HouseholdMemberRecord>
       if (!householdsResponse.ok) {
-        throw new Error(householdsData.error || 'Failed to load households')
+        throw new Error(householdsData.error || t('common.error'))
       }
       if (!membersResponse.ok) {
-        throw new Error(membersData.error || 'Failed to load household members')
+        throw new Error(membersData.error || t('common.error'))
       }
       setHouseholds(householdsData.items ?? [])
       setMembers(membersData.items ?? [])
     } catch (loadError) {
       setHouseholds([])
       setMembers([])
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load households')
+      setError(loadError instanceof Error ? loadError.message : t('common.error'))
     } finally {
       setIsLoading(false)
     }
@@ -147,12 +148,12 @@ export default function HouseholdPage() {
       })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save household')
+        throw new Error(data.error || t('common.error'))
       }
       await loadData()
       setIsHouseholdDialogOpen(false)
     } catch (saveError) {
-      alert(saveError instanceof Error ? saveError.message : 'Failed to save household')
+      alert(saveError instanceof Error ? saveError.message : t('common.error'))
     }
   }
 
@@ -172,40 +173,40 @@ export default function HouseholdPage() {
       })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save household member')
+        throw new Error(data.error || t('common.error'))
       }
       await loadData()
       setIsMemberDialogOpen(false)
     } catch (saveError) {
-      alert(saveError instanceof Error ? saveError.message : 'Failed to save household member')
+      alert(saveError instanceof Error ? saveError.message : t('common.error'))
     }
   }
 
   const deleteHousehold = async (household: HouseholdRecord) => {
-    if (!confirm(`Delete ${household.name}?`)) return
+    if (!confirm(t('household.deleteConfirm', { name: household.name }))) return
     try {
       const response = await fetch(`/api/households/${household.id}`, { method: 'DELETE' })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete household')
+        throw new Error(data.error || t('common.error'))
       }
       await loadData()
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : 'Failed to delete household')
+      alert(deleteError instanceof Error ? deleteError.message : t('common.error'))
     }
   }
 
   const deleteMember = async (member: HouseholdMemberRecord) => {
-    if (!confirm(`Delete ${member.name}?`)) return
+    if (!confirm(t('household.deleteConfirm', { name: member.name }))) return
     try {
       const response = await fetch(`/api/household-members/${member.id}`, { method: 'DELETE' })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete household member')
+        throw new Error(data.error || t('common.error'))
       }
       await loadData()
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : 'Failed to delete household member')
+      alert(deleteError instanceof Error ? deleteError.message : t('common.error'))
     }
   }
 
@@ -213,19 +214,19 @@ export default function HouseholdPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Household</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('household.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Create shared spaces for partners or family and manage member access before deeper collaboration rules are added.
+            {t('household.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="rounded-xl" onClick={() => openCreateMember()} disabled={households.length === 0}>
             <Users className="mr-2 h-4 w-4" />
-            Add Member
+            {t('household.addMember')}
           </Button>
           <Button className="rounded-xl" onClick={openCreateHousehold}>
             <PlusCircle className="mr-2 h-4 w-4" />
-            Add Household
+            {t('household.addHousehold')}
           </Button>
         </div>
       </div>
@@ -238,14 +239,14 @@ export default function HouseholdPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         {isLoading ? (
-          <Card className="border-border/40 xl:col-span-2"><CardContent className="py-10 text-sm text-muted-foreground">Loading households...</CardContent></Card>
+          <Card className="border-border/40 xl:col-span-2"><CardContent className="py-10 text-sm text-muted-foreground">{t('common.loading')}...</CardContent></Card>
         ) : households.length === 0 ? (
           <Card className="border-dashed border-border/50 xl:col-span-2">
             <CardContent className="flex min-h-[220px] flex-col items-center justify-center gap-3 py-10 text-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Home className="h-6 w-6" /></div>
               <div>
-                <h2 className="font-semibold">No household created yet</h2>
-                <p className="text-sm text-muted-foreground">Start with one workspace, then invite members by email.</p>
+                <h2 className="font-semibold">{t('household.noHouseholdTitle')}</h2>
+                <p className="text-sm text-muted-foreground">{t('household.noHouseholdDesc')}</p>
               </div>
             </CardContent>
           </Card>
@@ -259,7 +260,7 @@ export default function HouseholdPage() {
                     <div>
                       <p className="text-lg font-semibold">{household.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        Base currency: {household.baseCurrency ?? settings.currency} · {householdMembers.length} members
+                        {t('household.baseCurrency')}: {household.baseCurrency ?? settings.currency} · {householdMembers.length} {t('household.members')}
                       </p>
                     </div>
                     <div className="flex gap-1">
@@ -270,21 +271,23 @@ export default function HouseholdPage() {
                   {household.note && <p className="text-sm text-muted-foreground">{household.note}</p>}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium">Members</p>
+                      <p className="text-sm font-medium">{t('household.memberSectionTitle')}</p>
                       <Button variant="outline" size="sm" className="rounded-lg" onClick={() => openCreateMember(household.id)}>
                         <PlusCircle className="mr-2 h-3.5 w-3.5" />
-                        Add
+                        {t('common.add')}
                       </Button>
                     </div>
                     {householdMembers.length === 0 ? (
-                      <div className="rounded-xl border border-dashed border-border/50 px-4 py-6 text-sm text-muted-foreground">No members yet.</div>
+                      <div className="rounded-xl border border-dashed border-border/50 px-4 py-6 text-sm text-muted-foreground">{t('household.noMembersHint')}</div>
                     ) : (
                       <div className="space-y-2">
                         {householdMembers.map((member) => (
                           <div key={member.id} className="flex items-center justify-between rounded-xl border border-border/40 px-4 py-3">
                             <div>
                               <p className="font-medium">{member.name}</p>
-                              <p className="text-sm text-muted-foreground">{member.email} · {member.role} · {member.status}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {member.email} · {t(`household.${member.role}Role`)} · {t(`household.${member.status}Member`)}
+                              </p>
                             </div>
                             <div className="flex gap-1">
                               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openEditMember(member)}><Pencil className="h-4 w-4" /></Button>
@@ -304,31 +307,31 @@ export default function HouseholdPage() {
 
       <Dialog open={isHouseholdDialogOpen} onOpenChange={setIsHouseholdDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader><DialogTitle>{editingHousehold ? 'Edit Household' : 'Add Household'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingHousehold ? t('household.editHousehold') : t('household.addHousehold')}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2"><Label htmlFor="household-name">Name</Label><Input id="household-name" value={householdForm.name} onChange={(event) => setHouseholdForm((prev) => ({ ...prev, name: event.target.value }))} /></div>
-            <div className="space-y-2"><Label htmlFor="household-currency">Base Currency</Label><Input id="household-currency" maxLength={3} value={householdForm.baseCurrency} onChange={(event) => setHouseholdForm((prev) => ({ ...prev, baseCurrency: event.target.value.toUpperCase() }))} /></div>
-            <div className="space-y-2"><Label htmlFor="household-note">Note</Label><Textarea id="household-note" rows={3} value={householdForm.note} onChange={(event) => setHouseholdForm((prev) => ({ ...prev, note: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="household-name">{t('common.name')}</Label><Input id="household-name" value={householdForm.name} onChange={(event) => setHouseholdForm((prev) => ({ ...prev, name: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="household-currency">{t('household.baseCurrency')}</Label><Input id="household-currency" maxLength={3} value={householdForm.baseCurrency} onChange={(event) => setHouseholdForm((prev) => ({ ...prev, baseCurrency: event.target.value.toUpperCase() }))} /></div>
+            <div className="space-y-2"><Label htmlFor="household-note">{t('common.note')}</Label><Textarea id="household-note" rows={3} value={householdForm.note} onChange={(event) => setHouseholdForm((prev) => ({ ...prev, note: event.target.value }))} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsHouseholdDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void saveHousehold()}>Save Household</Button>
+            <Button variant="outline" onClick={() => setIsHouseholdDialogOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void saveHousehold()}>{t('household.saveHousehold')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isMemberDialogOpen} onOpenChange={setIsMemberDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
-          <DialogHeader><DialogTitle>{editingMember ? 'Edit Member' : 'Add Member'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingMember ? t('household.editMember') : t('household.addMember')}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Household</Label>
+              <Label>{t('household.title')}</Label>
               <Select
                 value={memberForm.householdId}
                 onValueChange={(value) => setMemberForm((prev) => ({ ...prev, householdId: value ?? prev.householdId }))}
                 disabled={Boolean(editingMember)}
               >
-                <SelectTrigger><SelectValue placeholder="Select household" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t('common.select')} /></SelectTrigger>
                 <SelectContent>
                   {households.map((household) => (
                     <SelectItem key={household.id} value={household.id}>{household.name}</SelectItem>
@@ -336,38 +339,38 @@ export default function HouseholdPage() {
                 </SelectContent>
               </Select>
               {editingMember && (
-                <p className="text-xs text-muted-foreground">Members stay in their current household. Create a new invite instead of moving this row.</p>
+                <p className="text-xs text-muted-foreground">{t('household.noMembersHint')}</p>
               )}
             </div>
-            <div className="space-y-2"><Label htmlFor="member-name">Name</Label><Input id="member-name" value={memberForm.name} onChange={(event) => setMemberForm((prev) => ({ ...prev, name: event.target.value }))} /></div>
-            <div className="space-y-2"><Label htmlFor="member-email">Email</Label><Input id="member-email" type="email" value={memberForm.email} onChange={(event) => setMemberForm((prev) => ({ ...prev, email: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="member-name">{t('common.name')}</Label><Input id="member-name" value={memberForm.name} onChange={(event) => setMemberForm((prev) => ({ ...prev, name: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="member-email">{t('common.email')}</Label><Input id="member-email" type="email" value={memberForm.email} onChange={(event) => setMemberForm((prev) => ({ ...prev, email: event.target.value }))} /></div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label>{t('common.role')}</Label>
                 <Select value={memberForm.role} onValueChange={(value) => setMemberForm((prev) => ({ ...prev, role: value as MemberFormState['role'] }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="owner">Owner</SelectItem>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
+                    <SelectItem value="owner">{t('household.ownerRole')}</SelectItem>
+                    <SelectItem value="member">{t('household.memberRole')}</SelectItem>
+                    <SelectItem value="viewer">{t('household.viewerRole')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label>{t('common.status')}</Label>
                 <Select value={memberForm.status} onValueChange={(value) => setMemberForm((prev) => ({ ...prev, status: value as MemberFormState['status'] }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="invited">Invited</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="invited">{t('household.invitedMember')}</SelectItem>
+                    <SelectItem value="active">{t('household.activeMember')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsMemberDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void saveMember()}>Save Member</Button>
+            <Button variant="outline" onClick={() => setIsMemberDialogOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void saveMember()}>{t('household.saveMember')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

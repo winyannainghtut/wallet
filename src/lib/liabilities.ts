@@ -1,4 +1,4 @@
-﻿import { addMonths, endOfMonth, format, isBefore, isValid, parseISO, setDate, startOfToday } from 'date-fns'
+import { addMonths, endOfMonth, format, isBefore, isValid, parseISO, setDate, startOfToday } from 'date-fns'
 
 export type LiabilityType = 'credit_card' | 'personal_loan' | 'mortgage' | 'bnpl' | 'other'
 
@@ -182,15 +182,15 @@ export function mapLiabilityRecord(record: Record<string, unknown>): LiabilityRe
 export function getLiabilityTypeLabel(type: LiabilityType): string {
   switch (type) {
     case 'credit_card':
-      return 'Credit Card'
+      return 'liabilities.type.credit_card'
     case 'personal_loan':
-      return 'Personal Loan'
+      return 'liabilities.type.personal_loan'
     case 'mortgage':
-      return 'Mortgage'
+      return 'liabilities.type.mortgage'
     case 'bnpl':
-      return 'BNPL'
+      return 'liabilities.type.bnpl'
     default:
-      return 'Other'
+      return 'liabilities.type.other'
   }
 }
 

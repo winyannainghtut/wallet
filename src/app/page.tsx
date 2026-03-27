@@ -126,9 +126,9 @@ export default function DashboardPage() {
 
   // Time-based Greeting
   const currentHour = new Date().getHours()
-  let greeting = 'Good Evening'
-  if (currentHour < 12) greeting = 'Good Morning'
-  else if (currentHour < 18) greeting = 'Good Afternoon'
+  let greeting = t('dashboard.greetingEvening')
+  if (currentHour < 12) greeting = t('dashboard.greetingMorning')
+  else if (currentHour < 18) greeting = t('dashboard.greetingAfternoon')
 
   if (isLoading) {
     return (
@@ -155,23 +155,23 @@ export default function DashboardPage() {
               {t('common.appName')}
             </h1>
             <p className="max-w-md text-sm leading-relaxed text-muted-foreground">
-              Track spending daily and spot trends before they become habits.
+              {t('dashboard.subtitle')}
             </p>
             <div className="flex flex-wrap gap-2 pt-1 text-xs">
               <span className="rounded-full bg-primary/10 px-3 py-1.5 font-medium text-primary">
-                {todaySummary.count} items today
+                {t('dashboard.itemsToday', { count: todaySummary.count })}
               </span>
               <span className="rounded-full bg-secondary px-3 py-1.5 font-medium text-secondary-foreground">
-                Week: {weeklySummary.total.toLocaleString()} {displayCurrency}
+                {t('dashboard.weekTotal', { amount: weeklySummary.total.toLocaleString(), currency: displayCurrency })}
               </span>
               <span className={`rounded-full px-3 py-1.5 font-medium ${weeklySavings >= 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-rose-500/10 text-rose-700'}`}>
-                Weekly Net: {Math.round(weeklySavings).toLocaleString()} {displayCurrency}
+                {t('dashboard.weeklyNet', { amount: Math.round(weeklySavings).toLocaleString(), currency: displayCurrency })}
               </span>
               <span className="rounded-full bg-primary/10 px-3 py-1.5 font-medium text-primary">
-                Net Savings: {Math.round(monthlySavings).toLocaleString()} {displayCurrency}
+                {t('dashboard.netSavings', { amount: Math.round(monthlySavings).toLocaleString(), currency: displayCurrency })}
               </span>
               <span className="rounded-full bg-accent/30 px-3 py-1.5 font-medium text-foreground">
-                Assets: {Math.round(totalAssetValue).toLocaleString()} {displayCurrency}
+                {t('dashboard.assetsSummary', { amount: Math.round(totalAssetValue).toLocaleString(), currency: displayCurrency })}
               </span>
             </div>
           </div>
@@ -234,7 +234,7 @@ export default function DashboardPage() {
             {isFundGoalsLoading && activeFundGoals.length === 0 ? (
               <Card className="border-border/40 xl:col-span-3">
                 <CardContent className="py-6 text-sm text-muted-foreground">
-                  Loading fund goals...
+                  {t('dashboard.loadingFundGoals')}
                 </CardContent>
               </Card>
             ) : (
@@ -267,12 +267,14 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span>
-                        Projected: {goal.projectedCompletionDate
-                          ? format(new Date(`${goal.projectedCompletionDate}T00:00:00`), 'MMM d, yyyy')
-                          : 'No estimate yet'}
+                        {t('dashboard.projectedDate', {
+                          date: goal.projectedCompletionDate
+                            ? format(new Date(`${goal.projectedCompletionDate}T00:00:00`), 'MMM d, yyyy')
+                            : t('dashboard.noEstimate')
+                        })}
                       </span>
-                      {goal.linkedTrip && <span>Trip: {goal.linkedTrip.name}</span>}
-                      <span>{goal.linkedAssets.length} linked assets</span>
+                      {goal.linkedTrip && <span>{t('dashboard.linkedTrip', { name: goal.linkedTrip.name })}</span>}
+                      <span>{t('dashboard.linkedAssets', { count: goal.linkedAssets.length })}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -289,7 +291,7 @@ export default function DashboardPage() {
             title={t('dashboard.todayExpenses')}
             amount={todaySummary.total}
             icon={Calendar}
-            subtitle={`${todaySummary.count} items`}
+            subtitle={t('dashboard.itemsSecondary', { count: todaySummary.count })}
             currency={displayCurrency}
           />
           <SummaryCard
@@ -316,7 +318,9 @@ export default function DashboardPage() {
             title={t('dashboard.monthlyNetSavings')}
             amount={monthlySavings}
             icon={PiggyBank}
-            subtitle={monthlyIncome > 0 ? `${((monthlySavings / monthlyIncome) * 100).toFixed(1)}% savings rate` : 'No income records this month'}
+            subtitle={monthlyIncome > 0 
+              ? t('dashboard.savingsRate', { rate: ((monthlySavings / monthlyIncome) * 100).toFixed(1) })
+              : t('dashboard.noIncomeRecords')}
             currency={displayCurrency}
           />
           <SummaryCard
@@ -330,7 +334,7 @@ export default function DashboardPage() {
             title={t('dashboard.expenseIncomeRatio')}
             amount={Math.round(expenseIncomeRatio)}
             icon={Scale}
-            subtitle={`${Math.round(averageDailyExpense).toLocaleString()} ${displayCurrency} avg/day`}
+            subtitle={t('dashboard.avgPerDay', { amount: Math.round(averageDailyExpense).toLocaleString(), currency: displayCurrency })}
             currency="%"
           />
         </div>
@@ -342,7 +346,7 @@ export default function DashboardPage() {
           <IncomeExpenseBarChart
             expenses={personalExpenses}
             incomes={incomes}
-            title="Trend"
+            title={t('dashboard.trend')}
             currency={displayCurrency}
           />
         </div>

@@ -153,7 +153,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
                 {!isCollapsed && (
                   <div className="whitespace-nowrap">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">Wallet</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/70">{t('nav.wallet')}</p>
                     <h1 className="text-base font-bold tracking-tight">{t('common.appName')}</h1>
                   </div>
                 )}
@@ -185,10 +185,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               size="sm"
               className={`mt-3 w-full rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-accent/70 transition-all ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-2'}`}
               onClick={() => setIsCollapsed(!isCollapsed)}
-              title={isCollapsed ? 'Expand Menu' : 'Collapse Menu'}
+              title={isCollapsed ? t('nav.expand') : t('nav.collapse')}
             >
               {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-              {!isCollapsed && <span>Collapse</span>}
+              {!isCollapsed && <span>{t('nav.collapse')}</span>}
             </Button>
           </div>
 
@@ -203,10 +203,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               variant="ghost"
               className={`w-full ${isCollapsed ? 'justify-center px-0' : 'justify-start gap-3'} rounded-xl text-muted-foreground transition-colors hover:text-foreground hover:bg-accent/70`}
               onClick={handleLogout}
-              title={isCollapsed ? "Logout" : undefined}
+              title={isCollapsed ? t('common.logout') : undefined}
             >
               <LogOut className="h-4 w-4 shrink-0" />
-              {!isCollapsed && "Logout"}
+              {!isCollapsed && t('common.logout')}
             </Button>
           </div>
         </div>
@@ -260,7 +260,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     }}
                   >
                     <LogOut className="h-4 w-4" />
-                    Logout
+                    {t('common.logout')}
                   </Button>
                 </div>
               </div>

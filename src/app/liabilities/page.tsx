@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Calendar, CreditCard, Pencil, PlusCircle, Trash2, Wallet } from 'lucide-react'
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { useApp } from '@/contexts/AppContext'
+import { t } from '@/i18n/config'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
 import { AccountRecord, mapAccountRecord } from '@/lib/accounts'
 import {
@@ -99,10 +100,10 @@ export default function LiabilitiesPage() {
       const accountData = await accountsResponse.json() as ApiListResponse<Record<string, unknown>>
 
       if (!liabilitiesResponse.ok) {
-        throw new Error(liabilityData.error || 'Failed to load liabilities')
+        throw new Error(liabilityData.error || t('common.error'))
       }
       if (!accountsResponse.ok) {
-        throw new Error(accountData.error || 'Failed to load accounts')
+        throw new Error(accountData.error || t('common.error'))
       }
 
       const mappedLiabilities = (liabilityData.items ?? [])
@@ -118,7 +119,7 @@ export default function LiabilitiesPage() {
       )
       setAccounts(mappedAccounts.sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name)))
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load liabilities'
+      const message = loadError instanceof Error ? loadError.message : t('common.error')
       setError(message)
       setLiabilities([])
       setAccounts([])
@@ -257,21 +258,21 @@ export default function LiabilitiesPage() {
       })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save liability')
+        throw new Error(data.error || t('common.error'))
       }
 
       await loadData()
       setIsDialogOpen(false)
       resetForm()
     } catch (saveError) {
-      alert(saveError instanceof Error ? saveError.message : 'Failed to save liability')
+      alert(saveError instanceof Error ? saveError.message : t('common.error'))
     } finally {
       setIsSaving(false)
     }
   }
 
   const handleDelete = async (liability: LiabilityRecord) => {
-    if (!confirm(`Delete ${liability.name}?`)) {
+    if (!confirm(t('liabilities.deleteConfirm', { name: liability.name }))) {
       return
     }
 
@@ -279,11 +280,11 @@ export default function LiabilitiesPage() {
       const response = await fetch(`/api/liabilities/${liability.id}`, { method: 'DELETE' })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete liability')
+        throw new Error(data.error || t('common.error'))
       }
       await loadData()
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : 'Failed to delete liability')
+      alert(deleteError instanceof Error ? deleteError.message : t('common.error'))
     }
   }
 
@@ -291,39 +292,39 @@ export default function LiabilitiesPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Liabilities</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('liabilities.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Manage debt balances, due dates, and payoff scenarios in one place.
+            {t('liabilities.subtitle')}
           </p>
         </div>
         <Button onClick={openCreate} className="rounded-xl">
           <PlusCircle className="mr-2 h-4 w-4" />
-          Add Liability
+          {t('liabilities.addLiability')}
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">{`Outstanding (${displayCurrency})`}</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{`${t('liabilities.outstanding')} (${displayCurrency})`}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.totalOutstanding.toFixed(2)}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">{`Monthly Payment (${displayCurrency})`}</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{`${t('liabilities.monthlyPayment')} (${displayCurrency})`}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.monthlyCommitment.toFixed(2)}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Highest APR</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('liabilities.highestApr')}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.highestApr.toFixed(2)}%</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Active Debts</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('liabilities.activeDebts')}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.activeCount}</CardContent>
         </Card>
@@ -333,7 +334,7 @@ export default function LiabilitiesPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Wallet className="h-4 w-4 text-primary" />
-            Debt Payoff Simulator
+            {t('liabilities.simulatorTitle')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -341,7 +342,7 @@ export default function LiabilitiesPage() {
             <>
               <div className="grid gap-4 md:grid-cols-[1.5fr_1fr]">
                 <div className="space-y-2">
-                  <Label>Liability</Label>
+                  <Label>{t('liabilities.activeLiability')}</Label>
                   <Select value={selectedLiabilityId || null} onValueChange={(value) => setSelectedLiabilityId(value ?? '')}>
                     <SelectTrigger>
                       <SelectValue />
@@ -356,7 +357,7 @@ export default function LiabilitiesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>{`Extra Monthly Payment (${displayCurrency})`}</Label>
+                  <Label>{`${t('liabilities.extraMonthlyPayment')} (${displayCurrency})`}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -369,34 +370,34 @@ export default function LiabilitiesPage() {
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-border/40 bg-muted/15 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Current Plan</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('liabilities.currentPlan')}</p>
                   <p className="mt-1 font-semibold">
                     {baselineProjection?.isNegativeAmortization
-                      ? 'Payment too low'
+                      ? t('liabilities.paymentTooLow')
                       : `${baselineProjection?.months ?? '-'} months`}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Payoff date: {formatDateLabel(baselineProjection?.payoffDate)}
+                    {t('liabilities.projectedPayoff')}: {formatDateLabel(baselineProjection?.payoffDate)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/40 bg-muted/15 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">With Extra Payment</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('liabilities.withExtraPayment')}</p>
                   <p className="mt-1 font-semibold">
                     {scenarioProjection?.isNegativeAmortization
-                      ? 'Payment too low'
+                      ? t('liabilities.paymentTooLow')
                       : `${scenarioProjection?.months ?? '-'} months`}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Payoff date: {formatDateLabel(scenarioProjection?.payoffDate)}
+                    {t('liabilities.projectedPayoff')}: {formatDateLabel(scenarioProjection?.payoffDate)}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/40 bg-muted/15 p-4">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Potential Savings</p>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('liabilities.potentialSavings')}</p>
                   <p className="mt-1 font-semibold">
-                    {monthsSaved !== null ? `${monthsSaved} months faster` : 'No change yet'}
+                    {monthsSaved !== null ? t('liabilities.monthsFaster', { months: monthsSaved }) : '-'}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Interest avoided:{' '}
+                    {t('liabilities.interestAvoided')}:{' '}
                     {baselineProjection && scenarioProjection && !baselineProjection.isNegativeAmortization && !scenarioProjection.isNegativeAmortization
                       ? `${Math.max(0, baselineProjection.totalInterest - scenarioProjection.totalInterest).toFixed(2)} ${displayCurrency}`
                       : '-'}
@@ -405,7 +406,7 @@ export default function LiabilitiesPage() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Add an active liability to simulate a payoff plan.</p>
+            <p className="text-sm text-muted-foreground">{t('liabilities.noActiveLiabilityHint')}</p>
           )}
         </CardContent>
       </Card>
@@ -419,7 +420,7 @@ export default function LiabilitiesPage() {
       <div className="grid gap-4 xl:grid-cols-2">
         {isLoading ? (
           <Card className="border-border/40 xl:col-span-2">
-            <CardContent className="py-10 text-sm text-muted-foreground">Loading liabilities...</CardContent>
+            <CardContent className="py-10 text-sm text-muted-foreground">{t('common.loading')}...</CardContent>
           </Card>
         ) : liabilities.length === 0 ? (
           <Card className="border-dashed border-border/50 xl:col-span-2">
@@ -428,9 +429,9 @@ export default function LiabilitiesPage() {
                 <CreditCard className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="font-semibold">No liabilities yet</h2>
+                <h2 className="font-semibold">{t('liabilities.noLiabilitiesTitle')}</h2>
                 <p className="text-sm text-muted-foreground">
-                  Add a debt to track due dates, minimum payments, and payoff timelines.
+                  {t('liabilities.noLiabilitiesDesc')}
                 </p>
               </div>
             </CardContent>
@@ -448,10 +449,10 @@ export default function LiabilitiesPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-lg font-semibold">{liability.name}</p>
                         <Badge variant={liability.isActive ? 'default' : 'secondary'}>
-                          {liability.isActive ? 'Active' : 'Inactive'}
+                          {liability.isActive ? t('common.active') : t('common.inactive')}
                         </Badge>
                       </div>
-                      <p className="text-sm text-muted-foreground">{getLiabilityTypeLabel(liability.type)}</p>
+                      <p className="text-sm text-muted-foreground">{t(getLiabilityTypeLabel(liability.type))}</p>
                     </div>
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openEdit(liability)}>
@@ -465,11 +466,11 @@ export default function LiabilitiesPage() {
 
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Balance</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('common.balance')}</p>
                       <p className="mt-1 text-xl font-semibold">{liability.balance.toFixed(2)} {displayCurrency}</p>
                     </div>
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Monthly Payment</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('liabilities.monthlyPayment')}</p>
                       <p className="mt-1 text-xl font-semibold">{getMonthlyLiabilityPayment(liability).toFixed(2)} {displayCurrency}</p>
                     </div>
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
@@ -482,21 +483,21 @@ export default function LiabilitiesPage() {
                     <div className="rounded-xl border border-border/40 p-3">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Calendar className="h-4 w-4 text-primary" />
-                        Next due: {formatDateLabel(getLiabilityNextDueDate(liability))}
+                        {t('liabilities.nextDue')}: {formatDateLabel(getLiabilityNextDueDate(liability))}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Due day {liability.dueDay}
-                        {linkedAccount ? ` / Paid from ${linkedAccount.name}` : ''}
+                        {t('liabilities.dueDay')} {liability.dueDay}
+                        {linkedAccount ? ` / ${t('liabilities.paidFrom')} ${linkedAccount.name}` : ''}
                       </p>
                     </div>
                     <div className="rounded-xl border border-border/40 p-3">
                       <div className="flex items-center gap-2 text-sm font-medium">
                         <Wallet className="h-4 w-4 text-primary" />
-                        {projection.isNegativeAmortization ? 'Payment too low to reduce balance' : `Projected payoff ${formatDateLabel(projection.payoffDate)}`}
+                        {projection.isNegativeAmortization ? t('liabilities.paymentTooLow') : `${t('liabilities.projectedPayoff')} ${formatDateLabel(projection.payoffDate)}`}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {projection.isNegativeAmortization
-                          ? 'Increase payment or reduce rate to start amortizing.'
+                          ? t('liabilities.noActiveLiabilityHint')
                           : `${projection.months ?? 0} months / ${projection.totalInterest.toFixed(2)} ${displayCurrency} interest`}
                       </p>
                     </div>
@@ -504,7 +505,7 @@ export default function LiabilitiesPage() {
 
                   {liability.targetPayoffDate && (
                     <p className="text-sm text-muted-foreground">
-                      Target payoff: {formatDateLabel(liability.targetPayoffDate)}
+                      {t('liabilities.targetPayoff')}: {formatDateLabel(liability.targetPayoffDate)}
                     </p>
                   )}
 
@@ -519,18 +520,18 @@ export default function LiabilitiesPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[640px]">
           <DialogHeader>
-            <DialogTitle>{editingLiability ? 'Edit Liability' : 'Add Liability'}</DialogTitle>
+            <DialogTitle>{editingLiability ? t('liabilities.editLiability') : t('liabilities.addLiability')}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="liability-name">Name</Label>
+              <Label htmlFor="liability-name">{t('common.name')}</Label>
               <Input id="liability-name" value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>Type</Label>
+                <Label>{t('common.type')}</Label>
                 <Select value={form.type} onValueChange={(value) => setForm((prev) => ({ ...prev, type: value as LiabilityType }))}>
                   <SelectTrigger>
                     <SelectValue />
@@ -538,7 +539,7 @@ export default function LiabilitiesPage() {
                   <SelectContent>
                     {liabilityTypes.map((type) => (
                       <SelectItem key={type} value={type}>
-                        {getLiabilityTypeLabel(type)}
+                        {t(getLiabilityTypeLabel(type))}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -546,7 +547,7 @@ export default function LiabilitiesPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Linked Account</Label>
+                <Label>{t('liabilities.paidFrom')}</Label>
                 <Select
                   value={form.accountId || 'unlinked'}
                   onValueChange={(value) => setForm((prev) => ({ ...prev, accountId: !value || value === 'unlinked' ? '' : value }))}
@@ -568,7 +569,7 @@ export default function LiabilitiesPage() {
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="space-y-2">
-                <Label htmlFor="liability-balance">Balance</Label>
+                <Label htmlFor="liability-balance">{t('common.balance')}</Label>
                 <Input id="liability-balance" type="number" step="0.01" value={form.balance} onChange={(event) => setForm((prev) => ({ ...prev, balance: event.target.value }))} />
               </div>
               <div className="space-y-2">
@@ -576,48 +577,48 @@ export default function LiabilitiesPage() {
                 <Input id="liability-interest" type="number" step="0.01" min="0" value={form.interestRate} onChange={(event) => setForm((prev) => ({ ...prev, interestRate: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="liability-minimum">Minimum Payment</Label>
+                <Label htmlFor="liability-minimum">{t('liabilities.monthlyPayment')}</Label>
                 <Input id="liability-minimum" type="number" step="0.01" min="0" value={form.minimumPayment} onChange={(event) => setForm((prev) => ({ ...prev, minimumPayment: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="liability-extra">Extra Payment</Label>
+                <Label htmlFor="liability-extra">{t('liabilities.extraMonthlyPayment')}</Label>
                 <Input id="liability-extra" type="number" step="0.01" min="0" value={form.extraPayment} onChange={(event) => setForm((prev) => ({ ...prev, extraPayment: event.target.value }))} />
               </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="liability-due-day">Due Day</Label>
+                <Label htmlFor="liability-due-day">{t('liabilities.dueDay')}</Label>
                 <Input id="liability-due-day" type="number" min="1" max="31" value={form.dueDay} onChange={(event) => setForm((prev) => ({ ...prev, dueDay: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="liability-start-date">Start Date</Label>
+                <Label htmlFor="liability-start-date">{t('common.date')}</Label>
                 <Input id="liability-start-date" type="date" value={form.startDate} onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="liability-target-date">Target Payoff Date</Label>
+                <Label htmlFor="liability-target-date">{t('liabilities.targetPayoff')}</Label>
                 <Input id="liability-target-date" type="date" value={form.targetPayoffDate} onChange={(event) => setForm((prev) => ({ ...prev, targetPayoffDate: event.target.value }))} />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="liability-note">Note</Label>
+              <Label htmlFor="liability-note">{t('common.note')}</Label>
               <Textarea id="liability-note" rows={3} value={form.note} onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))} />
             </div>
 
             <div className="flex items-center justify-between rounded-xl border border-border/40 p-3">
               <div>
-                <p className="text-sm font-medium">Active liability</p>
-                <p className="text-xs text-muted-foreground">Inactive debts stay in history but drop out of active totals.</p>
+                <p className="text-sm font-medium">{t('liabilities.activeLiability')}</p>
+                <p className="text-xs text-muted-foreground">{t('liabilities.activeLiabilityDesc')}</p>
               </div>
               <Switch checked={form.isActive} onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked }))} />
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{t('common.cancel')}</Button>
             <Button onClick={() => void handleSave()} disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save Liability'}
+              {isSaving ? `${t('common.save')}...` : t('liabilities.saveLiability')}
             </Button>
           </DialogFooter>
         </DialogContent>

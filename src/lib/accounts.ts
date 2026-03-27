@@ -125,16 +125,16 @@ export function mapAccountRecord(record: Record<string, unknown>): AccountRecord
 export function getAccountTypeLabel(type: AccountType): string {
   switch (type) {
     case 'cash':
-      return 'Cash'
+      return 'accounts.type.cash'
     case 'bank':
-      return 'Bank'
+      return 'accounts.type.bank'
     case 'credit_card':
-      return 'Credit Card'
+      return 'accounts.type.credit_card'
     case 'ewallet':
-      return 'E-Wallet'
+      return 'accounts.type.ewallet'
     case 'investment':
-      return 'Investment'
+      return 'accounts.type.investment'
     default:
-      return 'Other'
+      return 'accounts.type.other'
   }
 }

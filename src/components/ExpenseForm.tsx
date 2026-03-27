@@ -338,7 +338,7 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 onClick={() => setMode('manual')}
                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${mode === 'manual' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
               >
-                Manual
+                {t('expense.manual')}
               </button>
               <button
                 type="button"
@@ -410,17 +410,17 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p>
                     {selectedTrip && tripHasCurrencyConfig
-                      ? `Saved in ${tripCurrencyLabel} for ${selectedTrip.name}.`
-                      : `Saved in ${baseCurrencyLabel}.`}
+                      ? t('expense.savedInTripCurrency', { currency: tripCurrencyLabel, trip: selectedTrip.name })
+                      : t('expense.savedInBaseCurrency', { currency: baseCurrencyLabel })}
                   </p>
                   {selectedTrip && tripHasCurrencyConfig && typeof selectedTrip.exchangeRate === 'number' && (
                     <>
-                      <p>{`1 ${tripCurrencyLabel} = ${(effectiveTripExchangeRate ?? selectedTrip.exchangeRate).toFixed(4)} ${baseCurrencyLabel}`}</p>
+                      <p>{t('expense.exchangeRateNote', { tripCurrency: tripCurrencyLabel, rate: (effectiveTripExchangeRate ?? selectedTrip.exchangeRate).toFixed(4), baseCurrency: baseCurrencyLabel })}</p>
                       {convertedBaseAmountPreview !== null && (
-                        <p>{`Base amount preview: ${convertedBaseAmountPreview.toFixed(2)} ${baseCurrencyLabel}`}</p>
+                        <p>{t('expense.baseAmountPreview', { amount: convertedBaseAmountPreview.toFixed(2), currency: baseCurrencyLabel })}</p>
                       )}
                       {initialData && typeof effectiveTripExchangeRate === 'number' && typeof selectedTrip.exchangeRate === 'number' && Math.abs(effectiveTripExchangeRate - selectedTrip.exchangeRate) > 1e-9 && (
-                        <p>{`Editing keeps the saved historical rate instead of the trip's current rate (${selectedTrip.exchangeRate.toFixed(4)}).`}</p>
+                        <p>{t('expense.historicalRateNote', { rate: selectedTrip.exchangeRate.toFixed(4) })}</p>
                       )}
                     </>
                   )}
@@ -502,13 +502,13 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
 
             {accounts.length > 0 && (
               <div className="space-y-2">
-                <Label htmlFor="expense-account" className="text-sm font-medium">Account</Label>
+                <Label htmlFor="expense-account" className="text-sm font-medium">{t('expense.account')}</Label>
                 <Select value={accountId || 'none'} onValueChange={(value) => setAccountId(!value || value === 'none' ? '' : value)}>
                   <SelectTrigger id="expense-account" className="rounded-xl border-border/60 bg-muted/20 transition-all focus:bg-background">
-                    <SelectValue placeholder="Select account" />
+                    <SelectValue placeholder={t('expense.selectAccount')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No account</SelectItem>
+                    <SelectItem value="none">{t('expense.noAccount')}</SelectItem>
                     {accounts.map((account) => (
                       <SelectItem key={account.id} value={account.id}>
                         {account.name} ({account.currency})
@@ -588,12 +588,18 @@ export function ExpenseForm({ initialData, onSubmit, onCancel, isSubmitting = fa
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {sharedGroupExpense
-                    ? `This expense will count toward ${selectedTrip.groupName || 'the shared friend group fund'} for ${selectedTrip.name}.`
-                    : `This expense stays as your personal cost inside ${selectedTrip.name}.`}
+                    ? t('expense.sharedGroupFundNote', { group: selectedTrip.groupName || 'the shared friend group fund', trip: selectedTrip.name })
+                    : t('expense.personalCostNote', { trip: selectedTrip.name })}
                 </p>
                 {tripHasCurrencyConfig && (
                   <p className="text-xs text-muted-foreground">
-                    {`Trip spending is tracked in ${tripCurrencyLabel} using manual rate ${(effectiveTripExchangeRate ?? selectedTrip.exchangeRate ?? 0).toFixed(4)} ${baseCurrencyLabel} per ${tripCurrencyLabel}.`}
+                    {t('expense.tripTrackingNote', {
+                      trip: selectedTrip.name,
+                      curr: tripCurrencyLabel,
+                      rate: (effectiveTripExchangeRate ?? selectedTrip.exchangeRate ?? 0).toFixed(4),
+                      base: baseCurrencyLabel,
+                      currency: tripCurrencyLabel
+                    })}
                   </p>
                 )}
                 {sharedGroupExpense && (

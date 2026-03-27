@@ -147,13 +147,14 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
    - planned, spent, and remaining totals update
    - category card shows rollover and previous-month leftover suggestion
    - inactive budgets remain stored but are excluded from summary totals
+   - duplicate month/category budget creation is rejected
 
 ### 3.5 Savings assets + live market data
 
 1. Open `/savings`.
 2. Add one insurance asset and one personal saving funds asset with manual value.
 3. Add one crypto asset using quantity input and a symbol (for example `BTC` or `BTC-USD`).
-4. Add one stocks asset using quantity input and a symbol (for example `AAPL` or `NVDA`).
+4. Add one stocks asset using manual value entry.
 5. Verify:
    - Crypto value updates from live Coinbase ticker feed.
    - Stock assets stay as manual values.
@@ -215,7 +216,9 @@ Supported model choices: `glm-5`, `glm-5-turbo`, `glm-4.7`.
 3. Add at least one member.
 4. Verify:
    - household list loads
-   - member role and invitation status save successfully
+   - creator is seeded automatically as the active owner member
+   - owner can add members, but non-owner members cannot manage membership
+   - invited member rows save by email and auto-bind to the matching signed-in user
    - members are grouped under the correct household
 
 ### 3.11 Cashflow forecast + projected net worth
@@ -298,6 +301,7 @@ Migration files:
 - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
 - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
+- `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
 
 ## 4) Kubernetes Setup
 
@@ -338,6 +342,17 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
 
 You should see migration and superuser upsert output.
 
+For an incremental release that only changes PocketBase migrations plus the frontend image:
+
+```bash
+kubectl apply -f k8s/pocketbase-bootstrap.yaml
+kubectl rollout restart deployment/pocketbase -n wallet-app
+kubectl rollout status deployment/pocketbase -n wallet-app
+kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=200
+kubectl -n wallet-app set image deployment/wallet-frontend wallet-app=winyannainghtut/wallet-app:sha-<commit>
+kubectl rollout status deployment/wallet-frontend -n wallet-app
+```
+
 ## 5) Troubleshooting
 
 ### "Savings goals collection is missing"
@@ -352,6 +367,29 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
 
 2. Confirm app `POCKETBASE_URL` points to that same PocketBase instance.
 3. Confirm `incomes`, `savings_goals`, and `savings_assets` exist in PocketBase Admin.
+
+### Household members cannot see or manage the expected household
+
+1. Confirm the latest planning/collaboration migrations are applied:
+   - `1775400000_planning_collaboration_collections.js`
+   - `1775500000_fix_household_rules_and_budget_indexes.js`
+2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
+3. In PocketBase Admin, verify:
+   - `households` and `household_members` collections exist
+   - household list rules are membership-based for reads
+   - household/member create, update, and delete rules are owner-only
+   - invited member rows store `email` and can populate `userId` after matching sign-in
+
+### Budgets double-count or duplicate rows appear
+
+1. Confirm the latest planning/collaboration migrations are applied:
+   - `1775400000_planning_collaboration_collections.js`
+   - `1775500000_fix_household_rules_and_budget_indexes.js`
+2. In PocketBase Admin, verify the `budgets` collection has a unique composite index for:
+   - `user`
+   - `month`
+   - `category`
+3. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase if the index is missing.
 
 ### App API unauthorized
 

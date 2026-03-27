@@ -9,6 +9,7 @@ import { useApp } from '@/contexts/AppContext'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
 import { LiabilityRecord, getLiabilityNextDueDate, getLiabilityTypeLabel, getMonthlyLiabilityPayment, mapLiabilityRecord } from '@/lib/liabilities'
 import { getNextRecurringContributionDate, isValidDateOnly } from '@/lib/savings-assets'
+import { t } from '@/i18n/config'
 import type { BillingCycle, SavingsAsset, Subscription } from '@/types'
 
 type ApiListResponse<T> = {
@@ -55,11 +56,11 @@ function getSubscriptionMonthlyEquivalent(subscription: Subscription): number {
 function getBillingCycleLabel(cycle: BillingCycle): string {
   switch (cycle) {
     case 'weekly':
-      return 'Weekly'
+      return t('common.weekly')
     case 'yearly':
-      return 'Yearly'
+      return t('common.yearly')
     default:
-      return 'Monthly'
+      return t('common.monthly')
   }
 }
 
@@ -140,7 +141,7 @@ function BillsSection({
       </CardHeader>
       <CardContent className="space-y-3">
         {items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing here right now.</p>
+          <p className="text-sm text-muted-foreground">{t('bills.nothingHere')}</p>
         ) : (
           items.map((item) => (
             <div key={`${item.source}-${item.id}`} className="rounded-xl border border-border/40 p-4">
@@ -149,13 +150,13 @@ function BillsSection({
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="font-semibold">{item.name}</p>
                     <Badge variant={item.source === 'liability' ? 'outline' : 'secondary'}>
-                      {item.source === 'liability' ? 'Liability' : item.source === 'insurance' ? 'Insurance' : 'Subscription'}
+                      {item.source === 'liability' ? t('bills.liability') : item.source === 'insurance' ? t('bills.insurance') : t('bills.subscription')}
                     </Badge>
-                    {!item.isActive && <Badge variant="secondary">Inactive</Badge>}
+                    {!item.isActive && <Badge variant="secondary">{t('common.inactive')}</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground">{item.detail}</p>
                   <p className="text-xs text-muted-foreground">
-                    Due {formatDateLabel(item.dueDate)} / {item.cadenceLabel}
+                    {t('bills.dueOn', { date: formatDateLabel(item.dueDate), cadence: item.cadenceLabel })}
                   </p>
                 </div>
                 <div className="text-left sm:text-right">
@@ -190,10 +191,10 @@ export default function BillsPage() {
       const liabilitiesData = await liabilitiesResponse.json() as ApiListResponse<Record<string, unknown>>
       const savingsAssetsData = await savingsAssetsResponse.json() as ApiListResponse<SavingsAssetApiRecord>
       if (!liabilitiesResponse.ok) {
-        throw new Error(liabilitiesData.error || 'Failed to load liabilities')
+        throw new Error(liabilitiesData.error || t('common.error'))
       }
       if (!savingsAssetsResponse.ok) {
-        throw new Error(savingsAssetsData.error || 'Failed to load savings assets')
+        throw new Error(savingsAssetsData.error || t('common.error'))
       }
 
       const mappedLiabilities = (liabilitiesData.items ?? [])
@@ -207,7 +208,7 @@ export default function BillsPage() {
       setLiabilities(mappedLiabilities.sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.dueDay - b.dueDay))
       setInsuranceAssets(mappedInsuranceAssets.sort((a, b) => a.name.localeCompare(b.name)))
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load liabilities'
+      const message = loadError instanceof Error ? loadError.message : t('common.error')
       setError(message)
       setLiabilities([])
       setInsuranceAssets([])
@@ -227,8 +228,8 @@ export default function BillsPage() {
       name: liability.name,
       dueDate: getLiabilityNextDueDate(liability),
       amount: getMonthlyLiabilityPayment(liability),
-      cadenceLabel: `Every month on day ${liability.dueDay}`,
-      detail: `${getLiabilityTypeLabel(liability.type)} / Minimum ${liability.minimumPayment.toFixed(2)} ${displayCurrency}${liability.extraPayment > 0 ? ` + extra ${liability.extraPayment.toFixed(2)} ${displayCurrency}` : ''}`,
+      cadenceLabel: t('bills.cadence.monthlyDay', { day: liability.dueDay }),
+      detail: `${getLiabilityTypeLabel(liability.type)} / ${t('bills.detail.minimum', { amount: liability.minimumPayment.toFixed(2) })} ${displayCurrency}${liability.extraPayment > 0 ? ` ${t('bills.detail.extra', { amount: liability.extraPayment.toFixed(2) })} ${displayCurrency}` : ''}`,
       isActive: liability.isActive,
     }))
 
@@ -239,7 +240,7 @@ export default function BillsPage() {
       dueDate: getNextSubscriptionDueDate(subscription),
       amount: subscription.amount,
       cadenceLabel: getBillingCycleLabel(subscription.billingCycle),
-      detail: `Starts ${formatDateLabel(subscription.startDate)}`,
+      detail: t('bills.detail.starts', { date: formatDateLabel(subscription.startDate) }),
       isActive: subscription.isActive,
     }))
 
@@ -249,8 +250,8 @@ export default function BillsPage() {
       name: asset.name,
       dueDate: getNextRecurringContributionDate(asset.recurringStartDate) ?? format(today, 'yyyy-MM-dd'),
       amount: asset.recurringMonthlyAmount ?? 0,
-      cadenceLabel: 'Monthly recurring contribution',
-      detail: `Insurance savings contribution since ${formatDateLabel(asset.recurringStartDate ?? format(today, 'yyyy-MM-dd'))}`,
+      cadenceLabel: t('bills.cadence.monthlyInsurance'),
+      detail: t('bills.detail.insurance', { date: formatDateLabel(asset.recurringStartDate ?? format(today, 'yyyy-MM-dd')) }),
       isActive: true,
     }))
 
@@ -324,9 +325,9 @@ export default function BillsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Bills Center</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('bills.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            One timeline for subscriptions and debt payments, so upcoming obligations stay visible.
+            {t('bills.subtitle')}
           </p>
         </div>
       </div>
@@ -334,25 +335,25 @@ export default function BillsPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">{`Due Next 30 Days (${displayCurrency})`}</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{`${t('bills.dueNext30Days')} (${displayCurrency})`}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.dueNext30Days.toFixed(2)}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">{`Monthly Commitments (${displayCurrency})`}</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{`${t('bills.monthlyCommitments')} (${displayCurrency})`}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.monthlyCommitted.toFixed(2)}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Active Bills</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('bills.activeBills')}</CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">{summary.activeCount}</CardContent>
         </Card>
         <Card className="border-border/40">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Next Due</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">{t('bills.nextDue')}</CardTitle>
           </CardHeader>
           <CardContent className="text-xl font-bold">
             {summary.nextDueDate ? formatDateLabel(summary.nextDueDate) : '-'}
@@ -368,25 +369,25 @@ export default function BillsPage() {
 
       {isLoading ? (
         <Card className="border-border/40">
-          <CardContent className="py-10 text-sm text-muted-foreground">Loading bills...</CardContent>
+          <CardContent className="py-10 text-sm text-muted-foreground">{t('common.loading')}...</CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 xl:grid-cols-3">
           <BillsSection
-            title="Due This Week"
-            description="Immediate obligations from both subscriptions and liabilities."
+            title={t('bills.dueThisWeek')}
+            description={t('bills.dueThisWeekDesc')}
             items={dueThisWeek}
             displayCurrency={displayCurrency}
           />
           <BillsSection
-            title="Later This Month"
-            description="Active bills still coming before the month closes."
+            title={t('bills.laterThisMonth')}
+            description={t('bills.laterThisMonthDesc')}
             items={laterThisMonth}
             displayCurrency={displayCurrency}
           />
           <BillsSection
-            title="Beyond This Month"
-            description="Future-dated bills, useful for forward planning."
+            title={t('bills.beyondThisMonth')}
+            description={t('bills.beyondThisMonthDesc')}
             items={beyondThisMonth}
             displayCurrency={displayCurrency}
           />
@@ -400,9 +401,9 @@ export default function BillsPage() {
               <CalendarClock className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="font-semibold">No active bills yet</h2>
+              <h2 className="font-semibold">{t('bills.noActiveBills')}</h2>
               <p className="text-sm text-muted-foreground">
-                Activate subscriptions or liabilities to see them in the bills center.
+                {t('bills.noActiveBillsDesc')}
               </p>
             </div>
           </CardContent>
@@ -415,7 +416,7 @@ export default function BillsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Repeat className="h-4 w-4 text-primary" />
-                Paused or Inactive
+                {t('bills.pausedOrInactive')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -424,14 +425,14 @@ export default function BillsPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold">{item.name}</p>
-                      <Badge variant="secondary">{item.source === 'liability' ? 'Liability' : 'Subscription'}</Badge>
+                      <Badge variant="secondary">{item.source === 'liability' ? t('bills.liability') : t('bills.subscription')}</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground">{item.detail}</p>
                   </div>
                   <div className="text-left sm:text-right">
                     <p className="text-lg font-semibold">{item.amount.toFixed(2)} {displayCurrency}</p>
                     <p className="text-xs text-muted-foreground">
-                      Due {formatDateLabel(item.dueDate)}
+                      {t('bills.dueOn', { date: formatDateLabel(item.dueDate), cadence: item.cadenceLabel })}
                     </p>
                   </div>
                 </div>
@@ -446,15 +447,15 @@ export default function BillsPage() {
           <CardContent className="flex flex-col gap-3 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-primary" />
-              Liabilities are shown with minimum payment plus extra payment.
+              {t('bills.liabilityHint')}
             </div>
             <div className="flex items-center gap-2">
               <Wallet className="h-4 w-4 text-primary" />
-              Subscriptions keep their own recurrence schedule and amount.
+              {t('bills.subscriptionHint')}
             </div>
             <div className="flex items-center gap-2">
               <Repeat className="h-4 w-4 text-primary" />
-              Recurring insurance savings are treated as monthly obligations too.
+              {t('bills.insuranceHint')}
             </div>
           </CardContent>
         </Card>
@@ -462,3 +463,4 @@ export default function BillsPage() {
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, Pencil, PlusCircle, Sparkles, Trash2 } from 'lucide-react'
@@ -14,7 +14,7 @@ import { useApp } from '@/contexts/AppContext'
 import { AccountRecord } from '@/lib/accounts'
 import { TransactionRuleRecord } from '@/lib/transaction-rules'
 import { CATEGORIES, INCOME_CATEGORIES, getCategoryLabel, getIncomeCategoryLabel } from '@/types'
-import { getLanguage } from '@/i18n/config'
+import { getLanguage, t } from '@/i18n/config'
 
 type ReviewItem = {
   id: string
@@ -88,8 +88,8 @@ export default function ReviewPage() {
       const rulesData = await rulesResponse.json() as ApiListResponse<TransactionRuleRecord>
       const accountsData = await accountsResponse.json() as ApiListResponse<AccountRecord>
 
-      if (!itemsResponse.ok) throw new Error(itemsData.error || 'Failed to load review queue')
-      if (!rulesResponse.ok) throw new Error(rulesData.error || 'Failed to load transaction rules')
+      if (!itemsResponse.ok) throw new Error(itemsData.error || t('common.error'))
+      if (!rulesResponse.ok) throw new Error(rulesData.error || t('common.error'))
 
       setItems(itemsData.items ?? [])
       setRules(rulesData.items ?? [])
@@ -125,7 +125,7 @@ export default function ReviewPage() {
         body: JSON.stringify({ merchantName: item.merchantName, category: item.category, tagsJson: item.tags, reviewStatus: item.reviewStatus, accountId: item.accountId || null }),
       })
       const data = await response.json() as { error?: string }
-      if (!response.ok) throw new Error(data.error || 'Failed to save review item')
+      if (!response.ok) throw new Error(data.error || t('common.error'))
       await loadData()
     } catch (saveError) {
       alert(saveError instanceof Error ? saveError.message : 'Failed to save review item')
@@ -139,7 +139,7 @@ export default function ReviewPage() {
       setIsApplyingRules(true)
       const response = await fetch('/api/transactions/review', { method: 'POST' })
       const data = await response.json() as { error?: string }
-      if (!response.ok) throw new Error(data.error || 'Failed to apply transaction rules')
+      if (!response.ok) throw new Error(data.error || t('common.error'))
       await loadData()
     } catch (applyError) {
       alert(applyError instanceof Error ? applyError.message : 'Failed to apply transaction rules')
@@ -170,7 +170,7 @@ export default function ReviewPage() {
         body: JSON.stringify({ name: ruleForm.name.trim(), matchText: ruleForm.matchText.trim(), renameTo: ruleForm.renameTo.trim(), category: ruleForm.category, tagsJson: ruleForm.tagsText.split(',').map((tag) => tag.trim()).filter(Boolean), markReviewed: ruleForm.markReviewed, isActive: ruleForm.isActive }),
       })
       const data = await response.json() as { error?: string }
-      if (!response.ok) throw new Error(data.error || 'Failed to save rule')
+      if (!response.ok) throw new Error(data.error || t('common.error'))
       setIsRuleDialogOpen(false)
       await loadData()
     } catch (saveError) {
@@ -181,7 +181,7 @@ export default function ReviewPage() {
   }
 
   const deleteRule = async (rule: TransactionRuleRecord) => {
-    if (!confirm(`Delete rule ${rule.name}?`)) return
+    if (!confirm(t('common.deleteConfirm', { name: rule.name }))) return
     const response = await fetch(`/api/transaction-rules/${rule.id}`, { method: 'DELETE' })
     const data = await response.json() as { error?: string }
     if (!response.ok) {
@@ -195,12 +195,12 @@ export default function ReviewPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Review Queue</h1>
-          <p className="text-sm text-muted-foreground">Review transactions and automate cleanup with reusable rules.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('review.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('review.subtitle')}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="rounded-xl" onClick={() => void applyRules()} disabled={isApplyingRules}><Sparkles className="mr-2 h-4 w-4" />{isApplyingRules ? 'Applying...' : 'Apply Rules'}</Button>
-          <Button className="rounded-xl" onClick={openCreateRule}><PlusCircle className="mr-2 h-4 w-4" />Add Rule</Button>
+          <Button variant="outline" className="rounded-xl" onClick={() => void applyRules()} disabled={isApplyingRules}><Sparkles className="mr-2 h-4 w-4" />{isApplyingRules ? t('review.applying') : t('review.applyRules')}</Button>
+          <Button className="rounded-xl" onClick={openCreateRule}><PlusCircle className="mr-2 h-4 w-4" />{t('review.addRule')}</Button>
         </div>
       </div>
 
@@ -208,32 +208,32 @@ export default function ReviewPage() {
 
       <Tabs defaultValue="queue">
         <TabsList>
-          <TabsTrigger value="queue">Queue ({counts.pending})</TabsTrigger>
-          <TabsTrigger value="rules">Rules ({rules.length})</TabsTrigger>
+          <TabsTrigger value="queue">{t('review.queueTab')} ({counts.pending})</TabsTrigger>
+          <TabsTrigger value="rules">{t('review.rulesTab')} ({rules.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="queue" className="space-y-4 pt-4">
           <div className="grid gap-4 md:grid-cols-4">
-            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Pending</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{counts.pending}</CardContent></Card>
-            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Reviewed</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{counts.reviewed}</CardContent></Card>
-            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Ignored</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{counts.ignored}</CardContent></Card>
-            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Visible</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{items.length}</CardContent></Card>
+            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('review.pending')}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{counts.pending}</CardContent></Card>
+            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('review.reviewed')}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{counts.reviewed}</CardContent></Card>
+            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('review.ignored')}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{counts.ignored}</CardContent></Card>
+            <Card className="border-border/40"><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('review.visible')}</CardTitle></CardHeader><CardContent className="text-2xl font-bold">{items.length}</CardContent></Card>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search description, merchant, category, or tags" className="rounded-xl md:col-span-2" />
+            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('review.searchPlaceholder')} className="rounded-xl md:col-span-2" />
             <Select value={reviewFilter} onValueChange={(value) => setReviewFilter(value as typeof reviewFilter)}>
               <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="reviewed">Reviewed</SelectItem>
-                <SelectItem value="ignored">Ignored</SelectItem>
-                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="pending">{t('review.pending')}</SelectItem>
+                <SelectItem value="reviewed">{t('review.reviewed')}</SelectItem>
+                <SelectItem value="ignored">{t('review.ignored')}</SelectItem>
+                <SelectItem value="all">{t('review.all')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {isLoading ? <Card className="border-border/40"><CardContent className="py-10 text-sm text-muted-foreground">Loading review queue...</CardContent></Card> : items.length === 0 ? <Card className="border-dashed border-border/50"><CardContent className="py-10 text-sm text-muted-foreground">No transactions match the current filter.</CardContent></Card> : (
+          {isLoading ? <Card className="border-border/40"><CardContent className="py-10 text-sm text-muted-foreground">{t('common.loading')}...</CardContent></Card> : items.length === 0 ? <Card className="border-dashed border-border/50"><CardContent className="py-10 text-sm text-muted-foreground">{t('review.noItems')}</CardContent></Card> : (
             <div className="space-y-4">
               {items.map((item) => (
                 <Card key={item.id} className="border-border/40">
@@ -243,17 +243,17 @@ export default function ReviewPage() {
                         <p className="font-semibold">{item.description || item.merchantName || item.category}</p>
                         <p className="text-sm text-muted-foreground">{item.date} · {item.type} · {item.amount.toFixed(2)}</p>
                       </div>
-                      <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{item.reviewStatus}</div>
+                      <div className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">{t(`review.${item.reviewStatus}`)}</div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                      <div className="space-y-2"><Label>Merchant</Label><Input value={item.merchantName} onChange={(event) => updateLocalItem(item.id, { merchantName: event.target.value })} className="rounded-xl" /></div>
-                      <div className="space-y-2"><Label>Category</Label><Select value={item.category} onValueChange={(value) => updateLocalItem(item.id, { category: value ?? item.category })}><SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{categoryOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
-                      <div className="space-y-2"><Label>Tags</Label><Input value={item.tags.join(', ')} onChange={(event) => updateLocalItem(item.id, { tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} className="rounded-xl" /></div>
-                      <div className="space-y-2"><Label>Account</Label><Select value={item.accountId || 'none'} onValueChange={(value) => updateLocalItem(item.id, { accountId: !value || value === 'none' ? '' : value })}><SelectTrigger className="rounded-xl"><SelectValue placeholder="No account" /></SelectTrigger><SelectContent><SelectItem value="none">No account</SelectItem>{accounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="space-y-2"><Label>{t('review.merchant')}</Label><Input value={item.merchantName} onChange={(event) => updateLocalItem(item.id, { merchantName: event.target.value })} className="rounded-xl" /></div>
+                      <div className="space-y-2"><Label>{t('common.category')}</Label><Select value={item.category} onValueChange={(value) => updateLocalItem(item.id, { category: value ?? item.category })}><SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{categoryOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+                      <div className="space-y-2"><Label>{t('review.tags')}</Label><Input value={item.tags.join(', ')} onChange={(event) => updateLocalItem(item.id, { tags: event.target.value.split(',').map((tag) => tag.trim()).filter(Boolean) })} className="rounded-xl" /></div>
+                      <div className="space-y-2"><Label>{t('review.account')}</Label><Select value={item.accountId || 'none'} onValueChange={(value) => updateLocalItem(item.id, { accountId: !value || value === 'none' ? '' : value })}><SelectTrigger className="rounded-xl"><SelectValue placeholder={t('review.noAccount')} /></SelectTrigger><SelectContent><SelectItem value="none">{t('review.noAccount')}</SelectItem>{accounts.map((account) => <SelectItem key={account.id} value={account.id}>{account.name}</SelectItem>)}</SelectContent></Select></div>
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <Select value={item.reviewStatus} onValueChange={(value) => updateLocalItem(item.id, { reviewStatus: value as ReviewItem['reviewStatus'] })}><SelectTrigger className="w-full rounded-xl sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">Pending</SelectItem><SelectItem value="reviewed">Reviewed</SelectItem><SelectItem value="ignored">Ignored</SelectItem></SelectContent></Select>
-                      <Button className="rounded-xl" onClick={() => void saveReviewItem(item)} disabled={savingItemId === item.id}><CheckCircle2 className="mr-2 h-4 w-4" />{savingItemId === item.id ? 'Saving...' : 'Save Review'}</Button>
+                      <Select value={item.reviewStatus} onValueChange={(value) => updateLocalItem(item.id, { reviewStatus: value as ReviewItem['reviewStatus'] })}><SelectTrigger className="w-full rounded-xl sm:w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">{t('review.pending')}</SelectItem><SelectItem value="reviewed">{t('review.reviewed')}</SelectItem><SelectItem value="ignored">{t('review.ignored')}</SelectItem></SelectContent></Select>
+                      <Button className="rounded-xl" onClick={() => void saveReviewItem(item)} disabled={savingItemId === item.id}><CheckCircle2 className="mr-2 h-4 w-4" />{savingItemId === item.id ? `${t('common.save')}...` : t('review.saveReview')}</Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -263,7 +263,7 @@ export default function ReviewPage() {
         </TabsContent>
 
         <TabsContent value="rules" className="space-y-4 pt-4">
-          {rules.length === 0 ? <Card className="border-dashed border-border/50"><CardContent className="py-10 text-sm text-muted-foreground">No transaction rules yet.</CardContent></Card> : (
+          {rules.length === 0 ? <Card className="border-dashed border-border/50"><CardContent className="py-10 text-sm text-muted-foreground">{t('review.noRules')}</CardContent></Card> : (
             <div className="space-y-4">
               {rules.map((rule) => (
                 <Card key={rule.id} className="border-border/40">
@@ -271,7 +271,7 @@ export default function ReviewPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold">{rule.name}</p>
-                        <p className="text-sm text-muted-foreground">Matches: {rule.matchText}</p>
+                        <p className="text-sm text-muted-foreground">{t('review.matches')}: {rule.matchText}</p>
                       </div>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg" onClick={() => openEditRule(rule)}><Pencil className="h-4 w-4" /></Button>
@@ -279,10 +279,10 @@ export default function ReviewPage() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      {rule.renameTo && <span className="rounded-full bg-muted px-3 py-1">Rename: {rule.renameTo}</span>}
-                      {rule.category && <span className="rounded-full bg-muted px-3 py-1">Category: {rule.category}</span>}
+                      {rule.renameTo && <span className="rounded-full bg-muted px-3 py-1">{t('review.renameTo')}: {rule.renameTo}</span>}
+                      {rule.category && <span className="rounded-full bg-muted px-3 py-1">{t('common.category')}: {rule.category}</span>}
                       {rule.tags.map((tag) => <span key={tag} className="rounded-full bg-muted px-3 py-1">#{tag}</span>)}
-                      {rule.markReviewed && <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-emerald-700">Auto reviewed</span>}
+                      {rule.markReviewed && <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-emerald-700">{t('review.autoReviewed')}</span>}
                     </div>
                   </CardContent>
                 </Card>
@@ -294,23 +294,23 @@ export default function ReviewPage() {
 
       <Dialog open={isRuleDialogOpen} onOpenChange={setIsRuleDialogOpen}>
         <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader><DialogTitle>{editingRule ? 'Edit Rule' : 'Add Rule'}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingRule ? t('review.editRule') : t('review.addRule')}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="space-y-2"><Label htmlFor="rule-name">Name</Label><Input id="rule-name" value={ruleForm.name} onChange={(event) => setRuleForm((prev) => ({ ...prev, name: event.target.value }))} /></div>
-            <div className="space-y-2"><Label htmlFor="rule-match">Match Text</Label><Input id="rule-match" value={ruleForm.matchText} onChange={(event) => setRuleForm((prev) => ({ ...prev, matchText: event.target.value }))} placeholder="e.g. ntuc, netflix, grab" /></div>
+            <div className="space-y-2"><Label htmlFor="rule-name">{t('common.name')}</Label><Input id="rule-name" value={ruleForm.name} onChange={(event) => setRuleForm((prev) => ({ ...prev, name: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="rule-match">{t('review.matchText')}</Label><Input id="rule-match" value={ruleForm.matchText} onChange={(event) => setRuleForm((prev) => ({ ...prev, matchText: event.target.value }))} placeholder="e.g. ntuc, netflix, grab" /></div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2"><Label htmlFor="rule-rename">Rename Merchant</Label><Input id="rule-rename" value={ruleForm.renameTo} onChange={(event) => setRuleForm((prev) => ({ ...prev, renameTo: event.target.value }))} /></div>
-              <div className="space-y-2"><Label>Category</Label><Select value={ruleForm.category || 'none'} onValueChange={(value) => setRuleForm((prev) => ({ ...prev, category: !value || value === 'none' ? '' : value }))}><SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger><SelectContent><SelectItem value="none">No category change</SelectItem>{categoryOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label htmlFor="rule-rename">{t('review.renameMerchant')}</Label><Input id="rule-rename" value={ruleForm.renameTo} onChange={(event) => setRuleForm((prev) => ({ ...prev, renameTo: event.target.value }))} /></div>
+              <div className="space-y-2"><Label>{t('common.category')}</Label><Select value={ruleForm.category || 'none'} onValueChange={(value) => setRuleForm((prev) => ({ ...prev, category: !value || value === 'none' ? '' : value }))}><SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger><SelectContent><SelectItem value="none">No category change</SelectItem>{categoryOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select></div>
             </div>
-            <div className="space-y-2"><Label htmlFor="rule-tags">Tags</Label><Input id="rule-tags" value={ruleForm.tagsText} onChange={(event) => setRuleForm((prev) => ({ ...prev, tagsText: event.target.value }))} placeholder="comma, separated, tags" /></div>
+            <div className="space-y-2"><Label htmlFor="rule-tags">{t('review.tags')}</Label><Input id="rule-tags" value={ruleForm.tagsText} onChange={(event) => setRuleForm((prev) => ({ ...prev, tagsText: event.target.value }))} placeholder="comma, separated, tags" /></div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex items-center justify-between rounded-xl border border-border/40 p-3"><div><p className="text-sm font-medium">Auto mark reviewed</p></div><Switch checked={ruleForm.markReviewed} onCheckedChange={(checked) => setRuleForm((prev) => ({ ...prev, markReviewed: checked }))} /></div>
-              <div className="flex items-center justify-between rounded-xl border border-border/40 p-3"><div><p className="text-sm font-medium">Rule active</p></div><Switch checked={ruleForm.isActive} onCheckedChange={(checked) => setRuleForm((prev) => ({ ...prev, isActive: checked }))} /></div>
+              <div className="flex items-center justify-between rounded-xl border border-border/40 p-3"><div><p className="text-sm font-medium">{t('review.autoMarkReviewed')}</p></div><Switch checked={ruleForm.markReviewed} onCheckedChange={(checked) => setRuleForm((prev) => ({ ...prev, markReviewed: checked }))} /></div>
+              <div className="flex items-center justify-between rounded-xl border border-border/40 p-3"><div><p className="text-sm font-medium">{t('review.ruleActive')}</p></div><Switch checked={ruleForm.isActive} onCheckedChange={(checked) => setRuleForm((prev) => ({ ...prev, isActive: checked }))} /></div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void saveRule()} disabled={savingRule}>{savingRule ? 'Saving...' : 'Save Rule'}</Button>
+            <Button variant="outline" onClick={() => setIsRuleDialogOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void saveRule()} disabled={savingRule}>{savingRule ? `${t('common.save')}...` : t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -18,7 +18,7 @@ export function getLanguage(): Language {
   return currentLanguage
 }
 
-export function t(key: string): string {
+export function t(key: string, variables?: Record<string, string | number>): string {
   const keys = key.split('.')
   let value: unknown = translations[currentLanguage]
 
@@ -32,12 +32,21 @@ export function t(key: string): string {
         if (value && typeof value === 'object' && k2 in value) {
           value = (value as Record<string, unknown>)[k2]
         } else {
-          return key
+          value = key
+          break
         }
       }
       break
     }
   }
 
-  return typeof value === 'string' ? value : key
+  let text = typeof value === 'string' ? value : key
+
+  if (variables) {
+    Object.entries(variables).forEach(([name, val]) => {
+      text = text.replace(new RegExp(`\\{${name}\\}`, 'g'), String(val))
+    })
+  }
+
+  return text
 }

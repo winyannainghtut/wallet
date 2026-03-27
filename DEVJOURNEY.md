@@ -32,6 +32,18 @@
   - `household_members`
 - Added transaction review queue with merchant cleanup, tags, review states, and account assignment across expenses and incomes.
 - Added bills center that consolidates subscriptions, liabilities, and recurring insurance contributions.
+- Hardened household collaboration:
+  - household creation now seeds the active owner membership
+  - invited members can auto-bind by matching email on sign-in
+  - household/member management is owner-only
+  - member rows can no longer be moved across households
+- Hardened account-linked validation:
+  - incomes now validate account ownership and review metadata like transactions
+  - review edits reject foreign or missing account ids
+- Preserved historical trip-currency exchange rates when editing trip-linked expenses.
+- Added budget duplicate protection:
+  - API rejects duplicate `(user, month, category)` budgets
+  - legacy duplicate rows are deduped in summaries
 - Improved trip settle-up UX:
   - selectors now show names instead of raw ids
   - simplified debt wording
@@ -41,9 +53,11 @@
   - `1775300000_trip_currency_and_source_metadata.js`
 - Added PocketBase migration:
   - `1775400000_planning_collaboration_collections.js`
+- Added PocketBase migration:
+  - `1775500000_fix_household_rules_and_budget_indexes.js`
 - Synced bootstrap ConfigMap:
   - `k8s/pocketbase-bootstrap.yaml`
-- Synced docs for trip currency, planning/collaboration features, and migration updates.
+- Synced docs for trip currency, planning/collaboration hardening, and migration updates.
 
 ## 2026-03-26
 
@@ -179,6 +193,7 @@ Browser -> Next.js API routes -> PocketBase
 - `1775200000_trip_settlements_and_fund_goals.js`
 - `1775300000_trip_currency_and_source_metadata.js`
 - `1775400000_planning_collaboration_collections.js`
+- `1775500000_fix_household_rules_and_budget_indexes.js`
 
 ## Next Practical Tasks
 

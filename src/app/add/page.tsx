@@ -32,7 +32,7 @@ export default function AddExpensePage() {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold tracking-tight">{t('expense.addTitle')}</h1>
-          <p className="text-sm text-muted-foreground">Add an expense in under 10 seconds.</p>
+          <p className="text-sm text-muted-foreground">{t('expense.addSubtitle')}</p>
         </div>
         <Link href="/">
           <Button variant="outline" className="rounded-xl border-border/60">

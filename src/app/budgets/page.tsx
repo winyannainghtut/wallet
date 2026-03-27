@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { addMonths, format, subMonths } from 'date-fns'
@@ -15,7 +15,7 @@ import { useApp } from '@/contexts/AppContext'
 import { BudgetRecord } from '@/lib/budgets'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
 import { CATEGORIES, Category, getCategoryLabel } from '@/types'
-import { getLanguage } from '@/i18n/config'
+import { getLanguage, t } from '@/i18n/config'
 
 type ApiListResponse<T> = {
   items?: T[]
@@ -95,17 +95,17 @@ export default function BudgetsPage() {
       const currentData = await currentResponse.json() as ApiListResponse<BudgetRecord>
       const previousData = await previousResponse.json() as ApiListResponse<BudgetRecord>
       if (!currentResponse.ok) {
-        throw new Error(currentData.error || 'Failed to load budgets')
+        throw new Error(currentData.error || t('common.error'))
       }
       if (!previousResponse.ok) {
-        throw new Error(previousData.error || 'Failed to load previous budgets')
+        throw new Error(previousData.error || t('common.error'))
       }
       setBudgets(dedupeBudgets(currentData.items ?? []).sort((a, b) => a.category.localeCompare(b.category)))
       setPreviousBudgets(dedupeBudgets(previousData.items ?? []))
     } catch (loadError) {
       setBudgets([])
       setPreviousBudgets([])
-      setError(loadError instanceof Error ? loadError.message : 'Failed to load budgets')
+      setError(loadError instanceof Error ? loadError.message : t('common.error'))
     } finally {
       setIsLoading(false)
     }
@@ -188,19 +188,19 @@ export default function BudgetsPage() {
       })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save budget')
+        throw new Error(data.error || t('common.error'))
       }
       await loadBudgets()
       setIsDialogOpen(false)
     } catch (saveError) {
-      alert(saveError instanceof Error ? saveError.message : 'Failed to save budget')
+      alert(saveError instanceof Error ? saveError.message : t('common.error'))
     } finally {
       setIsSaving(false)
     }
   }
 
   const handleDelete = async (budget: BudgetRecord) => {
-    if (!confirm(`Delete ${budget.category} budget?`)) {
+    if (!confirm(t('common.deleteConfirm', { name: getCategoryLabel(budget.category, language) }))) {
       return
     }
 
@@ -208,11 +208,11 @@ export default function BudgetsPage() {
       const response = await fetch(`/api/budgets/${budget.id}`, { method: 'DELETE' })
       const data = await response.json() as { error?: string }
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to delete budget')
+        throw new Error(data.error || t('common.error'))
       }
       await loadBudgets()
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : 'Failed to delete budget')
+      alert(deleteError instanceof Error ? deleteError.message : t('common.error'))
     }
   }
 
@@ -220,33 +220,33 @@ export default function BudgetsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Budgets</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('budgets.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Set monthly limits, carry leftover budget forward, and compare against your actual spend.
+            {t('budgets.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="rounded-xl" onClick={() => setSelectedMonth(format(subMonths(new Date(`${selectedMonth}-01T00:00:00`), 1), 'yyyy-MM'))}>Previous</Button>
+          <Button variant="outline" className="rounded-xl" onClick={() => setSelectedMonth(format(subMonths(new Date(`${selectedMonth}-01T00:00:00`), 1), 'yyyy-MM'))}>{t('common.prev')}</Button>
           <Input type="month" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} className="w-[160px] rounded-xl" />
-          <Button variant="outline" className="rounded-xl" onClick={() => setSelectedMonth(format(addMonths(new Date(`${selectedMonth}-01T00:00:00`), 1), 'yyyy-MM'))}>Next</Button>
+          <Button variant="outline" className="rounded-xl" onClick={() => setSelectedMonth(format(addMonths(new Date(`${selectedMonth}-01T00:00:00`), 1), 'yyyy-MM'))}>{t('common.next')}</Button>
           <Button onClick={openCreate} className="rounded-xl">
             <PlusCircle className="mr-2 h-4 w-4" />
-            Add Budget
+            {t('budgets.addBudget')}
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-border/40">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Planned</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('budgets.planned')}</CardTitle></CardHeader>
           <CardContent className="text-2xl font-bold">{summary.planned.toFixed(2)} {displayCurrency}</CardContent>
         </Card>
         <Card className="border-border/40">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Spent</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('budgets.spent')}</CardTitle></CardHeader>
           <CardContent className="text-2xl font-bold">{summary.spent.toFixed(2)} {displayCurrency}</CardContent>
         </Card>
         <Card className="border-border/40">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Remaining</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">{t('budgets.remaining')}</CardTitle></CardHeader>
           <CardContent className="text-2xl font-bold">{summary.remaining.toFixed(2)} {displayCurrency}</CardContent>
         </Card>
       </div>
@@ -259,7 +259,7 @@ export default function BudgetsPage() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         {isLoading ? (
-          <Card className="border-border/40 xl:col-span-2"><CardContent className="py-10 text-sm text-muted-foreground">Loading budgets...</CardContent></Card>
+          <Card className="border-border/40 xl:col-span-2"><CardContent className="py-10 text-sm text-muted-foreground">{t('common.loading')}...</CardContent></Card>
         ) : activeBudgets.length === 0 ? (
           <Card className="border-dashed border-border/50 xl:col-span-2">
             <CardContent className="flex min-h-[220px] flex-col items-center justify-center gap-3 py-10 text-center">
@@ -267,8 +267,8 @@ export default function BudgetsPage() {
                 <PiggyBank className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="font-semibold">No budgets for {selectedMonth}</h2>
-                <p className="text-sm text-muted-foreground">Create category budgets and optionally carry forward leftover amounts.</p>
+                <h2 className="font-semibold">{t('budgets.noBudgetsTitle', { month: selectedMonth })}</h2>
+                <p className="text-sm text-muted-foreground">{t('budgets.noBudgetsDesc')}</p>
               </div>
             </CardContent>
           </Card>
@@ -297,15 +297,15 @@ export default function BudgetsPage() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Planned</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('budgets.planned')}</p>
                       <p className="mt-1 text-lg font-semibold">{planned.toFixed(2)} {displayCurrency}</p>
                     </div>
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Spent</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('budgets.spent')}</p>
                       <p className="mt-1 text-lg font-semibold">{spent.toFixed(2)} {displayCurrency}</p>
                     </div>
                     <div className="rounded-xl border border-border/40 bg-muted/15 p-3">
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Remaining</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('budgets.remaining')}</p>
                       <p className="mt-1 text-lg font-semibold">{(planned - spent).toFixed(2)} {displayCurrency}</p>
                     </div>
                   </div>
@@ -314,9 +314,9 @@ export default function BudgetsPage() {
                       <div className={`h-full rounded-full ${spent > planned ? 'bg-destructive' : 'bg-primary'}`} style={{ width: `${progress}%` }} />
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span>Base limit: {budget.limitAmount.toFixed(2)} {displayCurrency}</span>
-                      {(budget.rolloverAmount ?? 0) > 0 && <span>Rollover: {(budget.rolloverAmount ?? 0).toFixed(2)} {displayCurrency}</span>}
-                      {leftoverRecommendation > 0 && <span>Suggested rollover from previous month: {leftoverRecommendation.toFixed(2)} {displayCurrency}</span>}
+                      <span>{t('budgets.baseLimit')}: {budget.limitAmount.toFixed(2)} {displayCurrency}</span>
+                      {(budget.rolloverAmount ?? 0) > 0 && <span>{t('budgets.rollover')}: {(budget.rolloverAmount ?? 0).toFixed(2)} {displayCurrency}</span>}
+                      {leftoverRecommendation > 0 && <span>{t('budgets.suggestedRollover')}: {leftoverRecommendation.toFixed(2)} {displayCurrency}</span>}
                     </div>
                     {budget.note && <p className="text-sm text-muted-foreground">{budget.note}</p>}
                   </div>
@@ -330,16 +330,16 @@ export default function BudgetsPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle>{editingBudget ? 'Edit Budget' : 'Add Budget'}</DialogTitle>
+            <DialogTitle>{editingBudget ? t('budgets.editBudget') : t('budgets.addBudget')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="budget-month">Month</Label>
+                <Label htmlFor="budget-month">{t('common.month')}</Label>
                 <Input id="budget-month" type="month" value={form.month} onChange={(event) => setForm((prev) => ({ ...prev, month: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Category</Label>
+                <Label>{t('common.category')}</Label>
                 <Select value={form.category} onValueChange={(value) => setForm((prev) => ({ ...prev, category: value ?? prev.category }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -352,29 +352,29 @@ export default function BudgetsPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="budget-limit">Limit Amount</Label>
+                <Label htmlFor="budget-limit">{t('budgets.limitAmount')}</Label>
                 <Input id="budget-limit" type="number" step="0.01" value={form.limitAmount} onChange={(event) => setForm((prev) => ({ ...prev, limitAmount: event.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="budget-rollover">Rollover Amount</Label>
-                <Input id="budget-rollover" type="number" step="0.01" value={form.rolloverAmount} onChange={(event) => setForm((prev) => ({ ...prev, rolloverAmount: event.target.value }))} placeholder={`Suggested ${(previousMonthLeftoverByCategory.get(form.category) ?? 0).toFixed(2)}`} />
+                <Label htmlFor="budget-rollover">{t('budgets.rolloverAmount')}</Label>
+                <Input id="budget-rollover" type="number" step="0.01" value={form.rolloverAmount} onChange={(event) => setForm((prev) => ({ ...prev, rolloverAmount: event.target.value }))} placeholder={`${t('budgets.suggestedRollover')} ${(previousMonthLeftoverByCategory.get(form.category) ?? 0).toFixed(2)}`} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="budget-note">Note</Label>
+              <Label htmlFor="budget-note">{t('common.note')}</Label>
               <Textarea id="budget-note" rows={3} value={form.note} onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))} />
             </div>
             <div className="flex items-center justify-between rounded-xl border border-border/40 p-3">
               <div>
-                <p className="text-sm font-medium">Active budget</p>
-                <p className="text-xs text-muted-foreground">Inactive budgets remain as reference but are excluded from summaries.</p>
+                <p className="text-sm font-medium">{t('budgets.activeBudget')}</p>
+                <p className="text-xs text-muted-foreground">{t('budgets.activeBudgetDesc')}</p>
               </div>
               <Switch checked={form.isActive} onCheckedChange={(checked) => setForm((prev) => ({ ...prev, isActive: checked }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => void handleSave()} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save Budget'}</Button>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{t('common.cancel')}</Button>
+            <Button onClick={() => void handleSave()} disabled={isSaving}>{isSaving ? `${t('common.save')}...` : t('common.save')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

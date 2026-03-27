@@ -73,13 +73,15 @@ Browser -> Next.js API routes -> PocketBase
 - `accounts` stores manual balance snapshots and account metadata used by expense/income entry.
 - `liabilities` stores debt balances, rates, minimum payments, linked accounts, and due-day planning fields.
 - `budgets` stores per-category monthly limits, rollover amounts, notes, and active state.
+  Duplicate `(user, month, category)` rows are rejected by the API and backed by a uniqueness index.
 - `trips` can carry manual `currency` and `exchangeRate` values for destination-currency budgets and group-fund tracking.
 - `trip_members` stores the participant list for each trip.
 - `trip_settlements` stores planned or paid settle-up records between trip members.
 - `fund_goals` stores linked savings/trip targets, status, and linked asset ids.
 - `transaction_rules` stores merchant-text rules that can rename, re-categorize, tag, and mark transactions reviewed.
 - `households` stores shared workspace metadata.
-- `household_members` stores member role/status by household.
+- `households` are readable to active members, but management remains owner-only.
+- `household_members` stores member role/status by household and supports email invite auto-binding to `userId` after matching sign-in.
 
 ## Schema and Migrations
 
@@ -99,6 +101,7 @@ Migration files:
 - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
 - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
 - `pb_migrations/1775400000_planning_collaboration_collections.js`
+- `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
 
 Purpose summary:
 
@@ -116,6 +119,7 @@ Purpose summary:
 - `1775200000`: adds `trip_members`, `trip_settlements`, `fund_goals`, and `transactions.paidByMemberId`
 - `1775300000`: adds `trips.currency`, `trips.exchangeRate`, and `transactions.source*` metadata for trip destination currency capture
 - `1775400000`: adds `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, `household_members`, and review/account metadata fields on `transactions` and `incomes`
+- `1775500000`: tightens household visibility/management rules, adds household membership uniqueness indexes, and adds a unique budget index for `(user, month, category)`
 
 Expected collections:
 
@@ -284,10 +288,14 @@ kubectl logs -n wallet-app deployment/pocketbase -c pocketbase-bootstrap --tail=
 
 1. Confirm latest migration is applied:
    - `1775400000_planning_collaboration_collections.js`
+   - `1775500000_fix_household_rules_and_budget_indexes.js`
 2. Re-apply `k8s/pocketbase-bootstrap.yaml` and restart PocketBase.
 3. In PocketBase Admin, verify:
    - `accounts`, `liabilities`, `budgets`, `transaction_rules`, `households`, and `household_members` collections exist
    - `transactions` and `incomes` have `merchantName`, `tagsJson`, `reviewStatus`, and `accountId`
+   - `budgets` has a uniqueness index for `(user, month, category)`
+   - `households` read rules are membership-based and write rules are owner-only
+   - `household_members` stores invite `email` and can populate `userId` for the matching signed-in member
 
 ### App login works but data save fails
 

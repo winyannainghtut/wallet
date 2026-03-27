@@ -27,6 +27,7 @@ This document summarizes the current technologies used in the Wallet App codebas
   - `pb_migrations/1775200000_trip_settlements_and_fund_goals.js`
   - `pb_migrations/1775300000_trip_currency_and_source_metadata.js`
   - `pb_migrations/1775400000_planning_collaboration_collections.js`
+  - `pb_migrations/1775500000_fix_household_rules_and_budget_indexes.js`
 - **Main collections:**
   - `users`
   - `transactions`
@@ -52,13 +53,13 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **Income**
 - **Manual accounts** with account-linked expenses and incomes
 - **Liabilities / debts** with payoff projection and due planning
-- **Budgets** with category limits and rollover amounts
+- **Budgets** with category limits, rollover amounts, and duplicate month/category protection
 - **Savings goals**
 - **Savings assets (`insurance`, `crypto`, `stocks`, `personal_funds`)** with live ticker pricing for crypto and manual stock values
 - **Trips** with optional shared friend-group pooled spend metadata and manual destination currency / exchange rate
 - **Trip members and settle-up records** for payer-aware group trip accounting
 - **Transaction rules + review queue** with merchant cleanup, tags, review states, and account assignment
-- **Household collaboration** with member roles and shared base currency
+- **Household collaboration** with member roles, shared base currency, owner-only management, and email invite auto-binding
 - **Subscriptions (recurring cost modeled into reports/calendar)**
 - **Bills center** that consolidates recurring subscriptions, liabilities, and recurring insurance contributions
 - **Fund goals** linked to trips, savings assets, and monthly savings progress
@@ -96,6 +97,9 @@ This document summarizes the current technologies used in the Wallet App codebas
 - **PocketBase-backed user preferences:**
   - `user_preferences` stores app settings, including `currencySign`, theme, AI model, custom categories, and AI chat history per authenticated user
   - client keeps a local cache only for fast bootstrap/theme hydration
+- **PocketBase rule/index hardening:**
+  - household reads are membership-based while management stays owner-only
+  - budgets are protected by a unique `(user, month, category)` index
 - **API-backed domain hooks:**
   - `useSavingsAssetsPortfolio`
   - `useFundGoals`
