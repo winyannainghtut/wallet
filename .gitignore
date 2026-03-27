@@ -50,6 +50,8 @@ next-env.d.ts
 # Build logs
 *.log
 build.log
+__pycache__/
+*.py[cod]
 
 # OS files
 Thumbs.db
