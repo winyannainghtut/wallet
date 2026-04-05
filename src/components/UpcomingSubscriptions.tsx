@@ -3,8 +3,9 @@
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Subscription } from '@/types'
-import { format, differenceInDays, parseISO } from 'date-fns'
+import { format, differenceInCalendarDays, parseISO } from 'date-fns'
 import { Clock } from 'lucide-react'
+import { getNextSubscriptionDueDate } from '@/lib/date-utils'
 
 interface UpcomingSubscriptionsProps {
   subscriptions: Subscription[]
@@ -15,14 +16,17 @@ interface UpcomingSubscriptionsProps {
 export function UpcomingSubscriptions({ subscriptions, currency, title = 'Upcoming Bills' }: UpcomingSubscriptionsProps) {
   const activeSubs = subscriptions.filter(s => s.isActive)
   const today = new Date()
-  
+
   // Find subs due within next 14 days
-  const upcoming = activeSubs.map(s => {
-    // startDate holds the next due date string in this app logic
-    const dueDate = parseISO(s.startDate)
-    const daysLeft = differenceInDays(dueDate, today)
-    return { ...s, daysLeft, dueDate }
-  }).filter(s => s.daysLeft >= 0 && s.daysLeft <= 14)
+  const upcoming = activeSubs
+    .map(s => {
+      const dueDateStr = getNextSubscriptionDueDate(s, today)
+      if (!dueDateStr) return null
+      const dueDate = parseISO(dueDateStr)
+      const daysLeft = differenceInCalendarDays(dueDate, today)
+      return { ...s, daysLeft, dueDate }
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null && s.daysLeft >= 0 && s.daysLeft <= 14)
     .sort((a, b) => a.daysLeft - b.daysLeft)
 
   if (upcoming.length === 0) return null

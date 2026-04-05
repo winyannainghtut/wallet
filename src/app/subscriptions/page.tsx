@@ -14,6 +14,7 @@ import { useApp } from '@/contexts/AppContext'
 import { t, getLanguage } from '@/i18n/config'
 import { format } from 'date-fns'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
+import { getNextSubscriptionDueDate } from '@/lib/date-utils'
 
 export default function SubscriptionsPage() {
   const { subscriptions, addSubscription, updateSubscription, deleteSubscription, settings } = useApp()
@@ -143,7 +144,7 @@ export default function SubscriptionsPage() {
                       <div>
                         <h3 className="font-semibold text-base">{sub.name}</h3>
                         <p className="text-sm text-muted-foreground capitalize flex items-center gap-1.5">
-                          {t(`subscriptions.${sub.billingCycle}`)} | Next: {sub.startDate}
+                          {t(`subscriptions.${sub.billingCycle}`)} | Next: {getNextSubscriptionDueDate(sub) ?? sub.startDate}
                         </p>
                       </div>
                     </div>

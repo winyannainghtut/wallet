@@ -8,20 +8,27 @@ import { Expense } from '@/types'
 import { t } from '@/i18n/config'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import { AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react'
 
 export default function AddExpensePage() {
   const router = useRouter()
   const { addExpense } = useApp()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
 
   const handleSubmit = async (data: Omit<Expense, 'id' | 'createdAt'>) => {
     setIsSubmitting(true)
+    setError(null)
     try {
       await addExpense(data)
-      router.push('/')
-    } catch (error) {
-      console.error('Error adding expense:', error)
+      setShowSuccess(true)
+      setTimeout(() => {
+        router.push('/')
+      }, 800)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : t('common.error')
+      setError(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -41,6 +48,20 @@ export default function AddExpensePage() {
           </Button>
         </Link>
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </div>
+      )}
+      {showSuccess && (
+        <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-600">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {t('expense.addSuccess')}
+        </div>
+      )}
+
       <ExpenseForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
     </div>
   )

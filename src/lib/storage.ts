@@ -29,7 +29,12 @@ const FIELD = {
 export function getProfiles(): UserProfile[] {
   if (typeof window === 'undefined') return []
   const data = localStorage.getItem(GLOBAL_KEYS.PROFILES)
-  return data ? JSON.parse(data) : []
+  if (!data) return []
+  try {
+    return JSON.parse(data)
+  } catch {
+    return []
+  }
 }
 
 function saveProfiles(profiles: UserProfile[]): void {
@@ -126,7 +131,12 @@ export function getActiveProfile(): UserProfile | null {
 function getExpenses(): Expense[] {
   if (typeof window === 'undefined') return []
   const data = localStorage.getItem(userKey(FIELD.EXPENSES))
-  return data ? JSON.parse(data) : []
+  if (!data) return []
+  try {
+    return JSON.parse(data)
+  } catch {
+    return []
+  }
 }
 
 // ==================== Custom Categories Operations ====================
@@ -134,7 +144,12 @@ function getExpenses(): Expense[] {
 export function getCustomCategories(): CustomCategory[] {
   if (typeof window === 'undefined') return []
   const data = localStorage.getItem(userKey(FIELD.CUSTOM_CATEGORIES))
-  return data ? JSON.parse(data) : []
+  if (!data) return []
+  try {
+    return JSON.parse(data)
+  } catch {
+    return []
+  }
 }
 
 export function saveCustomCategories(categories: CustomCategory[]): void {

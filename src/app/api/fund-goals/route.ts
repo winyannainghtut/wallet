@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { escapeFilterValue } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   status?: number
@@ -162,13 +163,13 @@ export async function GET(request: NextRequest) {
     const { pb, userId } = auth
 
     const { searchParams } = new URL(request.url)
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
-    const perPage = Math.max(1, parseInt(searchParams.get('perPage') || '100', 10))
+    const page = Math.max(1, Math.min(parseInt(searchParams.get('page') || '1', 10), 10000))
+    const perPage = Math.max(1, Math.min(parseInt(searchParams.get('perPage') || '100', 10), 500))
     const status = searchParams.get('status')?.trim()
 
-    const filters = [`user = "${userId}"`]
+    const filters = [`user = "${escapeFilterValue(userId)}"`]
     if (status) {
-      filters.push(`status = "${status}"`)
+      filters.push(`status = "${escapeFilterValue(status)}"`)
     }
 
     const result = await pb.collection('fund_goals').getList(page, perPage, {

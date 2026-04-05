@@ -149,6 +149,14 @@ export async function PUT(
     }
 
     const body = (await request.json()) as SubscriptionInput
+
+    if (body.name !== undefined && (typeof body.name !== 'string' || body.name.trim().length === 0)) {
+      return NextResponse.json({ error: 'name must be a non-empty string' }, { status: 400 })
+    }
+    if (body.amount !== undefined && (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount < 0)) {
+      return NextResponse.json({ error: 'amount must be a non-negative number' }, { status: 400 })
+    }
+
     const record = await updateSubscription(pb, id, body)
 
     return NextResponse.json(record)

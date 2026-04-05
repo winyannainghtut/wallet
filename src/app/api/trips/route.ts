@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
 import { buildTripCreatePayload, parseTripInput } from '@/lib/trips'
+import { escapeFilterValue } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   message?: string
@@ -39,12 +40,12 @@ export async function GET(request: NextRequest) {
     const { pb, userId } = auth
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const perPage = parseInt(searchParams.get('perPage') || '100')
+    const page = Math.max(1, Math.min(parseInt(searchParams.get('page') || '1'), 10000))
+    const perPage = Math.max(1, Math.min(parseInt(searchParams.get('perPage') || '100'), 500))
 
     const result = await pb.collection('trips').getList(page, perPage, {
       sort: '-created',
-      filter: `user = "${userId}"`,
+      filter: `user = "${escapeFilterValue(userId)}"`,
     })
 
     return NextResponse.json(result)

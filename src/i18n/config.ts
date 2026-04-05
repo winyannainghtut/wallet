@@ -44,7 +44,8 @@ export function t(key: string, variables?: Record<string, string | number>): str
 
   if (variables) {
     Object.entries(variables).forEach(([name, val]) => {
-      text = text.replace(new RegExp(`\\{${name}\\}`, 'g'), String(val))
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      text = text.replace(new RegExp(`\\{${escaped}\\}`, 'g'), String(val))
     })
   }
 

@@ -60,7 +60,7 @@ export default function HistoryPage() {
   const hasFilters = Boolean(startDate || endDate || category !== 'all' || search)
   const personalExpenseAmountById = new Map(personalExpenses.map((expense) => [expense.id, expense.amount]))
   const filteredTotal = filteredExpenses.reduce(
-    (sum, expense) => sum + (personalExpenseAmountById.get(expense.id) ?? expense.amount),
+    (sum, expense) => sum + (personalExpenseAmountById.has(expense.id) ? personalExpenseAmountById.get(expense.id)! : 0),
     0
   )
 

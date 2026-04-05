@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createPbServer } from '@/lib/pb'
+import { escapeFilterValue } from '@/lib/transaction-payload'
 
 type PocketBaseLikeError = {
   message?: string
@@ -102,12 +103,12 @@ export async function GET(request: NextRequest) {
     const { pb, userId } = auth
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const perPage = parseInt(searchParams.get('perPage') || '100')
+    const page = Math.max(1, Math.min(parseInt(searchParams.get('page') || '1'), 10000))
+    const perPage = Math.max(1, Math.min(parseInt(searchParams.get('perPage') || '100'), 500))
 
     const result = await pb.collection('subscriptions').getList(page, perPage, {
       sort: '-created',
-      filter: `user = "${userId}"`,
+      filter: `user = "${escapeFilterValue(userId)}"`,
     })
 
     return NextResponse.json(result)
@@ -130,6 +131,17 @@ export async function POST(request: NextRequest) {
     const { pb, userId } = auth
 
     const body = (await request.json()) as SubscriptionInput
+
+    if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
+      return NextResponse.json({ error: 'name is required' }, { status: 400 })
+    }
+    if (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount <= 0) {
+      return NextResponse.json({ error: 'amount must be a positive number' }, { status: 400 })
+    }
+    if (!body.startDate && !body.nextDueDate) {
+      return NextResponse.json({ error: 'startDate or nextDueDate is required' }, { status: 400 })
+    }
+
     const record = await createSubscription(pb, userId, body)
 
     return NextResponse.json(record)

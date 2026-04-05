@@ -227,7 +227,7 @@ export function buildProjectedNetWorth(
     .slice(0, months)
     .map(([month, summary]) => {
       projectedAssets += summary.savingsTransferAmount
-      projectedNetWorth += summary.netCashflow + summary.savingsTransferAmount
+      projectedNetWorth += summary.netCashflow
 
       return {
         month,

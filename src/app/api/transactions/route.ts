@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const perPage = parseInt(searchParams.get('perPage') || '100')
+    const page = Math.max(1, Math.min(parseInt(searchParams.get('page') || '1'), 10000))
+    const perPage = Math.max(1, Math.min(parseInt(searchParams.get('perPage') || '100'), 500))
     const category = searchParams.get('category')
     const type = searchParams.get('type')
     const startDate = searchParams.get('startDate')

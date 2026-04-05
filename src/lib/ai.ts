@@ -707,15 +707,19 @@ export async function getSpendingInsights(
   const activeSubs = subscriptions.filter(s => s.isActive).map(s => `${s.name}: ${s.amount}/${s.billingCycle}`).join(', ')
   const savingsContextSection = buildSavingsContextSection(savingsContext, monthlySavings, currencyCode)
 
-  const prompt = `You are a practical financial advisor for an expense tracking app in Myanmar.
+  const languageInstruction = language === 'my'
+    ? 'You MUST respond in Myanmar (Burmese) language ONLY. Do not use English.'
+    : 'You MUST respond in English language ONLY.'
+
+  const prompt = `You are a practical financial advisor for an expense tracking app.
 Analyze the user's financial summary and provide concise, actionable advice focusing on cash flow, savings, expense categories, and savings assets (insurance, crypto, stocks, personal saving funds).
 
 CRITICAL RULE:
-- You MUST respond in Myanmar (Burmese) language ONLY. Do not use English.
+- ${languageInstruction}
 
 Currency code is ${currencyCode}. All amounts are in ${currencyCode}.
 Output requirements:
-- Return only the final advice text in Myanmar language.
+- Return only the final advice text in ${language === 'my' ? 'Myanmar language' : 'English'}.
 - Do not include analysis steps, reasoning, labels, markdown, bullet points, or numbering.
 - Write 3-4 complete sentences summarizing their financial health and providing a tip.
 
@@ -787,9 +791,9 @@ export async function* streamChatAboutExpenses(
       role: 'system',
       content: `You are a financial assistant for a personal finance app.
 Rules:
-1) Always respond in Myanmar (Burmese) language.
+1) ${language === 'my' ? 'Always respond in Myanmar (Burmese) language.' : 'Always respond in English language.'}
 2) Answer only finance-related questions (expenses, incomes, budgeting, subscriptions, savings).
-3) If user asks unrelated topics, politely decline in Myanmar.
+3) If user asks unrelated topics, politely decline${language === 'my' ? ' in Myanmar' : ''}.
 4) Keep response concise and actionable.
 5) Use provided financial context.`,
     },

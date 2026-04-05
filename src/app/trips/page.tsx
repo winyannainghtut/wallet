@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { differenceInDays, format, parseISO } from 'date-fns'
 import {
+  AlertCircle,
   ArrowRightLeft,
   Calendar as CalendarIcon,
   DollarSign,
@@ -25,6 +26,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useApp } from '@/contexts/AppContext'
 import { getCurrencyDisplayLabel } from '@/lib/settings'
+import { t } from '@/i18n/config'
 import {
   buildTripSettlementSuggestions,
   calculateTripMemberBalances,
@@ -180,6 +182,9 @@ export default function TripsPage() {
   const [isSettlementDialogOpen, setIsSettlementDialogOpen] = useState(false)
   const [isSettlementSaving, setIsSettlementSaving] = useState(false)
   const [deletingSettlementId, setDeletingSettlementId] = useState<string | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [confirmDeleteTripId, setConfirmDeleteTripId] = useState<string | null>(null)
+  const [confirmDeleteSettlementId, setConfirmDeleteSettlementId] = useState<string | null>(null)
 
   const [name, setName] = useState('')
   const [destinations, setDestinations] = useState('')
@@ -227,7 +232,7 @@ export default function TripsPage() {
         .sort(sortMembers)
       setTripMembers(normalized)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load trip participants'
+      const message = error instanceof Error ? error.message : t('trips.errors.failedToLoadParticipants')
       setMembersError(message)
       setTripMembers([])
     } finally {
@@ -250,7 +255,7 @@ export default function TripsPage() {
         .filter((item): item is TripSettlement => item !== null)
       setTripSettlements(normalized)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load settlements'
+      const message = error instanceof Error ? error.message : t('trips.errors.failedToLoadSettlements')
       setSettlementsError(message)
       setTripSettlements([])
     } finally {
@@ -331,6 +336,7 @@ export default function TripsPage() {
   }
 
   const handleOpenModal = (trip?: Trip) => {
+    setFormError(null)
     if (trip) {
       const existingMembers = membersByTrip.get(trip.id) ?? []
       setEditingTrip(trip)
@@ -354,6 +360,7 @@ export default function TripsPage() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false)
+    setFormError(null)
     resetTripForm()
   }
 
@@ -426,6 +433,8 @@ export default function TripsPage() {
     e.preventDefault()
     if (!name || !startDate || !endDate || isSaving) return
 
+    setFormError(null)
+
     const parsedBudget = budget.trim().length > 0 ? Number(budget) : null
     const normalizedCurrency = currency.trim().toUpperCase()
     const parsedExchangeRate = exchangeRate.trim().length > 0 ? Number(exchangeRate) : null
@@ -433,12 +442,12 @@ export default function TripsPage() {
     const parsedGroupFund = groupFund.trim().length > 0 ? Number(groupFund) : null
 
     if (normalizedCurrency && !/^[A-Z]{3}$/.test(normalizedCurrency)) {
-      alert('Destination currency must be a valid 3-letter code')
+      setFormError(t('trips.validation.invalidCurrencyCode'))
       return
     }
 
     if ((normalizedCurrency && parsedExchangeRate === null) || (!normalizedCurrency && parsedExchangeRate !== null)) {
-      alert('Destination currency and exchange rate must be provided together')
+      setFormError(t('trips.validation.currencyAndRateRequired'))
       return
     }
 
@@ -446,12 +455,12 @@ export default function TripsPage() {
       parsedExchangeRate !== null &&
       (!Number.isFinite(parsedExchangeRate) || parsedExchangeRate <= 0)
     ) {
-      alert('Exchange rate must be a positive number')
+      setFormError(t('trips.validation.positiveExchangeRate'))
       return
     }
 
     if (Number.isNaN(parsedBudget) || (parsedBudget !== null && parsedBudget < 0)) {
-      alert('Budget must be a non-negative number')
+      setFormError(t('trips.validation.nonNegativeBudget'))
       return
     }
 
@@ -459,17 +468,17 @@ export default function TripsPage() {
       Number.isNaN(parsedGroupSize) ||
       (parsedGroupSize !== null && (!Number.isInteger(parsedGroupSize) || parsedGroupSize < 2))
     ) {
-      alert('Total travelers must be an integer of at least 2')
+      setFormError(t('trips.validation.minGroupSize'))
       return
     }
 
     if (Number.isNaN(parsedGroupFund) || (parsedGroupFund !== null && parsedGroupFund < 0)) {
-      alert('Group fund must be a non-negative number')
+      setFormError(t('trips.validation.nonNegativeGroupFund'))
       return
     }
 
     if (new Date(`${endDate}T00:00:00`) < new Date(`${startDate}T00:00:00`)) {
-      alert('End date must be on or after start date')
+      setFormError(t('trips.validation.endDateAfterStart'))
       return
     }
 
@@ -504,29 +513,34 @@ export default function TripsPage() {
       await syncTripMembers(savedTrip.id, participantNamesText, parsedGroupSize)
       handleCloseModal()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to save trip'
-      alert(message)
+      const message = error instanceof Error ? error.message : t('trips.validation.failedToSave')
+      setFormError(message)
     } finally {
       setIsSyncingMembers(false)
       setIsSaving(false)
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (deletingTripId === id) return
+  const handleDeleteClick = (id: string) => {
+    setConfirmDeleteTripId(id)
+    setFormError(null)
+  }
 
-    if (confirm('Are you sure you want to delete this trip? Linked expenses will lose the trip reference.')) {
-      try {
-        setDeletingTripId(id)
-        await deleteTrip(id)
-        setTripMembers((prev) => prev.filter((member) => member.tripId !== id))
-        setTripSettlements((prev) => prev.filter((settlement) => settlement.tripId !== id))
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to delete trip'
-        alert(message)
-      } finally {
-        setDeletingTripId(null)
-      }
+  const confirmDeleteTrip = async () => {
+    const id = confirmDeleteTripId
+    if (!id) return
+    setConfirmDeleteTripId(null)
+
+    try {
+      setDeletingTripId(id)
+      await deleteTrip(id)
+      setTripMembers((prev) => prev.filter((member) => member.tripId !== id))
+      setTripSettlements((prev) => prev.filter((settlement) => settlement.tripId !== id))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('trips.validation.failedToDelete')
+      setFormError(message)
+    } finally {
+      setDeletingTripId(null)
     }
   }
 
@@ -535,6 +549,7 @@ export default function TripsPage() {
     suggestion?: { fromMemberId: string; toMemberId: string; amount: number }
   ) => {
     const members = membersByTrip.get(trip.id) ?? []
+    setFormError(null)
 
     setSettlementForm({
       tripId: trip.id,
@@ -552,19 +567,21 @@ export default function TripsPage() {
     e.preventDefault()
     if (!settlementForm.tripId || isSettlementSaving) return
 
+    setFormError(null)
+
     const amount = Number(settlementForm.amount)
     if (!Number.isFinite(amount) || amount <= 0) {
-      alert('Settlement amount must be a positive number')
+      setFormError(t('trips.settleUp.positiveAmount'))
       return
     }
 
     if (!settlementForm.fromMemberId || !settlementForm.toMemberId) {
-      alert('Select both group members')
+      setFormError(t('trips.settleUp.selectBothMembers'))
       return
     }
 
     if (settlementForm.fromMemberId === settlementForm.toMemberId) {
-      alert('Choose two different members')
+      setFormError(t('trips.settleUp.differentMembers'))
       return
     }
 
@@ -591,23 +608,25 @@ export default function TripsPage() {
       await fetchTripSettlements()
       setIsSettlementDialogOpen(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to record settlement'
-      alert(message)
+      const message = error instanceof Error ? error.message : t('trips.settleUp.failedToRecord')
+      setFormError(message)
     } finally {
       setIsSettlementSaving(false)
     }
   }
 
-  const handleDeleteSettlement = async (settlementId: string) => {
-    if (deletingSettlementId === settlementId) return
+  const handleDeleteSettlementClick = (settlementId: string) => {
+    setConfirmDeleteSettlementId(settlementId)
+  }
 
-    if (!confirm('Delete this settlement record?')) {
-      return
-    }
+  const confirmDeleteSettlement = async () => {
+    const id = confirmDeleteSettlementId
+    if (!id) return
+    setConfirmDeleteSettlementId(null)
 
     try {
-      setDeletingSettlementId(settlementId)
-      const response = await fetch(`/api/trip-settlements/${settlementId}`, {
+      setDeletingSettlementId(id)
+      const response = await fetch(`/api/trip-settlements/${id}`, {
         method: 'DELETE',
       })
       const data = await response.json() as { error?: string }
@@ -616,8 +635,8 @@ export default function TripsPage() {
       }
       await fetchTripSettlements()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete settlement'
-      alert(message)
+      const message = error instanceof Error ? error.message : t('trips.settleUp.failedToDelete')
+      setFormError(message)
     } finally {
       setDeletingSettlementId(null)
     }
@@ -628,9 +647,9 @@ export default function TripsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">Travel Trips</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('trips.title')}</h1>
           <p className="text-sm text-muted-foreground">
-            Plan budgets, manage group participants, and settle shared trip spending.
+            {t('trips.subtitle')}
           </p>
         </div>
         <Button
@@ -638,7 +657,7 @@ export default function TripsPage() {
           className="rounded-xl bg-gradient-to-r from-primary to-primary/85 shadow-sm shadow-primary/20 hover:shadow-md hover:shadow-primary/25"
         >
           <PlusCircle className="mr-2 h-4 w-4" />
-          Add Trip
+          {t('trips.addTrip')}
         </Button>
       </div>
 
@@ -646,7 +665,7 @@ export default function TripsPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search trips, destinations, groups, or participant names..."
+            placeholder={t('trips.searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="rounded-xl border-border/60 bg-card/60 pl-9"
@@ -654,11 +673,18 @@ export default function TripsPage() {
         </div>
       )}
 
+      {formError && (
+        <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {formError}
+        </div>
+      )}
+
       {(membersError || settlementsError) && (
         <Card className="border-amber-500/20 bg-amber-500/5">
           <CardContent className="space-y-1 py-4 text-sm text-amber-800">
-            {membersError && <p>Participants: {membersError}</p>}
-            {settlementsError && <p>Settlements: {settlementsError}</p>}
+            {membersError && <p>{t('trips.errors.participantsLabel')}: {membersError}</p>}
+            {settlementsError && <p>{t('trips.errors.settlementsLabel')}: {settlementsError}</p>}
           </CardContent>
         </Card>
       )}
@@ -668,16 +694,16 @@ export default function TripsPage() {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
             <Plane className="h-8 w-8 text-primary/80" />
           </div>
-          <h3 className="mb-2 text-lg font-semibold tracking-tight">No trips found</h3>
+          <h3 className="mb-2 text-lg font-semibold tracking-tight">{t('trips.noTrips')}</h3>
           <p className="mb-6 max-w-sm text-sm text-muted-foreground">
             {trips.length === 0
-              ? 'Create a trip to track travel budgets, group funds, and shared settle-up balances.'
-              : 'No trips match your search criteria.'}
+              ? t('trips.noTripsDesc')
+              : t('trips.noSearchMatch')}
           </p>
           {trips.length === 0 && (
             <Button onClick={() => handleOpenModal()} className="rounded-xl">
               <PlusCircle className="mr-2 h-4 w-4" />
-              Create First Trip
+              {t('trips.createFirstTrip')}
             </Button>
           )}
         </div>
@@ -731,16 +757,16 @@ export default function TripsPage() {
                       <div className="flex flex-wrap gap-2 pt-1">
                         <Badge variant="secondary">
                           <CalendarIcon className="h-3 w-3" />
-                          {format(tripStartDate, 'MMM d')} to {format(tripEndDate, 'MMM d')}
+                          {format(tripStartDate, 'MMM d')} {t('trips.to')} {format(tripEndDate, 'MMM d')}
                         </Badge>
-                        <Badge variant="outline">{days} days</Badge>
+                        <Badge variant="outline">{days} {t('trips.days')}</Badge>
                         {tripUsesManualCurrency && typeof trip.exchangeRate === 'number' && (
                           <Badge variant="outline">
                             {`${tripCurrencyLabel} at ${trip.exchangeRate.toFixed(4)} ${displayCurrency}`}
                           </Badge>
                         )}
-                        {trip.groupSize && <Badge variant="outline">{trip.groupSize} travelers</Badge>}
-                        {members.length > 0 && <Badge variant="outline">{members.length} tracked members</Badge>}
+                        {trip.groupSize && <Badge variant="outline">{trip.groupSize} {t('trips.travelersCount')}</Badge>}
+                        {members.length > 0 && <Badge variant="outline">{members.length} {t('trips.trackedMembers')}</Badge>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -752,49 +778,62 @@ export default function TripsPage() {
                         onClick={() => handleOpenModal(trip)}
                       >
                         <PencilLine className="mr-2 h-3.5 w-3.5" />
-                        Edit
+                        {t('trips.edit')}
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Delete trip"
-                        disabled={deletingTripId === trip.id}
-                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => void handleDelete(trip.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {confirmDeleteTripId === trip.id ? (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={deletingTripId === trip.id}
+                          onClick={() => void confirmDeleteTrip()}
+                        >
+                          {deletingTripId === trip.id ? '...' : t('trips.validation.confirmDelete')}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t('trips.delete')}
+                          disabled={deletingTripId === trip.id}
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteClick(trip.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4 pb-3 pt-4">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-border/40 bg-background/50 p-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Total Spend</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{t('trips.totalSpend')}</p>
                       <p className={`mt-2 text-lg font-semibold ${financialSummary.isOverBudget ? 'text-destructive' : ''}`}>
                         {formatValue(totalSpend)}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {tripUsesManualCurrency && formatBaseReference(totalSpend)
-                          ? `${formatBaseReference(totalSpend)} in app currency`
-                          : `${tripExpenses.length} trip transactions`}
+                          ? t('trips.inAppCurrency', { amount: formatBaseReference(totalSpend)! })
+                          : t('trips.tripTransactions', { count: tripExpenses.length })}
                       </p>
                       {tripUsesManualCurrency && (
-                        <p className="mt-1 text-xs text-muted-foreground">{tripExpenses.length} trip transactions</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{t('trips.tripTransactions', { count: tripExpenses.length })}</p>
                       )}
                     </div>
                     <div className="rounded-xl border border-border/40 bg-background/50 p-3">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Shared Group Spend</p>
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{t('trips.sharedGroupSpend')}</p>
                       <p className="mt-2 text-lg font-semibold">{formatValue(sharedGroupSpend)}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {tripUsesManualCurrency && formatBaseReference(sharedGroupSpend)
-                          ? `${formatBaseReference(sharedGroupSpend)} in app currency`
-                          : `${sharedGroupExpenses.length} shared transactions`}
+                          ? t('trips.inAppCurrency', { amount: formatBaseReference(sharedGroupSpend)! })
+                          : t('trips.sharedTransactions', { count: sharedGroupExpenses.length })}
                       </p>
                       {tripUsesManualCurrency && (
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {sharedGroupExpenses.length} shared transactions
+                          {t('trips.sharedTransactions', { count: sharedGroupExpenses.length })}
                         </p>
                       )}
                     </div>
@@ -803,7 +842,7 @@ export default function TripsPage() {
                   {financialSummary.hasBudget && typeof trip.budget === 'number' && (
                     <div className="space-y-1.5 rounded-xl border border-border/40 bg-background/50 p-3">
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Trip Budget</span>
+                        <span className="text-muted-foreground">{t('trips.tripBudget')}</span>
                         <span className={`font-semibold ${financialSummary.isOverBudget ? 'text-destructive' : ''}`}>
                           {formatValue(trip.budget)}
                         </span>
@@ -822,13 +861,13 @@ export default function TripsPage() {
                       </div>
                       {typeof financialSummary.remainingBudget === 'number' && (
                         <p className={`text-xs ${financialSummary.remainingBudget < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
-                          {financialSummary.remainingBudget < 0 ? 'Over budget by ' : 'Budget left: '}
+                          {financialSummary.remainingBudget < 0 ? `${t('trips.overBudgetBy')} ` : `${t('trips.budgetLeft')} `}
                           {formatValue(Math.abs(financialSummary.remainingBudget))}
                         </p>
                       )}
                       {tripUsesManualCurrency && formatBaseReference(trip.budget) && (
                         <p className="text-xs text-muted-foreground">
-                          {`${formatBaseReference(trip.budget)} budget reference in app currency`}
+                          {t('trips.inAppCurrency', { amount: formatBaseReference(trip.budget)! })}
                         </p>
                       )}
                     </div>
@@ -841,23 +880,23 @@ export default function TripsPage() {
                         <div>
                           <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary/80">
                             <Users className="h-3.5 w-3.5" />
-                            Shared Friend Group
+                            {t('trips.sharedFriendGroup')}
                           </p>
-                          <p className="mt-1 text-sm font-semibold">{trip.groupName || 'Shared Friend Group'}</p>
+                          <p className="mt-1 text-sm font-semibold">{trip.groupName || t('trips.sharedFriendGroup')}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Shared expenses are split across the tracked group members below.
+                            {t('trips.sharedDesc')}
                           </p>
                         </div>
                         {typeof trip.groupFund === 'number' && (
                           <div className="rounded-xl bg-background/80 px-3 py-2 text-right">
                             <p className="flex items-center justify-end gap-1 text-xs uppercase tracking-wide text-muted-foreground">
                               <DollarSign className="h-3 w-3" />
-                              Group Fund
+                              {t('trips.groupFund')}
                             </p>
                             <p className="mt-1 font-semibold">{formatValue(trip.groupFund)}</p>
                             {tripUsesManualCurrency && formatBaseReference(trip.groupFund) && (
                               <p className="mt-1 text-[11px] text-muted-foreground">
-                                {`${formatBaseReference(trip.groupFund)} in app currency`}
+                                {t('trips.inAppCurrency', { amount: formatBaseReference(trip.groupFund)! })}
                               </p>
                             )}
                           </div>
@@ -867,7 +906,7 @@ export default function TripsPage() {
                       <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                         {typeof financialSummary.remainingGroupFund === 'number' && (
                           <div className="space-y-1">
-                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Fund Left</p>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('trips.fundLeft')}</p>
                             <p className={`font-semibold ${financialSummary.remainingGroupFund < 0 ? 'text-destructive' : ''}`}>
                               {formatValue(financialSummary.remainingGroupFund)}
                             </p>
@@ -875,26 +914,26 @@ export default function TripsPage() {
                         )}
                         {typeof financialSummary.perPersonSharedSpend === 'number' && (
                           <div className="space-y-1">
-                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Per Person Shared Spend</p>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('trips.perPersonShared')}</p>
                             <p className="font-semibold">{formatValue(financialSummary.perPersonSharedSpend)}</p>
                           </div>
                         )}
                         {typeof financialSummary.perPersonFundTarget === 'number' && (
                           <div className="space-y-1">
-                            <p className="text-xs uppercase tracking-wide text-muted-foreground">Fund Per Person</p>
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('trips.fundPerPerson')}</p>
                             <p className="font-semibold">{formatValue(financialSummary.perPersonFundTarget)}</p>
                           </div>
                         )}
                         <div className="space-y-1">
-                          <p className="text-xs uppercase tracking-wide text-muted-foreground">Outstanding Balances</p>
-                          <p className="font-semibold">{activeBalanceCount > 0 ? activeBalanceCount : 'All settled'}</p>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">{t('trips.outstandingBalances')}</p>
+                          <p className="font-semibold">{activeBalanceCount > 0 ? activeBalanceCount : t('trips.allSettled')}</p>
                         </div>
                       </div>
 
                       {typeof financialSummary.groupFundProgress === 'number' && (
                         <div className="mt-3 space-y-1.5">
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span>Group fund usage</span>
+                            <span>{t('trips.groupFundUsage')}</span>
                             <span>{financialSummary.groupFundProgress.toFixed(0)}%</span>
                           </div>
                           <div className="h-1.5 w-full overflow-hidden rounded-full bg-background/70">
@@ -918,7 +957,7 @@ export default function TripsPage() {
                           ))
                         ) : (
                           <p className="text-xs text-muted-foreground">
-                            Add participant names from Edit Trip so shared expenses can track who paid.
+                            {t('trips.addParticipantHint')}
                           </p>
                         )}
                       </div>
@@ -930,11 +969,11 @@ export default function TripsPage() {
                       <div>
                         <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary/80">
                           <ArrowRightLeft className="h-3.5 w-3.5" />
-                          Settle Up
+                          {t('trips.settleUp.title')}
                         </p>
-                        <p className="mt-1 text-sm font-semibold">Friend-group balances</p>
+                        <p className="mt-1 text-sm font-semibold">{t('trips.settleUp.subtitle')}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Who paid for shared spending and who still needs to reimburse.
+                          {t('trips.settleUp.description')}
                         </p>
                       </div>
                       <Button
@@ -945,19 +984,19 @@ export default function TripsPage() {
                         disabled={members.length < 2}
                         onClick={() => openSettlementDialog(trip)}
                       >
-                        Record Settlement
+                        {t('trips.settleUp.recordSettlement')}
                       </Button>
                     </div>
 
                     {isMembersLoading || isSettlementsLoading ? (
-                      <p className="mt-4 text-sm text-muted-foreground">Loading settle-up data...</p>
+                      <p className="mt-4 text-sm text-muted-foreground">{t('trips.settleUp.loadingData')}</p>
                     ) : members.length < 2 ? (
                       <p className="mt-4 text-sm text-muted-foreground">
-                        Add at least two participants to calculate who owes what.
+                        {t('trips.settleUp.needTwoParticipants')}
                       </p>
                     ) : sharedGroupExpenses.length === 0 && settlements.length === 0 ? (
                       <p className="mt-4 text-sm text-muted-foreground">
-                        Shared expenses will show balances here after you record them from the expense form.
+                        {t('trips.settleUp.noSharedYet')}
                       </p>
                     ) : (
                       <div className="mt-4 space-y-4">
@@ -971,7 +1010,7 @@ export default function TripsPage() {
                                 <div>
                                   <p className="font-medium">{member.memberName}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    Paid {formatValue(member.paidTotal)} and owes {formatValue(member.shareOwed)}
+                                    {t('trips.settleUp.paidAndOwes', { paid: formatValue(member.paidTotal), owes: formatValue(member.shareOwed) })}
                                   </p>
                                 </div>
                                 <div className="text-right">
@@ -985,14 +1024,14 @@ export default function TripsPage() {
                                     }`}
                                   >
                                     {member.netBalance > 0.009
-                                      ? `Gets ${formatValue(member.netBalance)}`
+                                      ? t('trips.settleUp.getsAmount', { amount: formatValue(member.netBalance) })
                                       : member.netBalance < -0.009
-                                        ? `Owes ${formatValue(Math.abs(member.netBalance))}`
-                                        : 'Settled'}
+                                        ? t('trips.settleUp.owesAmount', { amount: formatValue(Math.abs(member.netBalance)) })
+                                        : t('trips.settleUp.settled')}
                                   </p>
                                   {(member.settlementsIn > 0 || member.settlementsOut > 0) && (
                                     <p className="text-xs text-muted-foreground">
-                                      Transfers in {formatValue(member.settlementsIn)} / out {formatValue(member.settlementsOut)}
+                                      {t('trips.settleUp.transfersInOut', { incoming: formatValue(member.settlementsIn), outgoing: formatValue(member.settlementsOut) })}
                                     </p>
                                   )}
                                 </div>
@@ -1003,8 +1042,8 @@ export default function TripsPage() {
 
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold">Simplify Debts</p>
-                            <p className="text-xs text-muted-foreground">{settlementSuggestions.length} optimized payment(s)</p>
+                            <p className="text-sm font-semibold">{t('trips.settleUp.simplifyDebts')}</p>
+                            <p className="text-xs text-muted-foreground">{t('trips.settleUp.optimizedPayments', { count: settlementSuggestions.length })}</p>
                           </div>
                           {settlementSuggestions.length > 0 ? (
                             settlementSuggestions.map((suggestion, index) => (
@@ -1014,7 +1053,7 @@ export default function TripsPage() {
                               >
                                 <div>
                                   <p className="text-sm font-medium">
-                                    {suggestion.fromMemberName} pays {suggestion.toMemberName}
+                                    {t('trips.settleUp.paysTo', { from: suggestion.fromMemberName, to: suggestion.toMemberName })}
                                   </p>
                                   <p className="text-xs text-muted-foreground">{formatValue(suggestion.amount)}</p>
                                 </div>
@@ -1025,13 +1064,13 @@ export default function TripsPage() {
                                   className="rounded-lg"
                                   onClick={() => openSettlementDialog(trip, suggestion)}
                                 >
-                                  Record
+                                  {t('trips.settleUp.record')}
                                 </Button>
                               </div>
                             ))
                           ) : (
                             <p className="text-sm text-muted-foreground">
-                              No transfers needed. The simplified debt graph is fully settled.
+                              {t('trips.settleUp.noTransfersNeeded')}
                             </p>
                           )}
                         </div>
@@ -1040,8 +1079,8 @@ export default function TripsPage() {
                         {recentSettlements.length > 0 && (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                              <p className="text-sm font-semibold">Recent settlements</p>
-                              <p className="text-xs text-muted-foreground">{settlements.length} total</p>
+                              <p className="text-sm font-semibold">{t('trips.settleUp.recentSettlements')}</p>
+                              <p className="text-xs text-muted-foreground">{t('trips.settleUp.totalSettlements', { count: settlements.length })}</p>
                             </div>
                             {recentSettlements.map((settlement) => {
                               const fromMember = tripMemberLookup.get(settlement.fromMemberId)
@@ -1055,10 +1094,10 @@ export default function TripsPage() {
                                   <div>
                                     <div className="flex flex-wrap items-center gap-2">
                                       <p className="text-sm font-medium">
-                                        {fromMember?.name ?? 'Unknown'} to {toMember?.name ?? 'Unknown'}
+                                        {fromMember?.name ?? t('trips.settleUp.unknown')} {t('trips.to')} {toMember?.name ?? t('trips.settleUp.unknown')}
                                       </p>
                                       <Badge variant={settlement.status === 'paid' ? 'default' : 'secondary'}>
-                                        {settlement.status}
+                                        {settlement.status === 'paid' ? t('trips.settleUp.paid') : t('trips.settleUp.planned')}
                                       </Badge>
                                     </div>
                                     <p className="text-xs text-muted-foreground">
@@ -1066,16 +1105,29 @@ export default function TripsPage() {
                                       {settlement.note ? ` - ${settlement.note}` : ''}
                                     </p>
                                   </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                    disabled={deletingSettlementId === settlement.id}
-                                    onClick={() => void handleDeleteSettlement(settlement.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  {confirmDeleteSettlementId === settlement.id ? (
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="sm"
+                                      className="rounded-lg"
+                                      disabled={deletingSettlementId === settlement.id}
+                                      onClick={() => void confirmDeleteSettlement()}
+                                    >
+                                      {deletingSettlementId === settlement.id ? '...' : t('trips.validation.confirmDelete')}
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                      disabled={deletingSettlementId === settlement.id}
+                                      onClick={() => handleDeleteSettlementClick(settlement.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
                                 </div>
                               )
                             })}
@@ -1086,10 +1138,10 @@ export default function TripsPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-border/10 pb-4 pt-3 text-xs text-muted-foreground">
-                  <span>{tripExpenses.length} trip transactions</span>
+                  <span>{t('trips.tripTransactions', { count: tripExpenses.length })}</span>
                   <div className="flex flex-wrap gap-3">
-                    {sharedGroupExpenses.length > 0 && <span>{sharedGroupExpenses.length} shared group</span>}
-                    {settlements.length > 0 && <span>{settlements.length} settlement records</span>}
+                    {sharedGroupExpenses.length > 0 && <span>{t('trips.sharedTransactions', { count: sharedGroupExpenses.length })}</span>}
+                    {settlements.length > 0 && <span>{t('trips.settlementRecords', { count: settlements.length })}</span>}
                   </div>
                 </CardFooter>
               </Card>
@@ -1110,35 +1162,35 @@ export default function TripsPage() {
       >
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-[560px]">
           <DialogHeader>
-            <DialogTitle>{editingTrip ? 'Edit Trip' : 'Create New Trip'}</DialogTitle>
+            <DialogTitle>{editingTrip ? t('trips.form.editTrip') : t('trips.form.createNewTrip')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="name">Trip Name *</Label>
+              <Label htmlFor="name">{t('trips.form.tripName')} *</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Summer Vacation"
+                placeholder={t('trips.form.tripNamePlaceholder')}
                 required
                 className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="destinations">Destination(s)</Label>
+              <Label htmlFor="destinations">{t('trips.form.destinations')}</Label>
               <Input
                 id="destinations"
                 value={destinations}
                 onChange={(e) => setDestinations(e.target.value)}
-                placeholder="e.g. Bali, Indonesia"
+                placeholder={t('trips.form.destinationsPlaceholder')}
                 className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="start">Start Date *</Label>
+                <Label htmlFor="start">{t('trips.form.startDate')} *</Label>
                 <Input
                   id="start"
                   type="date"
@@ -1149,7 +1201,7 @@ export default function TripsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="end">End Date *</Label>
+                <Label htmlFor="end">{t('trips.form.endDate')} *</Label>
                 <Input
                   id="end"
                   type="date"
@@ -1164,18 +1216,18 @@ export default function TripsPage() {
             <div className="space-y-2">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Destination Currency</Label>
+                  <Label htmlFor="currency">{t('trips.form.destinationCurrency')}</Label>
                   <Input
                     id="currency"
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value.toUpperCase())}
-                    placeholder="e.g. THB"
+                    placeholder={t('trips.form.destinationCurrencyPlaceholder')}
                     maxLength={3}
                     className="rounded-xl border-border/60 bg-muted/20 uppercase focus:bg-background"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="exchange-rate">{`Exchange Rate (${displayCurrency} per 1 unit)`}</Label>
+                  <Label htmlFor="exchange-rate">{t('trips.form.exchangeRate', { currency: displayCurrency })}</Label>
                   <Input
                     id="exchange-rate"
                     type="number"
@@ -1183,20 +1235,20 @@ export default function TripsPage() {
                     step="0.0001"
                     value={exchangeRate}
                     onChange={(e) => setExchangeRate(e.target.value)}
-                    placeholder={`e.g. 0.04 ${displayCurrency}`}
+                    placeholder={t('trips.form.exchangeRatePlaceholder', { currency: displayCurrency })}
                     className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
                   />
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 {currency.trim() && exchangeRate.trim()
-                  ? `Trip expenses, budget, and group fund will use ${modalCurrencyLabel}. The app will convert them back to ${displayCurrency} with this manual rate.`
-                  : `Optional: set a destination currency and manual exchange rate so trip expenses can be entered in that currency.`}
+                  ? t('trips.form.currencyHintSet', { currency: modalCurrencyLabel, baseCurrency: displayCurrency })
+                  : t('trips.form.currencyHintEmpty')}
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="budget">{`Total Budget (${modalCurrencyLabel})`}</Label>
+              <Label htmlFor="budget">{t('trips.form.totalBudget', { currency: modalCurrencyLabel })}</Label>
               <div className="relative">
                 <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                   <Wallet className="h-4 w-4 text-muted-foreground" />
@@ -1208,7 +1260,7 @@ export default function TripsPage() {
                   step="100"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
-                  placeholder="e.g. 5000"
+                  placeholder={t('trips.form.totalBudgetPlaceholder')}
                   className="rounded-xl border-border/60 bg-muted/20 pl-9 focus:bg-background"
                 />
               </div>
@@ -1216,26 +1268,26 @@ export default function TripsPage() {
 
             <div className="space-y-4 rounded-2xl border border-border/50 bg-muted/15 p-4">
               <div className="space-y-1">
-                <p className="text-sm font-semibold">Shared Friend Group</p>
+                <p className="text-sm font-semibold">{t('trips.form.sharedFriendGroup')}</p>
                 <p className="text-xs text-muted-foreground">
-                  Keep one pooled fund, track who paid, and let the app suggest reimbursements.
+                  {t('trips.form.sharedFriendGroupDesc')}
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="group-name">Group Name (Optional)</Label>
+                <Label htmlFor="group-name">{t('trips.form.groupName')}</Label>
                 <Input
                   id="group-name"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
-                  placeholder="e.g. Bali Crew"
+                  placeholder={t('trips.form.groupNamePlaceholder')}
                   className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="group-size">Total Travelers</Label>
+                  <Label htmlFor="group-size">{t('trips.form.totalTravelers')}</Label>
                   <Input
                     id="group-size"
                     type="number"
@@ -1243,13 +1295,13 @@ export default function TripsPage() {
                     step="1"
                     value={groupSize}
                     onChange={(e) => setGroupSize(e.target.value)}
-                    placeholder="e.g. 4"
+                    placeholder={t('trips.form.totalTravelersPlaceholder')}
                     className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
                   />
-                  <p className="text-[11px] text-muted-foreground">Include yourself in the count.</p>
+                  <p className="text-[11px] text-muted-foreground">{t('trips.form.includeYourself')}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="group-fund">{`Group Fund (${modalCurrencyLabel})`}</Label>
+                  <Label htmlFor="group-fund">{t('trips.form.groupFundLabel', { currency: modalCurrencyLabel })}</Label>
                   <div className="relative">
                     <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -1261,7 +1313,7 @@ export default function TripsPage() {
                       step="100"
                       value={groupFund}
                       onChange={(e) => setGroupFund(e.target.value)}
-                      placeholder="e.g. 8000"
+                      placeholder={t('trips.form.groupFundPlaceholder')}
                       className="rounded-xl border-border/60 bg-muted/20 pl-9 focus:bg-background"
                     />
                   </div>
@@ -1269,24 +1321,24 @@ export default function TripsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="participants">Participants</Label>
+                <Label htmlFor="participants">{t('trips.form.participants')}</Label>
                 <Textarea
                   id="participants"
                   rows={5}
                   value={participantNamesText}
                   onChange={(e) => setParticipantNamesText(e.target.value)}
-                  placeholder={'One name per line\nYou\nAlice\nBob'}
+                  placeholder={t('trips.form.participantsPlaceholder')}
                   className="rounded-xl border-border/60 bg-muted/20 focus:bg-background"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  The first participant becomes the default owner. If traveler count is larger, placeholder members are created automatically.
+                  {t('trips.form.participantsHint')}
                 </p>
               </div>
             </div>
 
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={handleCloseModal} className="rounded-xl">
-                Cancel
+                {t('trips.form.cancel')}
               </Button>
               <Button
                 type="submit"
@@ -1295,11 +1347,11 @@ export default function TripsPage() {
               >
                 {isSaving || isSyncingMembers
                   ? editingTrip
-                    ? 'Saving trip...'
-                    : 'Creating trip...'
+                    ? t('trips.form.saving')
+                    : t('trips.form.creating')
                   : editingTrip
-                    ? 'Save Changes'
-                    : 'Create Trip'}
+                    ? t('trips.form.saveChanges')
+                    : t('trips.form.createTrip')}
               </Button>
             </DialogFooter>
           </form>
@@ -1310,26 +1362,26 @@ export default function TripsPage() {
       <Dialog open={isSettlementDialogOpen} onOpenChange={setIsSettlementDialogOpen}>
         <DialogContent className="sm:max-w-[480px]">
           <DialogHeader>
-            <DialogTitle>Record Settlement</DialogTitle>
+            <DialogTitle>{t('trips.settleUp.dialogTitle')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSaveSettlement} className="space-y-4 py-2">
             <div className="rounded-xl border border-border/40 bg-muted/20 p-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Trip</p>
-              <p className="mt-1 font-semibold">{settlementTrip?.name ?? 'Select a trip'}</p>
+              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{t('trips.settleUp.tripLabel')}</p>
+              <p className="mt-1 font-semibold">{settlementTrip?.name ?? t('trips.settleUp.selectTrip')}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {`Settlement amounts are recorded in ${settlementCurrencyLabel}.`}
+                {t('trips.settleUp.amountInCurrency', { currency: settlementCurrencyLabel })}
               </p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label>From</Label>
+                <Label>{t('trips.settleUp.from')}</Label>
                 <Select
                   value={settlementForm.fromMemberId}
                   onValueChange={(value) => setSettlementForm((prev) => ({ ...prev, fromMemberId: value ?? '' }))}
                 >
                   <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20">
-                    <SelectValue placeholder="Who paid back?">
+                    <SelectValue placeholder={t('trips.settleUp.fromPlaceholder')}>
                       {selectedSettlementFromMember?.name}
                     </SelectValue>
                   </SelectTrigger>
@@ -1343,13 +1395,13 @@ export default function TripsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>To</Label>
+                <Label>{t('trips.settleUp.to')}</Label>
                 <Select
                   value={settlementForm.toMemberId}
                   onValueChange={(value) => setSettlementForm((prev) => ({ ...prev, toMemberId: value ?? '' }))}
                 >
                   <SelectTrigger className="w-full rounded-xl border-border/60 bg-muted/20">
-                    <SelectValue placeholder="Who received it?">
+                    <SelectValue placeholder={t('trips.settleUp.toPlaceholder')}>
                       {selectedSettlementToMember?.name}
                     </SelectValue>
                   </SelectTrigger>
@@ -1366,7 +1418,7 @@ export default function TripsPage() {
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="settlement-amount">{`Amount (${settlementCurrencyLabel})`}</Label>
+                <Label htmlFor="settlement-amount">{t('trips.settleUp.amount', { currency: settlementCurrencyLabel })}</Label>
                 <Input
                   id="settlement-amount"
                   type="number"
@@ -1378,7 +1430,7 @@ export default function TripsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="settlement-date">Date</Label>
+                <Label htmlFor="settlement-date">{t('trips.settleUp.date')}</Label>
                 <Input
                   id="settlement-date"
                   type="date"
@@ -1390,7 +1442,7 @@ export default function TripsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Status</Label>
+              <Label>{t('trips.settleUp.status')}</Label>
               <Select
                 value={settlementForm.status}
                 onValueChange={(value) => {
@@ -1403,30 +1455,30 @@ export default function TripsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="paid">Paid</SelectItem>
-                  <SelectItem value="planned">Planned</SelectItem>
+                  <SelectItem value="paid">{t('trips.settleUp.paid')}</SelectItem>
+                  <SelectItem value="planned">{t('trips.settleUp.planned')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="settlement-note">Note</Label>
+              <Label htmlFor="settlement-note">{t('trips.settleUp.note')}</Label>
               <Textarea
                 id="settlement-note"
                 rows={3}
                 value={settlementForm.note}
                 onChange={(e) => setSettlementForm((prev) => ({ ...prev, note: e.target.value }))}
-                placeholder="Optional note"
+                placeholder={t('trips.settleUp.notePlaceholder')}
                 className="rounded-xl border-border/60 bg-muted/20"
               />
             </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" className="rounded-xl" onClick={() => setIsSettlementDialogOpen(false)}>
-                Cancel
+                {t('trips.form.cancel')}
               </Button>
               <Button type="submit" disabled={isSettlementSaving} className="rounded-xl">
-                {isSettlementSaving ? 'Saving...' : 'Save Settlement'}
+                {isSettlementSaving ? t('trips.settleUp.saving') : t('trips.settleUp.saveSettlement')}
               </Button>
             </DialogFooter>
           </form>
@@ -1435,4 +1487,3 @@ export default function TripsPage() {
     </div>
   )
 }
-

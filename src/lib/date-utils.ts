@@ -1,4 +1,4 @@
-import { differenceInCalendarDays, format, getDaysInMonth } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, getDaysInMonth } from 'date-fns'
 import type { Subscription } from '@/types'
 
 /**
@@ -64,4 +64,29 @@ export function isSubscriptionDueOnDay(
   if (yearDiff < 0 || day.getMonth() !== startDate.getMonth()) return false
   const targetDay = Math.min(startDate.getDate(), getDaysInMonth(day))
   return day.getDate() === targetDay
+}
+
+/**
+ * Returns the next due date (YYYY-MM-DD) for a subscription on or after
+ * `referenceDate`.  Returns null if the start date is unparseable.
+ */
+export function getNextSubscriptionDueDate(
+  subscription: Pick<Subscription, 'billingCycle' | 'startDate'>,
+  referenceDate: Date = new Date(),
+): string | null {
+  const startDate = parseDateOnly(subscription.startDate)
+  if (!startDate) return null
+
+  if (startDate >= referenceDate) {
+    return format(startDate, 'yyyy-MM-dd')
+  }
+
+  for (let d = 0; d <= 400; d++) {
+    const day = addDays(referenceDate, d)
+    if (isSubscriptionDueOnDay(subscription, day, startDate)) {
+      return format(day, 'yyyy-MM-dd')
+    }
+  }
+
+  return null
 }
